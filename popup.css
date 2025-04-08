@@ -1,0 +1,86 @@
+body {
+    font-family: sans-serif;
+    width: 350px; /* Adjust as needed */
+    padding: 10px;
+  }
+  
+  h1, h2 {
+    margin-top: 0;
+    margin-bottom: 10px;
+  }
+  
+  #device-list label {
+    display: block;
+    margin-bottom: 5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  #device-list input[type="checkbox"] {
+    margin-right: 5px;
+  }
+  
+  #new-group-name {
+    width: calc(100% - 12px); /* Account for padding/border */
+    margin-bottom: 10px;
+    padding: 5px;
+  }
+  
+  button {
+    padding: 8px 15px;
+    cursor: pointer;
+  }
+  
+  hr {
+    margin: 15px 0;
+  }
+  
+  #existing-groups .group-item {
+    border: 1px solid #ccc;
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 4px;
+  }
+  
+  #existing-groups .group-item h3 {
+    margin: 0 0 5px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  #existing-groups .group-item ul {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 10px 0;
+    font-size: 0.9em;
+    color: #555;
+  }
+  
+  #existing-groups .group-item li {
+     white-space: nowrap;
+     overflow: hidden;
+     text-overflow: ellipsis;
+     margin-bottom: 3px;
+  }
+  
+  .delete-group-btn {
+    background-color: #f44336;
+    color: white;
+    border: none;
+    padding: 3px 8px;
+    font-size: 0.8em;
+    border-radius: 3px;
+  }
+  
+  .error {
+      color: red;
+      font-size: 0.9em;
+      margin-top: 5px;
+  }
+  
+  #loading, #no-groups-message {
+      color: #777;
+      font-style: italic;
+  }

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+  <title>Device Groups</title>
+</head>
+<body>
+  <h1>Device Groups</h1>
+
+  <div id="loading">Loading devices...</div>
+
+  <div id="group-creator" style="display: none;">
+    <h2>Create New Group</h2>
+    <div id="device-list">
+      <!-- Device checkboxes will be added here by JS -->
+    </div>
+    <input type="text" id="new-group-name" placeholder="New group name" required>
+    <button id="create-group-btn">Create Group</button>
+    <div id="create-error" class="error"></div>
+  </div>
+
+  <hr>
+
+  <h2>Existing Groups</h2>
+  <div id="existing-groups">
+    <!-- Existing groups will be listed here by JS -->
+    <p id="no-groups-message">No groups created yet.</p>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
