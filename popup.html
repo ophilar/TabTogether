@@ -1,33 +1,55 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8">
-  <link rel="stylesheet" href="popup.css">
-  <title>Device Groups</title>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="popup.css">
+    <title>Tab Group Sender</title>
 </head>
 <body>
-  <h1>Device Groups</h1>
+    <div class="container">
+        <h1>Tab Group Sender</h1>
 
-  <div id="loading">Loading devices...</div>
+        <section>
+            <h2>Device Info</h2>
+            <p><strong>Name:</strong> <span id="deviceName">Loading...</span> <button id="editNameBtn">Edit</button></p>
+            <div id="editNameInput" style="display: none;">
+                <input type="text" id="newInstanceName" placeholder="Enter new name">
+                <button id="saveNameBtn">Save</button>
+                <button id="cancelNameBtn">Cancel</button>
+            </div>
+            <p><small><strong>ID:</strong> <span id="deviceId">Loading...</span></small></p>
+        </section>
 
-  <div id="group-creator" style="display: none;">
-    <h2>Create New Group</h2>
-    <div id="device-list">
-      <!-- Device checkboxes will be added here by JS -->
+        <hr>
+
+        <section>
+            <h2>Manage Groups</h2>
+            <div id="definedGroupsList">Loading...</div>
+            <div class="form-inline">
+                <input type="text" id="newGroupName" placeholder="New group name">
+                <button id="createGroupBtn">Create Group</button>
+            </div>
+        </section>
+
+        <hr>
+
+        <section>
+            <h2>My Subscriptions</h2>
+            <div id="mySubscriptionsList">Loading...</div>
+             <p><small>Subscribe/Unsubscribe via the 'Manage Groups' section.</small></p>
+        </section>
+
+         <hr>
+
+        <section>
+            <h2>Device Registry (Read-only)</h2>
+            <div id="deviceRegistryList">Loading...</div>
+        </section>
+
+        <div id="loadingIndicator" style="display: none;">Loading...</div>
+        <div id="errorMessage" class="error" style="display: none;"></div>
+
     </div>
-    <input type="text" id="new-group-name" placeholder="New group name" required>
-    <button id="create-group-btn">Create Group</button>
-    <div id="create-error" class="error"></div>
-  </div>
-
-  <hr>
-
-  <h2>Existing Groups</h2>
-  <div id="existing-groups">
-    <!-- Existing groups will be listed here by JS -->
-    <p id="no-groups-message">No groups created yet.</p>
-  </div>
-
-  <script src="popup.js"></script>
+    <script src="popup.js"></script>
 </body>
 </html>

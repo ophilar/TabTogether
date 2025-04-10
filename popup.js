@@ -1,187 +1,259 @@
-document.addEventListener('DOMContentLoaded', async () => {
-    const deviceListDiv = document.getElementById('device-list');
-    const newGroupNameInput = document.getElementById('new-group-name');
-    const createGroupBtn = document.getElementById('create-group-btn');
-    const existingGroupsDiv = document.getElementById('existing-groups');
-    const noGroupsMessage = document.getElementById('no-groups-message');
-    const loadingDiv = document.getElementById('loading');
-    const groupCreatorDiv = document.getElementById('group-creator');
-    const createErrorDiv = document.getElementById('create-error');
-  
-    let availableDevices = [];
-    let currentGroups = {};
-  
-    // --- Fetch Initial Data ---
-    async function loadInitialData() {
-      try {
-        loadingDiv.style.display = 'block';
-        groupCreatorDiv.style.display = 'none';
-        existingGroupsDiv.style.display = 'none';
-  
-        // Use browser.runtime.sendMessage to ask background script for data
-        availableDevices = await browser.runtime.sendMessage({ action: 'getDevices' });
-        currentGroups = await browser.runtime.sendMessage({ action: 'getGroups' });
-  
-        console.log("Popup received devices:", availableDevices);
-        console.log("Popup received groups:", currentGroups);
-  
-        populateDeviceList();
-        displayExistingGroups();
-  
-        loadingDiv.style.display = 'none';
-        groupCreatorDiv.style.display = 'block';
-        existingGroupsDiv.style.display = 'block';
-  
-      } catch (error) {
-        console.error("Popup initialization error:", error);
-        loadingDiv.textContent = `Error loading data: ${error.message || error}. Ensure you are logged into a Firefox Account.`;
-        // Optionally disable UI elements
-      }
+// popup.js
+
+document.addEventListener('DOMContentLoaded', loadState);
+
+// --- Elements ---
+const deviceNameEl = document.getElementById('deviceName');
+const deviceIdEl = document.getElementById('deviceId');
+const editNameBtn = document.getElementById('editNameBtn');
+const editNameInputDiv = document.getElementById('editNameInput');
+const newInstanceNameInput = document.getElementById('newInstanceName');
+const saveNameBtn = document.getElementById('saveNameBtn');
+const cancelNameBtn = document.getElementById('cancelNameBtn');
+
+const definedGroupsListEl = document.getElementById('definedGroupsList');
+const newGroupNameInput = document.getElementById('newGroupName');
+const createGroupBtn = document.getElementById('createGroupBtn');
+
+const mySubscriptionsListEl = document.getElementById('mySubscriptionsList');
+const deviceRegistryListEl = document.getElementById('deviceRegistryList');
+
+const loadingIndicator = document.getElementById('loadingIndicator');
+const errorMessage = document.getElementById('errorMessage');
+
+// --- State ---
+let currentState = {};
+
+// --- Load Initial State ---
+async function loadState() {
+    showLoading(true);
+    try {
+        currentState = await browser.runtime.sendMessage({ action: 'getState' });
+        console.log("Received state:", currentState);
+        render();
+    } catch (error) {
+        showError(`Error loading state: ${error.message}`);
+        console.error("Error loading state:", error);
+    } finally {
+        showLoading(false);
     }
-  
-    // --- UI Population ---
-    function populateDeviceList() {
-      deviceListDiv.innerHTML = ''; // Clear previous list
-      if (!availableDevices || availableDevices.length === 0) {
-          deviceListDiv.innerHTML = '<p>No devices found. Make sure devices are synced to your Firefox Account.</p>';
-          createGroupBtn.disabled = true; // Disable creation if no devices
-          return;
-      }
-  
-      createGroupBtn.disabled = false;
-      availableDevices.forEach(device => {
-        // Filter out the current device if desired (optional)
-        // if (device.isCurrentDevice) return;
-  
-        const label = document.createElement('label');
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.value = device.id; // Use the unique device ID
-        checkbox.dataset.deviceName = device.name; // Store name for display later
-  
-        label.appendChild(checkbox);
-        label.appendChild(document.createTextNode(` ${device.name} (${device.type})`)); // Show name and type
-        deviceListDiv.appendChild(label);
-      });
-    }
-  
-    function displayExistingGroups() {
-      existingGroupsDiv.innerHTML = ''; // Clear previous list
-      const groupNames = Object.keys(currentGroups);
-  
-      if (groupNames.length === 0) {
-        existingGroupsDiv.appendChild(noGroupsMessage);
-        noGroupsMessage.style.display = 'block';
+}
+
+// --- Rendering ---
+function render() {
+    // Device Info
+    deviceNameEl.textContent = currentState.instanceName || 'N/A';
+    deviceIdEl.textContent = currentState.instanceId || 'N/A';
+    newInstanceNameInput.value = currentState.instanceName || '';
+
+    // Defined Groups & Subscriptions
+    renderDefinedGroups();
+    renderMySubscriptions();
+    renderDeviceRegistry();
+}
+
+function renderDefinedGroups() {
+    const groups = currentState.definedGroups || [];
+    const subscriptions = currentState.subscriptions || [];
+    if (groups.length === 0) {
+        definedGroupsListEl.innerHTML = '<p><small>No groups defined yet.</small></p>';
         return;
-      }
-  
-      noGroupsMessage.style.display = 'none';
-  
-      groupNames.sort().forEach(groupName => {
-        const groupDeviceIds = currentGroups[groupName];
-        const groupItem = document.createElement('div');
-        groupItem.className = 'group-item';
-  
-        const title = document.createElement('h3');
-        title.textContent = groupName;
-  
+    }
+    const ul = document.createElement('ul');
+    groups.sort().forEach(groupName => {
+        const li = document.createElement('li');
+        li.textContent = groupName;
+
+        const actions = document.createElement('div');
+        actions.className = 'group-actions';
+
+        if (subscriptions.includes(groupName)) {
+            const unsubBtn = document.createElement('button');
+            unsubBtn.textContent = 'Unsubscribe';
+            unsubBtn.className = 'unsubscribe-btn';
+            unsubBtn.dataset.group = groupName;
+            unsubBtn.onclick = handleUnsubscribe;
+            actions.appendChild(unsubBtn);
+        } else {
+            const subBtn = document.createElement('button');
+            subBtn.textContent = 'Subscribe';
+            subBtn.className = 'subscribe-btn';
+            subBtn.dataset.group = groupName;
+            subBtn.onclick = handleSubscribe;
+            actions.appendChild(subBtn);
+        }
+
         const deleteBtn = document.createElement('button');
         deleteBtn.textContent = 'Delete';
-        deleteBtn.className = 'delete-group-btn';
-        deleteBtn.dataset.groupName = groupName; // Store group name for deletion
-        deleteBtn.addEventListener('click', handleDeleteGroup);
-  
-        title.appendChild(deleteBtn);
-        groupItem.appendChild(title);
-  
-        const deviceListUl = document.createElement('ul');
-        groupDeviceIds.forEach(deviceId => {
-          const device = availableDevices.find(d => d.id === deviceId);
-          const li = document.createElement('li');
-          li.textContent = device ? `${device.name} (${device.type})` : `Unknown Device (ID: ${deviceId})`;
-          deviceListUl.appendChild(li);
-        });
-         if (groupDeviceIds.length === 0) {
-             const li = document.createElement('li');
-             li.textContent = 'No devices in this group.';
-             deviceListUl.appendChild(li);
-         }
-  
-        groupItem.appendChild(deviceListUl);
-        existingGroupsDiv.appendChild(groupItem);
-      });
+        deleteBtn.className = 'delete-btn';
+        deleteBtn.dataset.group = groupName;
+        deleteBtn.onclick = handleDeleteGroup;
+        actions.appendChild(deleteBtn);
+
+        li.appendChild(actions);
+        ul.appendChild(li);
+    });
+    definedGroupsListEl.innerHTML = '';
+    definedGroupsListEl.appendChild(ul);
+}
+
+function renderMySubscriptions() {
+    const subscriptions = currentState.subscriptions || [];
+    if (subscriptions.length === 0) {
+        mySubscriptionsListEl.innerHTML = '<p><small>Not subscribed to any groups.</small></p>';
+        return;
     }
-  
-    // --- Event Handlers ---
-    async function handleCreateGroup() {
-      createErrorDiv.textContent = ''; // Clear previous errors
-      const groupName = newGroupNameInput.value.trim();
-      const selectedCheckboxes = deviceListDiv.querySelectorAll('input[type="checkbox"]:checked');
-      const selectedDeviceIds = Array.from(selectedCheckboxes).map(cb => cb.value);
-  
-      // Validation
-      if (!groupName) {
-        createErrorDiv.textContent = 'Group name cannot be empty.';
-        return;
-      }
-      if (selectedDeviceIds.length === 0) {
-        createErrorDiv.textContent = 'Select at least one device.';
-        return;
-      }
-      if (currentGroups[groupName]) {
-        // Optional: Allow overwriting or require unique name
-        if (!confirm(`Group "${groupName}" already exists. Overwrite it?`)) {
-            return;
+    const ul = document.createElement('ul');
+    subscriptions.sort().forEach(groupName => {
+        const li = document.createElement('li');
+        li.textContent = groupName;
+        // Optionally show assigned bit
+        const bit = currentState.groupBits?.[groupName];
+        if (bit !== undefined) {
+            const bitSpan = document.createElement('small');
+            bitSpan.textContent = ` (Bit: ${bit})`;
+            li.appendChild(bitSpan);
         }
-        // createErrorDiv.textContent = 'Group name already exists.';
-        // return;
-      }
-  
-      // Update the groups object
-      currentGroups[groupName] = selectedDeviceIds;
-  
-      // Save using the background script
-      try {
-          await browser.runtime.sendMessage({ action: 'saveGroups', groups: currentGroups });
-          console.log("Group saved via background script");
-  
-          // Clear inputs and update UI
-          newGroupNameInput.value = '';
-          selectedCheckboxes.forEach(cb => cb.checked = false);
-          displayExistingGroups(); // Refresh the list of existing groups
-  
-      } catch (error) {
-          console.error("Error saving group via background:", error);
-          createErrorDiv.textContent = `Error saving group: ${error.message || error}`;
-          // Revert local change if save failed? Depends on desired behavior.
-          // delete currentGroups[groupName]; // Example revert
-      }
+        ul.appendChild(li);
+    });
+    mySubscriptionsListEl.innerHTML = '';
+    mySubscriptionsListEl.appendChild(ul);
+}
+
+function renderDeviceRegistry() {
+    const registry = currentState.deviceRegistry || {};
+    const deviceIds = Object.keys(registry);
+     if (deviceIds.length === 0) {
+        deviceRegistryListEl.innerHTML = '<p><small>No devices registered in sync yet.</small></p>';
+        return;
     }
-  
-    async function handleDeleteGroup(event) {
-      const groupName = event.target.dataset.groupName;
-      if (!groupName) return;
-  
-      if (confirm(`Are you sure you want to delete the group "${groupName}"?`)) {
-        delete currentGroups[groupName]; // Remove from local copy
-  
-        // Save the updated groups object via background script
+    const ul = document.createElement('ul');
+    deviceIds.forEach(id => {
+        const device = registry[id];
+        const li = document.createElement('li');
+        const isSelf = id === currentState.instanceId;
+        li.innerHTML = `
+            <span>
+                ${device.name || 'Unknown Name'} ${isSelf ? '<strong>(This Device)</strong>' : ''}
+                <br><small>ID: ${id.substring(0, 8)}... | Last Seen: ${new Date(device.lastSeen).toLocaleString()}</small>
+            </span>
+        `;
+        // Optionally display group bits: JSON.stringify(device.groupBits)
+        ul.appendChild(li);
+    });
+     deviceRegistryListEl.innerHTML = '';
+     deviceRegistryListEl.appendChild(ul);
+}
+
+
+// --- Event Handlers ---
+editNameBtn.onclick = () => {
+    editNameInputDiv.style.display = 'block';
+    editNameBtn.style.display = 'none';
+};
+cancelNameBtn.onclick = () => {
+    editNameInputDiv.style.display = 'none';
+    editNameBtn.style.display = 'inline-block';
+    newInstanceNameInput.value = currentState.instanceName || ''; // Reset
+};
+saveNameBtn.onclick = async () => {
+    const newName = newInstanceNameInput.value.trim();
+    if (newName && newName !== currentState.instanceName) {
+        showLoading(true);
         try {
-            await browser.runtime.sendMessage({ action: 'saveGroups', groups: currentGroups });
-            console.log("Group deleted via background script");
-            displayExistingGroups(); // Refresh the list
+            await browser.runtime.sendMessage({ action: 'setInstanceName', name: newName });
+            currentState.instanceName = newName; // Update local state immediately
+            render(); // Re-render relevant parts
+            editNameInputDiv.style.display = 'none';
+            editNameBtn.style.display = 'inline-block';
         } catch (error) {
-            console.error("Error deleting group via background:", error);
-            alert(`Error deleting group: ${error.message || error}`);
-            // Re-add group to local copy if save failed?
-            // currentGroups[groupName] = ... // Need to store the old value temporarily
+            showError(`Error saving name: ${error.message}`);
+        } finally {
+            showLoading(false);
         }
-      }
+    } else {
+         editNameInputDiv.style.display = 'none';
+         editNameBtn.style.display = 'inline-block';
     }
-  
-    // --- Attach Event Listeners ---
-    createGroupBtn.addEventListener('click', handleCreateGroup);
-  
-    // --- Initial Load ---
-    loadInitialData();
-  });
+};
+
+createGroupBtn.onclick = async () => {
+    const groupName = newGroupNameInput.value.trim();
+    if (!groupName) return;
+    showLoading(true);
+    try {
+        const response = await browser.runtime.sendMessage({ action: 'createGroup', groupName: groupName });
+        if (response.success) {
+            newGroupNameInput.value = '';
+            await loadState(); // Reload everything
+        } else {
+            showError(response.message || "Failed to create group.");
+        }
+    } catch (error) {
+        showError(`Error creating group: ${error.message}`);
+    } finally {
+        showLoading(false);
+    }
+};
+
+async function handleDeleteGroup(event) {
+    const groupName = event.target.dataset.group;
+    if (!confirm(`Are you sure you want to delete the group "${groupName}"? This may require complex cleanup.`)) return;
+     showLoading(true);
+    try {
+        await browser.runtime.sendMessage({ action: 'deleteGroup', groupName: groupName });
+        await loadState(); // Reload everything
+    } catch (error) {
+        showError(`Error deleting group: ${error.message}`);
+    } finally {
+        showLoading(false);
+    }
+}
+
+async function handleSubscribe(event) {
+    const groupName = event.target.dataset.group;
+     showLoading(true);
+    try {
+        const response = await browser.runtime.sendMessage({ action: 'subscribeToGroup', groupName: groupName });
+         if (response.success) {
+            await loadState(); // Reload everything
+        } else {
+            showError(response.message || "Failed to subscribe.");
+        }
+    } catch (error) {
+        showError(`Error subscribing: ${error.message}`);
+    } finally {
+        showLoading(false);
+    }
+}
+
+async function handleUnsubscribe(event) {
+    const groupName = event.target.dataset.group;
+     showLoading(true);
+    try {
+        const response = await browser.runtime.sendMessage({ action: 'unsubscribeFromGroup', groupName: groupName });
+         if (response.success) {
+            await loadState(); // Reload everything
+        } else {
+            showError(response.message || "Failed to unsubscribe.");
+        }
+    } catch (error) {
+        showError(`Error unsubscribing: ${error.message}`);
+    } finally {
+        showLoading(false);
+    }
+}
+
+
+// --- UI Helpers ---
+function showLoading(isLoading) {
+    loadingIndicator.style.display = isLoading ? 'block' : 'none';
+    // Disable buttons while loading?
+}
+
+function showError(message) {
+    errorMessage.textContent = message;
+    errorMessage.style.display = 'block';
+    // Auto-hide error after a few seconds
+    setTimeout(() => { errorMessage.style.display = 'none'; }, 5000);
+}

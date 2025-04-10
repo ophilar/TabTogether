@@ -1,86 +1,61 @@
 body {
-    font-family: sans-serif;
-    width: 350px; /* Adjust as needed */
-    padding: 10px;
-  }
-  
-  h1, h2 {
-    margin-top: 0;
-    margin-bottom: 10px;
-  }
-  
-  #device-list label {
-    display: block;
-    margin-bottom: 5px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  
-  #device-list input[type="checkbox"] {
-    margin-right: 5px;
-  }
-  
-  #new-group-name {
-    width: calc(100% - 12px); /* Account for padding/border */
-    margin-bottom: 10px;
-    padding: 5px;
-  }
-  
-  button {
-    padding: 8px 15px;
-    cursor: pointer;
-  }
-  
-  hr {
-    margin: 15px 0;
-  }
-  
-  #existing-groups .group-item {
-    border: 1px solid #ccc;
-    padding: 10px;
-    margin-bottom: 10px;
-    border-radius: 4px;
-  }
-  
-  #existing-groups .group-item h3 {
-    margin: 0 0 5px 0;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  
-  #existing-groups .group-item ul {
-    list-style: none;
-    padding: 0;
-    margin: 0 0 10px 0;
-    font-size: 0.9em;
-    color: #555;
-  }
-  
-  #existing-groups .group-item li {
-     white-space: nowrap;
-     overflow: hidden;
-     text-overflow: ellipsis;
-     margin-bottom: 3px;
-  }
-  
-  .delete-group-btn {
-    background-color: #f44336;
-    color: white;
-    border: none;
-    padding: 3px 8px;
-    font-size: 0.8em;
-    border-radius: 3px;
-  }
-  
-  .error {
-      color: red;
-      font-size: 0.9em;
-      margin-top: 5px;
-  }
-  
-  #loading, #no-groups-message {
-      color: #777;
-      font-style: italic;
-  }
+  font-family: sans-serif;
+  width: 400px;
+  padding: 10px;
+  font-size: 14px;
+}
+.container {
+  padding: 5px;
+}
+h1, h2 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 5px;
+}
+h2 { font-size: 1.1em; }
+section { margin-bottom: 15px; }
+hr { margin: 15px 0; border: 0; border-top: 1px solid #eee; }
+button {
+  padding: 5px 10px;
+  margin-left: 5px;
+  cursor: pointer;
+}
+input[type="text"] {
+  padding: 5px;
+  margin-right: 5px;
+}
+.form-inline { display: flex; align-items: center; margin-top: 10px;}
+.form-inline input { flex-grow: 1; }
+
+#definedGroupsList ul, #mySubscriptionsList ul, #deviceRegistryList ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 150px;
+  overflow-y: auto;
+}
+#definedGroupsList li, #mySubscriptionsList li, #deviceRegistryList li {
+  padding: 6px 4px;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+#definedGroupsList li:last-child, #mySubscriptionsList li:last-child, #deviceRegistryList li:last-child {
+  border-bottom: none;
+}
+.group-actions button, .sub-actions button {
+  font-size: 0.9em;
+  padding: 3px 6px;
+}
+.delete-btn { background-color: #f44336; color: white; border: none; }
+.subscribe-btn { background-color: #4CAF50; color: white; border: none; }
+.unsubscribe-btn { background-color: #ff9800; color: white; border: none; }
+
+small { color: #777; font-size: 0.85em; }
+.error { color: red; margin-top: 10px; padding: 5px; border: 1px solid red; background-color: #ffebee; }
+#loadingIndicator { text-align: center; padding: 10px; color: #555; }
+
+#editNameBtn { font-size: 0.8em; padding: 2px 5px; }
+#editNameInput { margin-top: 5px; }
