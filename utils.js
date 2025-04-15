@@ -15,7 +15,7 @@ const LOCAL_STORAGE_KEYS = {
     PROCESSED_TASKS: 'processedTaskIds' // { [taskId: string]: boolean }
 };
 
-const MAX_DEVICES_PER_GROUP = 31; // Using 32-bit integers safely (bit 0 to 30)
+const MAX_DEVICES_PER_GROUP = 15; // Using 16-bit integers safely (bit 0 to 15)
 
 // --- Storage Access Helpers ---
 

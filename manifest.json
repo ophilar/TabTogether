@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Tab Group Sender (Advanced)",
+  "name": "TabTogether",
   "version": "2.0",
-  "description": "Group devices and send tabs using a storage-based workaround with bitmasks and device registry.",
+  "description": "Send tabs to multiple devices simultaneously.",
   "permissions": [
     "storage",        
     "tabs",           
@@ -16,14 +16,20 @@
     "128": "icons/icon-128.png"
   },
   "background": {
-    "scripts": ["utils.js", "background.js"]
+    "scripts": ["utils.js", "background.js"] 
   },
   "action": {
     "default_icon": {
         "48": "icons/icon-48.png",
         "96": "icons/icon-96.png"
     },
-    "default_title": "Manage Device Groups & Tabs",
+    "default_title": "Manage Device Groups",
     "default_popup": "popup.html"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "tab-group-sender-advanced@temporary-dev-id.org", 
+      "strict_min_version": "109.0" 
+    }
   }
 }
