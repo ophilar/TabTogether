@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TabTogether",
-  "version": "2.0",
+  "version": "2.1",
   "description": "Send tabs to multiple devices simultaneously.",
   "permissions": [
     "storage",        
@@ -31,5 +31,9 @@
       "id": "tab-group-sender-advanced@temporary-dev-id.org", 
       "strict_min_version": "109.0" 
     }
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
   }
 }

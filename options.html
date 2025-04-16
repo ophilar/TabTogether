@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="options.css">
+    <title>Tab Group Sender Settings</title>
+</head>
+<body>
+    <div class="container">
+        <h1>Tab Group Sender Settings</h1>
+
+        <section>
+            <h2>This Device's Info</h2>
+            <p><strong>Name:</strong> <span id="deviceName">Loading...</span> <button id="editNameBtn">Edit</button></p>
+            <div id="editNameInput" style="display: none;">
+                <input type="text" id="newInstanceName" placeholder="Enter new name">
+                <button id="saveNameBtn">Save</button>
+                <button id="cancelNameBtn">Cancel</button>
+            </div>
+            <!-- Internal ID is not shown to the user -->
+        </section>
+
+        <hr>
+
+        <section>
+            <h2>Manage Groups</h2>
+            <p>Define groups and subscribe/unsubscribe this device.</p>
+            <div id="definedGroupsList">Loading...</div>
+            <div class="form-inline">
+                <input type="text" id="newGroupName" placeholder="New group name">
+                <button id="createGroupBtn">Create Group</button>
+            </div>
+        </section>
+
+        <div id="loadingIndicator" style="display: none;">Loading...</div>
+        <div id="errorMessage" class="error" style="display: none;"></div>
+
+    </div>
+    <script src="options.js"></script>
+</body>
+</html>

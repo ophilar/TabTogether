@@ -1,61 +1,40 @@
+/* popup.css - Simplified */
 body {
   font-family: sans-serif;
-  width: 400px;
+  width: 350px; /* Can be narrower now */
   padding: 10px;
-  font-size: 14px;
+  font-size: 13px;
 }
-.container {
-  padding: 5px;
-}
-h1, h2 {
+.container { padding: 5px; }
+h2, h3 {
   margin-top: 0;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   border-bottom: 1px solid #eee;
-  padding-bottom: 5px;
+  padding-bottom: 4px;
+  color: #333;
 }
-h2 { font-size: 1.1em; }
-section { margin-bottom: 15px; }
-hr { margin: 15px 0; border: 0; border-top: 1px solid #eee; }
-button {
-  padding: 5px 10px;
-  margin-left: 5px;
-  cursor: pointer;
-}
-input[type="text"] {
-  padding: 5px;
-  margin-right: 5px;
-}
-.form-inline { display: flex; align-items: center; margin-top: 10px;}
-.form-inline input { flex-grow: 1; }
+h2 { font-size: 1.2em; }
+h3 { font-size: 1.0em; margin-left: 5px; border: none;}
+section { margin-bottom: 10px; }
+hr { margin: 10px 0; border: 0; border-top: 1px solid #eee; }
+a { color: #0060df; text-decoration: none; }
+a:hover { text-decoration: underline; }
 
-#definedGroupsList ul, #mySubscriptionsList ul, #deviceRegistryList ul {
+#mySubscriptionsList ul, #deviceRegistryList ul {
   list-style: none;
-  padding: 0;
+  padding: 0 0 0 10px; /* Indent slightly */
   margin: 0;
-  max-height: 150px;
+  max-height: 100px; /* Limit height */
   overflow-y: auto;
+  font-size: 0.95em;
 }
-#definedGroupsList li, #mySubscriptionsList li, #deviceRegistryList li {
-  padding: 6px 4px;
-  border-bottom: 1px solid #f0f0f0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+#mySubscriptionsList li, #deviceRegistryList li {
+  padding: 3px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-#definedGroupsList li:last-child, #mySubscriptionsList li:last-child, #deviceRegistryList li:last-child {
-  border-bottom: none;
-}
-.group-actions button, .sub-actions button {
-  font-size: 0.9em;
-  padding: 3px 6px;
-}
-.delete-btn { background-color: #f44336; color: white; border: none; }
-.subscribe-btn { background-color: #4CAF50; color: white; border: none; }
-.unsubscribe-btn { background-color: #ff9800; color: white; border: none; }
+#mySubscriptionsList li small, #deviceRegistryList li small { color: #666; }
 
-small { color: #777; font-size: 0.85em; }
-.error { color: red; margin-top: 10px; padding: 5px; border: 1px solid red; background-color: #ffebee; }
-#loadingIndicator { text-align: center; padding: 10px; color: #555; }
-
-#editNameBtn { font-size: 0.8em; padding: 2px 5px; }
-#editNameInput { margin-top: 5px; }
+.error { color: red; margin-top: 8px; font-size: 0.9em; }
+#loadingIndicator { text-align: center; padding: 8px; color: #555; font-size: 0.9em; }

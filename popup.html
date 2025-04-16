@@ -3,48 +3,27 @@
 <head>
     <meta charset="utf-8">
     <link rel="stylesheet" href="popup.css">
-    <title>Tab Group Sender</title>
+    <title>Tab Group Sender Status</title>
 </head>
 <body>
     <div class="container">
-        <h1>Tab Group Sender</h1>
+        <h2>Status</h2>
+        <p><strong>Device:</strong> <span id="deviceName">Loading...</span></p>
 
         <section>
-            <h2>Device Info</h2>
-            <p><strong>Name:</strong> <span id="deviceName">Loading...</span> <button id="editNameBtn">Edit</button></p>
-            <div id="editNameInput" style="display: none;">
-                <input type="text" id="newInstanceName" placeholder="Enter new name">
-                <button id="saveNameBtn">Save</button>
-                <button id="cancelNameBtn">Cancel</button>
-            </div>
-            <p><small><strong>ID:</strong> <span id="deviceId">Loading...</span></small></p>
-        </section>
-
-        <hr>
-
-        <section>
-            <h2>Manage Groups</h2>
-            <div id="definedGroupsList">Loading...</div>
-            <div class="form-inline">
-                <input type="text" id="newGroupName" placeholder="New group name">
-                <button id="createGroupBtn">Create Group</button>
-            </div>
-        </section>
-
-        <hr>
-
-        <section>
-            <h2>My Subscriptions</h2>
+            <h3>My Subscriptions</h3>
             <div id="mySubscriptionsList">Loading...</div>
-             <p><small>Subscribe/Unsubscribe via the 'Manage Groups' section.</small></p>
         </section>
 
          <hr>
 
         <section>
-            <h2>Device Registry (Read-only)</h2>
+            <h3>Device Registry</h3>
             <div id="deviceRegistryList">Loading...</div>
         </section>
+
+        <hr>
+        <p><a href="#" id="openOptionsLink">Manage Settings & Groups...</a></p>
 
         <div id="loadingIndicator" style="display: none;">Loading...</div>
         <div id="errorMessage" class="error" style="display: none;"></div>
