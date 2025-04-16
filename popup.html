@@ -3,30 +3,37 @@
 <head>
     <meta charset="utf-8">
     <link rel="stylesheet" href="popup.css">
-    <title>Tab Group Sender Status</title>
+    <title>TabTogether Status</title> <!-- Updated Title -->
 </head>
 <body>
     <div class="container">
         <h2>Status</h2>
-        <p><strong>Device:</strong> <span id="deviceName">Loading...</span></p>
+
+        <div id="loadingIndicator" class="loading" style="display: none;">Loading...</div>
+        <div id="errorMessage" class="error" style="display: none;"></div>
+
+        <section>
+            <h3>This Device</h3>
+            <p><strong>Name:</strong> <span id="deviceName">Loading...</span></p>
+            <p class="small-text">ID: <span id="deviceId">Loading...</span></p>
+        </section>
 
         <section>
             <h3>My Subscriptions</h3>
-            <div id="mySubscriptionsList">Loading...</div>
+            <ul id="mySubscriptionsList"><li>Loading...</li></ul>
         </section>
 
          <hr>
 
         <section>
             <h3>Device Registry</h3>
-            <div id="deviceRegistryList">Loading...</div>
+            <ul id="deviceRegistryList"><li>Loading...</li></ul>
         </section>
 
         <hr>
-        <p><a href="#" id="openOptionsLink">Manage Settings & Groups...</a></p>
+        <p class="options-link"><a href="#" id="openOptionsLink">Manage Settings & Groups...</a></p>
+        <p class="refresh-link"><a href="#" id="refreshLink">Refresh Status</a></p>
 
-        <div id="loadingIndicator" style="display: none;">Loading...</div>
-        <div id="errorMessage" class="error" style="display: none;"></div>
 
     </div>
     <script src="popup.js"></script>

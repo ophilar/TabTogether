@@ -1,40 +1,89 @@
-/* popup.css - Simplified */
+/* popup.css */
 body {
   font-family: sans-serif;
-  width: 350px; /* Can be narrower now */
-  padding: 10px;
-  font-size: 13px;
-}
-.container { padding: 5px; }
-h2, h3 {
-  margin-top: 0;
-  margin-bottom: 8px;
-  border-bottom: 1px solid #eee;
-  padding-bottom: 4px;
+  margin: 0;
+  min-width: 300px; /* Ensure popup has reasonable width */
   color: #333;
 }
-h2 { font-size: 1.2em; }
-h3 { font-size: 1.0em; margin-left: 5px; border: none;}
-section { margin-bottom: 10px; }
-hr { margin: 10px 0; border: 0; border-top: 1px solid #eee; }
-a { color: #0060df; text-decoration: none; }
-a:hover { text-decoration: underline; }
 
-#mySubscriptionsList ul, #deviceRegistryList ul {
+.container {
+  padding: 15px;
+}
+
+h2, h3 {
+  color: #333;
+  margin-top: 0;
+  margin-bottom: 10px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid #eee;
+}
+
+h3 {
+  font-size: 1.1em;
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid #eee;
+  margin: 15px 0;
+}
+
+ul {
   list-style: none;
-  padding: 0 0 0 10px; /* Indent slightly */
+  padding: 0;
   margin: 0;
-  max-height: 100px; /* Limit height */
-  overflow-y: auto;
-  font-size: 0.95em;
 }
-#mySubscriptionsList li, #deviceRegistryList li {
-  padding: 3px 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-#mySubscriptionsList li small, #deviceRegistryList li small { color: #666; }
 
-.error { color: red; margin-top: 8px; font-size: 0.9em; }
-#loadingIndicator { text-align: center; padding: 8px; color: #555; font-size: 0.9em; }
+li {
+  padding: 5px 0;
+  border-bottom: 1px dashed #eee; /* Lighter separator for lists */
+}
+
+li:last-child {
+  border-bottom: none;
+}
+
+li.this-device {
+  font-weight: bold; /* Highlight the current device */
+  background-color: #eef; /* Optional background highlight */
+  padding-left: 5px;
+  margin-left: -5px; /* Adjust padding for background */
+  border-radius: 3px;
+}
+
+.small-text {
+  font-size: 0.85em;
+  color: #666;
+  margin-top: 0;
+  word-break: break-all; /* Prevent long IDs from breaking layout */
+}
+
+.options-link, .refresh-link {
+  margin-top: 15px;
+  text-align: center;
+}
+
+a {
+  color: #007bff;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.loading {
+  text-align: center;
+  padding: 10px;
+  color: #666;
+}
+
+.error {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+  padding: 10px;
+  margin-bottom: 10px;
+  border-radius: 3px;
+  text-align: center;
+}

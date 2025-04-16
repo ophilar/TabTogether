@@ -3,37 +3,39 @@
 <head>
     <meta charset="utf-8">
     <link rel="stylesheet" href="options.css">
-    <title>Tab Group Sender Settings</title>
+    <title>TabTogether Settings</title> <!-- Updated Title -->
 </head>
 <body>
     <div class="container">
-        <h1>Tab Group Sender Settings</h1>
+        <h1>TabTogether Settings</h1> <!-- Updated Title -->
 
-        <section>
-            <h2>This Device's Info</h2>
-            <p><strong>Name:</strong> <span id="deviceName">Loading...</span> <button id="editNameBtn">Edit</button></p>
-            <div id="editNameInput" style="display: none;">
-                <input type="text" id="newInstanceName" placeholder="Enter new name">
-                <button id="saveNameBtn">Save</button>
-                <button id="cancelNameBtn">Cancel</button>
+        <div id="loadingIndicator" class="loading" style="display: none;">Loading...</div>
+        <div id="messageArea" style="display: none;"></div> <!-- Combined error/success messages -->
+
+        <fieldset>
+            <legend>Device Settings</legend>
+            <div class="setting-item">
+                <strong>Name:</strong>
+                <span id="deviceNameDisplay">Loading...</span>
+                <button id="editNameBtn" class="inline-btn">Edit</button>
             </div>
-            <!-- Internal ID is not shown to the user -->
-        </section>
+            <div id="editNameInput" class="input-group" style="display: none;">
+                <input type="text" id="newInstanceName" placeholder="Enter new device name">
+                <button id="saveNameBtn" disabled>Save</button> <!-- Initially disabled -->
+                <button id="cancelNameBtn" class="secondary">Cancel</button>
+            </div>
+            <p class="small-text">Device ID: <span id="deviceIdDisplay">Loading...</span></p>
+        </fieldset>
 
-        <hr>
-
-        <section>
-            <h2>Manage Groups</h2>
-            <p>Define groups and subscribe/unsubscribe this device.</p>
-            <div id="definedGroupsList">Loading...</div>
-            <div class="form-inline">
+        <fieldset>
+            <legend>Manage Groups</legend>
+            <p>Define groups and manage this device's subscriptions.</p>
+            <div id="definedGroupsList">Loading groups...</div>
+            <div class="input-group">
                 <input type="text" id="newGroupName" placeholder="New group name">
-                <button id="createGroupBtn">Create Group</button>
+                <button id="createGroupBtn" disabled>Create Group</button> <!-- Initially disabled -->
             </div>
-        </section>
-
-        <div id="loadingIndicator" style="display: none;">Loading...</div>
-        <div id="errorMessage" class="error" style="display: none;"></div>
+        </fieldset>
 
     </div>
     <script src="options.js"></script>
