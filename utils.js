@@ -50,11 +50,15 @@ function deepMerge(target, source) {
     const output = { ...target };
     if (isObject(target) && isObject(source)) {
         Object.keys(source).forEach(key => {
-            if (isObject(source[key])) {
+            // Handle null explicitly: if source[key] is null, it means delete the key in the target
+            if (source[key] === null) {
+                 delete output[key];
+            } else if (isObject(source[key])) {
                 if (!(key in target)) {
+                    // If key doesn't exist in target, assign source's object directly
                     Object.assign(output, { [key]: source[key] });
                 } else {
-                    // Ensure we don't merge into null or non-objects
+                    // If key exists in target, only merge if target's value is also an object
                     if (isObject(target[key])) {
                          output[key] = deepMerge(target[key], source[key]);
                     } else {
@@ -63,12 +67,14 @@ function deepMerge(target, source) {
                     }
                 }
             } else {
+                // Assign non-object values directly (overwriting target)
                 Object.assign(output, { [key]: source[key] });
             }
         });
     }
     return output;
 }
+
 
 function isObject(item) {
     return (item && typeof item === 'object' && !Array.isArray(item));

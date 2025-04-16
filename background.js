@@ -1,5 +1,8 @@
 // background.js
 
+// Import necessary functions from utils.js (assuming utils.js is loaded via manifest)
+// If using Modules (MV3): import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, MAX_DEVICES_PER_GROUP, getStorage, mergeSyncStorage, getInstanceId, getInstanceName } from './utils.js';
+
 const ALARM_HEARTBEAT = 'deviceHeartbeat';
 const ALARM_STALE_CHECK = 'staleDeviceCheck';
 const ALARM_TASK_CLEANUP = 'taskCleanup';
@@ -75,8 +78,6 @@ async function performHeartbeat() {
             name: localInstanceName, // Update name if changed locally
             lastSeen: Date.now(),
             groupBits: localGroupBits // Ensure registry reflects current local subscriptions/bits
-
-            // groupBits are updated during subscription/assignment
         }
     };
     await mergeSyncStorage(SYNC_STORAGE_KEYS.DEVICE_REGISTRY, update);
@@ -109,9 +110,9 @@ async function performStaleDeviceCheck() {
                     if (newAssignedMask !== currentAssignedMask) {
                         if (!groupStateUpdates[groupName]) groupStateUpdates[groupName] = {};
                         groupStateUpdates[groupName].assignedMask = newAssignedMask;
-                        // Note: We don't decrement assignedCount here, as bits aren't reused easily
+                        // Note: We don't decrement assignedCount here, as bits aren't reused easily with current strategy
                         needsGroupStateUpdate = true;
-                        console.log(`Updated assignedMask for group ${groupName} (removed bit for ${deviceId})`);
+                        console.log(`Updated assignedMask for group ${groupName} (removed bit for stale device ${deviceId})`);
                     }
                 }
             }
@@ -133,6 +134,7 @@ async function performTimeBasedTaskCleanup() {
     let groupTasksUpdates = {};
     let needsUpdate = false;
     const now = Date.now();
+    let processedTasksUpdates = { ...localProcessedTasks }; // Copy local state to modify
 
     for (const groupName in allGroupTasks) {
         for (const taskId in allGroupTasks[groupName]) {
@@ -144,9 +146,8 @@ async function performTimeBasedTaskCleanup() {
                 needsUpdate = true;
 
                 // Also clean up local processed task ID
-                if (localProcessedTasks[taskId]) {
-                    delete localProcessedTasks[taskId];
-                    await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.PROCESSED_TASKS]: localProcessedTasks });
+                if (processedTasksUpdates[taskId]) {
+                    delete processedTasksUpdates[taskId];
                 }
             }
         }
@@ -154,6 +155,11 @@ async function performTimeBasedTaskCleanup() {
 
     if (needsUpdate) {
         await mergeSyncStorage(SYNC_STORAGE_KEYS.GROUP_TASKS, groupTasksUpdates);
+        // Update local storage only once after the loop if changes were made
+        if (Object.keys(processedTasksUpdates).length !== Object.keys(localProcessedTasks).length) {
+             localProcessedTasks = processedTasksUpdates; // Update in-memory cache
+             await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.PROCESSED_TASKS]: localProcessedTasks });
+        }
     }
     console.log("Time-based task cleanup complete.");
 }
@@ -196,14 +202,10 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
     const groupName = info.menuItemId.replace("send-to-", "");
 
     // Determine the URL to send based on the context
-    // info.linkUrl is present if clicked on a link
-    // info.srcUrl is present if clicked on media (image, video, audio)
-    // info.pageUrl is the URL of the page the click happened on
-    // tab.url is the URL of the tab where the click happened (fallback)
-    const urlToSend = info.linkUrl || info.srcUrl || info.pageUrl || tab.url;
+    const urlToSend = info.linkUrl || info.srcUrl || info.pageUrl || tab?.url; // Added optional chaining for tab
 
     // Determine a title (use link text, selected text, or fallback to tab title/URL)
-    const titleToSend = info.selectionText || info.linkText || tab.title || "Link";
+    const titleToSend = info.selectionText || info.linkText || tab?.title || "Link"; // Added optional chaining for tab
 
     const taskId = crypto.randomUUID(); // Generate a unique ID for this task
 
@@ -244,23 +246,43 @@ browser.storage.onChanged.addListener(async (changes, areaName) => {
 
     // Update context menu if groups change
     if (changes[SYNC_STORAGE_KEYS.DEFINED_GROUPS]) {
+        console.log("Detected change in defined groups, updating context menu...");
         await updateContextMenu();
     }
 
     // Process incoming tasks
     if (changes[SYNC_STORAGE_KEYS.GROUP_TASKS]) {
-        await processIncomingTasks(changes[SYNC_STORAGE_KEYS.GROUP_TASKS].newValue);
+        console.log("Detected change in group tasks, processing...");
+        // Pass both old and new values for potential optimization later
+        await processIncomingTasks(changes[SYNC_STORAGE_KEYS.GROUP_TASKS].newValue, changes[SYNC_STORAGE_KEYS.GROUP_TASKS].oldValue);
     }
+
+    // Update local cache if registry changes (e.g., another device updates its name)
+    // This is less critical but keeps the popup potentially more up-to-date
+    // if (changes[SYNC_STORAGE_KEYS.DEVICE_REGISTRY]) {
+    //     console.log("Detected change in device registry.");
+    // }
+
+    // Update local cache if group state changes (e.g., mask updated by another device)
+    // if (changes[SYNC_STORAGE_KEYS.GROUP_STATE]) {
+    //     console.log("Detected change in group state.");
+    // }
 });
 
-async function processIncomingTasks(allGroupTasks) {
-    if (!allGroupTasks) return; // Might be cleared
+// Added oldValue parameter (optional, for potential future optimization)
+async function processIncomingTasks(allGroupTasks, oldGroupTasks = null) {
+    if (!allGroupTasks) {
+        console.log("Group tasks cleared, skipping processing.");
+        return;
+    }
 
-    const currentSubscriptions = localSubscriptions; // Use cached local value
-    const currentGroupBits = localGroupBits;       // Use cached local value
-    const currentProcessedTasks = localProcessedTasks; // Use cached local value
+    // Use local caches for efficiency
+    const currentSubscriptions = localSubscriptions;
+    const currentGroupBits = localGroupBits;
+    let currentProcessedTasks = { ...localProcessedTasks }; // Work with a mutable copy
 
     let tasksToProcess = [];
+    let localProcessedTasksUpdated = false; // Flag to track if local storage needs update
 
     for (const groupName in allGroupTasks) {
         // Check if this device is subscribed to the group
@@ -271,26 +293,40 @@ async function processIncomingTasks(allGroupTasks) {
                 continue; // Should not happen if subscription logic is correct
             }
 
+            const bitPosition = Math.log2(myBit); // Calculate bit position once
+
             for (const taskId in allGroupTasks[groupName]) {
                 // Check if already processed locally
                 if (!currentProcessedTasks[taskId]) {
                     const task = allGroupTasks[groupName][taskId];
-                    // Check if *this device's bit* is already set in the sync mask (e.g., processed on another device then synced back)
-                    if (!((task.processedMask >> (Math.log2(myBit))) & 1)) {
+                    // Check if *this device's bit* is already set in the sync mask
+                    if (!((task.processedMask >> bitPosition) & 1)) {
+                        // Not processed locally and bit not set in sync mask -> process it
                         tasksToProcess.push({ groupName, taskId, task, myBit });
                     } else {
-                        // Bit is already set in sync, but not locally processed? Mark as processed locally.
+                        // Bit is already set in sync, but not locally processed?
+                        // This means another instance processed it and the change synced back before this instance could.
+                        // Mark as processed locally to prevent re-processing.
+                        console.log(`Task ${taskId} already processed by this device according to sync mask. Marking locally.`);
                         currentProcessedTasks[taskId] = true;
-                        await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.PROCESSED_TASKS]: currentProcessedTasks });
+                        localProcessedTasksUpdated = true;
                     }
                 }
             }
         }
     }
 
+    // Update local processed tasks storage if any were marked implicitly
+    if (localProcessedTasksUpdated) {
+        localProcessedTasks = currentProcessedTasks; // Update in-memory cache
+        await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.PROCESSED_TASKS]: localProcessedTasks });
+    }
+
     if (tasksToProcess.length > 0) {
         console.log(`Processing ${tasksToProcess.length} new tasks...`);
-        const groupState = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {}); // Get latest group state
+        const groupState = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {}); // Get latest group state for cleanup check
+
+        let processedTasksUpdateBatch = {}; // Batch updates to local storage
 
         for (const { groupName, taskId, task, myBit } of tasksToProcess) {
             console.log(`Processing task ${taskId} for group ${groupName}: ${task.url}`);
@@ -300,13 +336,12 @@ async function processIncomingTasks(allGroupTasks) {
                 await browser.tabs.create({ url: task.url, active: false }); // Open in background
             } catch (error) {
                 console.error(`Failed to open tab for task ${taskId}:`, error);
-                // Decide if you want to skip marking as processed if tab opening fails
+                // Skip marking as processed if tab opening fails, allows retry on next change
                 continue;
             }
 
-            // 2. Mark as processed locally
-            currentProcessedTasks[taskId] = true;
-            await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.PROCESSED_TASKS]: currentProcessedTasks });
+            // 2. Mark as processed locally (prepare batch update)
+            processedTasksUpdateBatch[taskId] = true;
 
             // 3. Update processedMask in sync storage
             const newProcessedMask = task.processedMask | myBit;
@@ -322,6 +357,7 @@ async function processIncomingTasks(allGroupTasks) {
             // 4. Check for cleanup (if merge succeeded)
             if (mergeSuccess) {
                 const currentGroupState = groupState[groupName];
+                // Check if the group still exists and if the new mask matches the assigned mask
                 if (currentGroupState && newProcessedMask === currentGroupState.assignedMask) {
                     console.log(`Task ${taskId} fully processed by all assigned devices in group ${groupName}. Cleaning up.`);
                     const cleanupUpdate = {
@@ -330,61 +366,98 @@ async function processIncomingTasks(allGroupTasks) {
                         }
                     };
                     await mergeSyncStorage(SYNC_STORAGE_KEYS.GROUP_TASKS, cleanupUpdate);
-                    // Clean up local processed ID as well
-                    delete currentProcessedTasks[taskId];
-                    await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.PROCESSED_TASKS]: currentProcessedTasks });
+                    // Clean up local processed ID as well (prepare batch update)
+                    delete processedTasksUpdateBatch[taskId]; // Remove from batch if deleted
                 }
+            } else {
+                 console.error(`Failed to merge task update for ${taskId}. It might be processed again.`);
+                 // If merge fails, don't mark locally? Or mark locally anyway?
+                 // Current: Mark locally anyway, but log error.
             }
         }
+
+        // Apply batched local storage updates
+        if (Object.keys(processedTasksUpdateBatch).length > 0) {
+            localProcessedTasks = { ...localProcessedTasks, ...processedTasksUpdateBatch }; // Update in-memory cache
+            await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.PROCESSED_TASKS]: localProcessedTasks });
+        }
+    } else {
+        console.log("No new tasks require processing.");
     }
 }
 
 
-// --- Message Handling (from Popup) ---
+// --- Message Handling (from UI Scripts) ---
 
 browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
-    console.log("Message received from popup:", request);
+    console.log("Message received:", request.action, "Data:", request); // Log action and data separately
     switch (request.action) {
         case "getState":
-            // Send all relevant state to the popup
-            return {
-                instanceId: localInstanceId,
-                instanceName: localInstanceName,
-                subscriptions: localSubscriptions,
-                groupBits: localGroupBits,
-                definedGroups: await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []),
-                groupState: await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {}),
-                deviceRegistry: await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {})
-            };
+            // Fetch fresh sync data for UI, return local caches + sync data
+            try {
+                const [definedGroups, groupState, deviceRegistry] = await Promise.all([
+                    getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []),
+                    getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {}),
+                    getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {})
+                ]);
+                return {
+                    instanceId: localInstanceId,
+                    instanceName: localInstanceName,
+                    subscriptions: localSubscriptions,
+                    groupBits: localGroupBits,
+                    definedGroups: definedGroups,
+                    groupState: groupState,
+                    deviceRegistry: deviceRegistry
+                };
+            } catch (error) {
+                 console.error("Error fetching state for UI:", error);
+                 // Return cached values as fallback? Or signal error?
+                 return { error: `Failed to fetch sync state: ${error.message}` };
+            }
+
 
         case "setInstanceName":
-            localInstanceName = request.name;
+            if (!request.name || typeof request.name !== 'string' || request.name.trim().length === 0) {
+                return { success: false, message: "Invalid name provided." };
+            }
+            localInstanceName = request.name.trim();
             await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.INSTANCE_NAME]: localInstanceName });
-            await performHeartbeat(); // Update registry with new name
+            await performHeartbeat(); // Update registry with new name immediately
             return { success: true };
 
         case "createGroup":
+             if (!request.groupName || typeof request.groupName !== 'string' || request.groupName.trim().length === 0) {
+                return { success: false, message: "Invalid group name provided." };
+            }
+            const groupNameToCreate = request.groupName.trim();
             const groups = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []);
-            if (!groups.includes(request.groupName)) {
-                groups.push(request.groupName);
+            if (!groups.includes(groupNameToCreate)) {
+                groups.push(groupNameToCreate);
+                groups.sort(); // Keep the list sorted
                 await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.DEFINED_GROUPS]: groups });
                 // Initialize group state
-                await mergeSyncStorage(SYNC_STORAGE_KEYS.GROUP_STATE, { [request.groupName]: { assignedMask: 0, assignedCount: 0 } });
-                await updateContextMenu(); // Update immediately
+                await mergeSyncStorage(SYNC_STORAGE_KEYS.GROUP_STATE, { [groupNameToCreate]: { assignedMask: 0, assignedCount: 0 } });
+                // No need to call updateContextMenu here, storage listener will handle it
                 return { success: true };
             }
             return { success: false, message: "Group already exists." };
 
         case "deleteGroup":
             const groupNameToDelete = request.groupName;
+            if (!groupNameToDelete) return { success: false, message: "No group name provided." };
+
             console.log(`Attempting to delete group: ${groupNameToDelete}`);
 
             try {
                 // 1. Remove from definedGroups (Sync)
                 const currentGroups = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []);
                 const updatedGroups = currentGroups.filter(g => g !== groupNameToDelete);
-                await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.DEFINED_GROUPS]: updatedGroups });
-                console.log(`Removed ${groupNameToDelete} from definedGroups.`);
+                // Only set if changed to avoid unnecessary storage events
+                if (updatedGroups.length !== currentGroups.length) {
+                    await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.DEFINED_GROUPS]: updatedGroups });
+                    console.log(`Removed ${groupNameToDelete} from definedGroups.`);
+                }
+
 
                 // 2. Remove from groupState (Sync)
                 await mergeSyncStorage(SYNC_STORAGE_KEYS.GROUP_STATE, { [groupNameToDelete]: null });
@@ -394,14 +467,12 @@ browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
                 await mergeSyncStorage(SYNC_STORAGE_KEYS.GROUP_TASKS, { [groupNameToDelete]: null });
                 console.log(`Removed tasks for ${groupNameToDelete} from groupTasks.`);
 
-                // 4. Remove group bit from all devices in registry (Sync) - This is crucial
+                // 4. Remove group bit from all devices in registry (Sync)
                 const registry = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
                 const registryUpdates = {};
                 let needsRegistryUpdate = false;
                 for (const deviceId in registry) {
-                    // Check if the device has bits defined and if the specific group bit exists
                     if (registry[deviceId]?.groupBits?.[groupNameToDelete] !== undefined) {
-                        // Prepare an update to set this specific group bit to null for this device
                         if (!registryUpdates[deviceId]) {
                             registryUpdates[deviceId] = { groupBits: {} };
                         }
@@ -419,39 +490,46 @@ browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
 
 
                 // 5. Clean up local state for *this* device (Local)
+                let localStateChanged = false;
                 if (localSubscriptions.includes(groupNameToDelete)) {
                     localSubscriptions = localSubscriptions.filter(g => g !== groupNameToDelete);
                     await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.SUBSCRIPTIONS]: localSubscriptions });
+                    localStateChanged = true;
                 }
                 if (localGroupBits[groupNameToDelete] !== undefined) {
                     delete localGroupBits[groupNameToDelete];
                     await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.GROUP_BITS]: localGroupBits });
+                     localStateChanged = true;
                 }
-                console.log(`Cleaned up local subscription and bit for ${groupNameToDelete}.`);
+                if(localStateChanged) {
+                    console.log(`Cleaned up local subscription and bit for ${groupNameToDelete}.`);
+                }
 
-                // 6. Update context menu
+                // 6. Update context menu (storage listener might catch definedGroups change, but call explicitly for safety)
                 await updateContextMenu();
 
                 return { success: true };
 
             } catch (error) {
                 console.error(`Error deleting group ${groupNameToDelete}:`, error);
-                // Attempt to restore definedGroups if other steps failed? Maybe too complex.
-                // Best effort cleanup is often sufficient.
                 return { success: false, message: `Error deleting group: ${error.message}` };
             }
 
         case "subscribeToGroup":
-            if (!localSubscriptions.includes(request.groupName)) {
+            const groupToSubscribe = request.groupName;
+             if (!groupToSubscribe) return { success: false, message: "No group name provided." };
+
+            if (!localSubscriptions.includes(groupToSubscribe)) {
                 // Assign bit before subscribing locally
-                const assignedBit = await assignBitForGroup(request.groupName);
+                const assignedBit = await assignBitForGroup(groupToSubscribe);
                 if (assignedBit !== null) {
-                    localSubscriptions.push(request.groupName);
-                    localGroupBits[request.groupName] = assignedBit;
+                    localSubscriptions.push(groupToSubscribe);
+                    localSubscriptions.sort(); // Keep sorted
+                    localGroupBits[groupToSubscribe] = assignedBit;
                     await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.SUBSCRIPTIONS]: localSubscriptions });
                     await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.GROUP_BITS]: localGroupBits });
-                    // Update registry
-                    await performHeartbeat(); // Heartbeat updates registry bits implicitly if needed
+                    // Update registry immediately (heartbeat also does this, but be explicit)
+                    await performHeartbeat();
                     return { success: true, assignedBit: assignedBit };
                 } else {
                     return { success: false, message: "Group is full or error assigning bit." };
@@ -462,20 +540,24 @@ browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
 
         case "unsubscribeFromGroup":
             const groupToUnsubscribe = request.groupName;
+             if (!groupToUnsubscribe) return { success: false, message: "No group name provided." };
+
             if (localSubscriptions.includes(groupToUnsubscribe)) {
                 try {
-                    // 1. Update local state first
+                    // 1. Get the bit before modifying local state
+                    const removedBit = localGroupBits[groupToUnsubscribe];
+
+                    // 2. Update local state
                     localSubscriptions = localSubscriptions.filter(g => g !== groupToUnsubscribe);
-                    const removedBit = localGroupBits[groupToUnsubscribe]; // Get the bit before deleting
                     delete localGroupBits[groupToUnsubscribe];
 
-                    // 2. Save updated local state
+                    // 3. Save updated local state
                     await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.SUBSCRIPTIONS]: localSubscriptions });
                     await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.GROUP_BITS]: localGroupBits });
                     console.log(`Locally unsubscribed from ${groupToUnsubscribe}.`);
 
                     if (removedBit !== undefined) { // Ensure we had a bit to remove
-                        // 3. Update device registry (Sync) - Remove this device's bit for the group
+                        // 4. Update device registry (Sync) - Remove this device's bit for the group
                         const registryUpdate = {
                             [localInstanceId]: {
                                 groupBits: {
@@ -486,7 +568,7 @@ browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
                         await mergeSyncStorage(SYNC_STORAGE_KEYS.DEVICE_REGISTRY, registryUpdate);
                         console.log(`Removed bit for group ${groupToUnsubscribe} from device registry for ${localInstanceId}.`);
 
-                        // 4. Update group state mask (Sync) - Remove this device's bit from the active mask
+                        // 5. Update group state mask (Sync) - Remove this device's bit from the active mask
                         const groupState = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {});
                         if (groupState[groupToUnsubscribe]) { // Check if group still exists in state
                             const currentMask = groupState[groupToUnsubscribe].assignedMask;
@@ -512,12 +594,12 @@ browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
             } else {
                 return { success: false, message: "Not subscribed." };
             }
-    
 
 
         default:
             console.warn("Unknown action received:", request.action);
-            return Promise.reject("Unknown action");
+            // Explicitly return a promise rejection for unknown actions
+            return Promise.reject(new Error(`Unknown action: ${request.action}`));
     }
 });
 
@@ -525,10 +607,18 @@ browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
 // --- Helper for Bit Assignment (Handles Race Condition Check) ---
 async function assignBitForGroup(groupName) {
     const MAX_RETRIES = 5;
-    for (let i = 0; i < MAX_RETRIES; i++) {
+    const BASE_DELAY_MS = 100; // Base delay for backoff
+
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
         try {
             const groupState = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {});
-            const currentGroupData = groupState[groupName] || { assignedMask: 0, assignedCount: 0 };
+            const currentGroupData = groupState[groupName]; // Don't default here, group must exist
+
+            if (!currentGroupData) {
+                 console.error(`Group ${groupName} does not exist in groupState. Cannot assign bit.`);
+                 return null;
+            }
+
             const currentAssignedMask = currentGroupData.assignedMask;
             const currentAssignedCount = currentGroupData.assignedCount;
 
@@ -537,19 +627,25 @@ async function assignBitForGroup(groupName) {
                 return null; // Group is full
             }
 
-            // Find the actual next available position based on count
+            // Find the actual next available position based on count (current strategy)
             const bitPosition = currentAssignedCount;
             const myBit = 1 << bitPosition;
 
-            // Optimistic Lock Check: Read state again right before writing
+            // --- Optimistic Lock Check ---
+            // Read state again right before writing to check if count changed
             const checkGroupState = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {});
-            const checkGroupData = checkGroupState[groupName] || { assignedMask: 0, assignedCount: 0 };
+            const checkGroupData = checkGroupState[groupName];
 
-            if (checkGroupData.assignedCount !== currentAssignedCount) {
-                console.warn(`Race condition detected assigning bit for ${groupName}. Retrying (${i + 1}/${MAX_RETRIES})...`);
-                await new Promise(resolve => setTimeout(resolve, 100 + Math.random() * 200)); // Wait random time
+            // Check if group still exists and if count is unchanged
+            if (!checkGroupData || checkGroupData.assignedCount !== currentAssignedCount) {
+                console.warn(`Race condition or group state change detected for ${groupName}. Retrying (${attempt + 1}/${MAX_RETRIES})...`);
+                // Exponential backoff with jitter
+                const delay = BASE_DELAY_MS * Math.pow(2, attempt) + Math.random() * BASE_DELAY_MS;
+                await new Promise(resolve => setTimeout(resolve, delay));
                 continue; // Retry the loop
             }
+            // --- End Optimistic Lock Check ---
+
 
             // No race detected, proceed with update
             const newAssignedMask = currentAssignedMask | myBit;
@@ -564,25 +660,31 @@ async function assignBitForGroup(groupName) {
             const success = await mergeSyncStorage(SYNC_STORAGE_KEYS.GROUP_STATE, update);
 
             if (success) {
-                // Update registry with the assigned bit
+                // Update registry with the assigned bit *immediately* after successful state update
                 const registryUpdate = {
                     [localInstanceId]: {
-                        groupBits: { [groupName]: myBit }
+                        groupBits: { [groupName]: myBit } // Merge only this bit
                     }
                 };
                 await mergeSyncStorage(SYNC_STORAGE_KEYS.DEVICE_REGISTRY, registryUpdate);
                 console.log(`Assigned bit ${myBit} (pos ${bitPosition}) to device ${localInstanceId} for group ${groupName}`);
-                return myBit;
+                return myBit; // Return the assigned bit value
             } else {
-                console.error(`Failed to merge group state for ${groupName} during bit assignment.`);
-                return null; // Failed to save
+                console.error(`Failed to merge group state for ${groupName} during bit assignment. Retrying...`);
+                 // Optional: Add delay before retrying after merge failure
+                 await new Promise(resolve => setTimeout(resolve, 50 + Math.random() * 100));
+                 continue; // Retry loop on merge failure
             }
 
         } catch (error) {
-            console.error(`Error during bit assignment for ${groupName}:`, error);
-            return null;
+            console.error(`Error during bit assignment attempt ${attempt + 1} for ${groupName}:`, error);
+            // Optional: Add delay before retrying after general error
+            if (attempt < MAX_RETRIES - 1) {
+                 const delay = BASE_DELAY_MS * Math.pow(2, attempt) + Math.random() * BASE_DELAY_MS;
+                 await new Promise(resolve => setTimeout(resolve, delay));
+            }
         }
     }
     console.error(`Failed to assign bit for ${groupName} after ${MAX_RETRIES} retries.`);
-    return null; // Failed after retries
+    return null; // Failed after all retries
 }
