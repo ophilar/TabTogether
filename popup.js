@@ -1,7 +1,7 @@
 // popup.js
 
 const deviceNameSpan = document.getElementById('deviceName');
-const deviceIdSpan = document.getElementById('deviceId');
+// const deviceIdSpan = document.getElementById('deviceId');
 const mySubscriptionsList = document.getElementById('mySubscriptionsList');
 const deviceRegistryList = document.getElementById('deviceRegistryList');
 const openOptionsLink = document.getElementById('openOptionsLink');
@@ -22,6 +22,9 @@ refreshLink.addEventListener('click', (e) => {
     loadStatus();
 });
 
+const sendTabGroupSelect = document.getElementById('sendTabGroupSelect');
+const sendTabBtn = document.getElementById('sendTabBtn');
+const sendTabStatus = document.getElementById('sendTabStatus');
 
 // --- Load and Render Status ---
 async function loadStatus() {
@@ -41,9 +44,10 @@ async function loadStatus() {
         localInstanceId = state.instanceId; // Store for comparison
 
         renderDeviceName(state.instanceName);
-        renderDeviceId(state.instanceId);
+        // renderDeviceId(state.instanceId);
         renderSubscriptions(state.subscriptions);
         renderRegistry(state.deviceRegistry);
+        renderSendTabSection(state.definedGroups);
 
     } catch (error) {
         console.error("Error loading status:", error);
@@ -51,9 +55,10 @@ async function loadStatus() {
         errorMessageDiv.style.display = 'block';
         // Clear potentially stale data
         deviceNameSpan.textContent = 'Error';
-        deviceIdSpan.textContent = 'Error';
+        // deviceIdSpan.textContent = 'Error';
         mySubscriptionsList.innerHTML = '<li>Error loading</li>';
         deviceRegistryList.innerHTML = '<li>Error loading</li>';
+        renderSendTabSection([]); // Pass empty array to clear/disable
     } finally {
         showLoading(false);
     }
@@ -62,9 +67,9 @@ async function loadStatus() {
 function renderDeviceName(name) {
     deviceNameSpan.textContent = name || 'N/A';
 }
-function renderDeviceId(id) {
-    deviceIdSpan.textContent = id || 'N/A';
-}
+// function renderDeviceId(id) {
+    // deviceIdSpan.textContent = id || 'N/A';
+// }
 
 function renderSubscriptions(subscriptions) {
     mySubscriptionsList.innerHTML = ''; // Clear previous
@@ -116,13 +121,99 @@ function renderRegistry(registry) {
         const lastSeenString = lastSeenDate
             ? `Last seen: ${lastSeenDate.toLocaleDateString()} ${lastSeenDate.toLocaleTimeString()}`
             : 'Last seen: Unknown';
-        detailsDiv.textContent = `ID: ${deviceId} | ${lastSeenString}`;
+        detailsDiv.textContent = `${lastSeenString}`;
         li.appendChild(detailsDiv);
 
         deviceRegistryList.appendChild(li);
     });
 }
 
+function renderSendTabSection(definedGroups) {
+    const groups = definedGroups || [];
+    // Clear previous options except the placeholder
+    while (sendTabGroupSelect.options.length > 1) {
+        sendTabGroupSelect.remove(1);
+    }
+    sendTabBtn.disabled = true; // Disable initially
+    sendTabGroupSelect.disabled = false; // Ensure select is enabled by default
+
+    if (groups.length > 0) {
+        groups.sort().forEach(groupName => {
+            const option = document.createElement('option');
+            option.value = groupName;
+            option.textContent = groupName;
+            sendTabGroupSelect.appendChild(option);
+        });
+        // Enable button only if a group is selected
+        sendTabGroupSelect.onchange = () => {
+            sendTabBtn.disabled = sendTabGroupSelect.value === "";
+        };
+    } else {
+          // If no groups, disable the select and button, update placeholder maybe
+          sendTabGroupSelect.options[0].textContent = "No groups available"; // Update placeholder text
+          sendTabGroupSelect.disabled = true; // Disable select if no groups
+          sendTabBtn.disabled = true; // Disable button if no groups
+    }
+}
+
+// --- Event Handlers (Additions) ---
+sendTabBtn.onclick = async () => {
+    const selectedGroup = sendTabGroupSelect.value;
+    if (!selectedGroup) return;
+
+    showSendStatus("Sending...", false);
+    sendTabBtn.disabled = true; // Prevent double-clicks
+
+    try {
+        // Get the current active tab
+        const tabs = await browser.tabs.query({ active: true, currentWindow: true });
+        if (tabs && tabs.length > 0) {
+            const currentTab = tabs[0];
+            if (!currentTab.url || currentTab.url.startsWith("about:") || currentTab.url.startsWith("moz-extension:")) {
+                 showSendStatus("Cannot send this type of tab.", true);
+                 return;
+            }
+            // Send message to background script to handle the sending
+            const response = await browser.runtime.sendMessage({
+                action: 'sendTabFromPopup',
+                groupName: selectedGroup,
+                tabData: { url: currentTab.url, title: currentTab.title }
+            });
+            if (response.success) {
+                showSendStatus(`Sent to ${selectedGroup}!`, false);
+            } else {
+                showSendStatus(response.message || "Send failed.", true);
+            }
+        } else {
+            showSendStatus("Could not find active tab.", true);
+        }
+    } catch (error) {
+        console.error("Error sending tab from popup:", error);
+        showSendStatus(`Error: ${error.message}`, true);
+    } finally {
+         // Re-enable button after a short delay unless still on placeholder
+         setTimeout(() => {
+             sendTabBtn.disabled = sendTabGroupSelect.value === "";
+         }, 1500);
+    }
+};
+
 function showLoading(isLoading) {
     loadingIndicator.style.display = isLoading ? 'block' : 'none';
+}
+
+function showSendStatus(message, isError) {
+    sendTabStatus.textContent = message;
+    sendTabStatus.style.color = isError ? 'red' : 'green';
+    sendTabStatus.style.display = 'block';
+    // Optional: Hide status message after a delay
+    setTimeout(() => { sendTabStatus.style.display = 'none'; }, 3000);
+}
+
+// --- UI Helpers (Modify showError) ---
+function showError(message) { // Make error display more persistent
+    errorMessage.textContent = message;
+    errorMessage.style.display = 'block';
+    // Remove auto-hide or increase delay
+    // setTimeout(() => { errorMessage.style.display = 'none'; }, 7000);
 }

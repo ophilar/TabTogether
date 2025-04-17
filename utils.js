@@ -98,7 +98,11 @@ async function getInstanceName() {
         // Try to get platform info for a default name
         try {
             const platformInfo = await browser.runtime.getPlatformInfo();
-            name = `${platformInfo.os.charAt(0).toUpperCase() + platformInfo.os.slice(1)} Device`;
+            // Make name slightly more descriptive if possible
+            let osName = platformInfo.os.charAt(0).toUpperCase() + platformInfo.os.slice(1);
+            if (osName === "Mac") osName = "Mac"; // Correct capitalization
+            if (osName === "Win") osName = "Windows";
+            name = `${osName} Device`;
         } catch (e) {
             name = "My Device"; // Fallback
         }

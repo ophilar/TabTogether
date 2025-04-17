@@ -1,7 +1,7 @@
 // options.js
 
 const deviceNameDisplay = document.getElementById('deviceNameDisplay');
-const deviceIdDisplay = document.getElementById('deviceIdDisplay');
+// const deviceIdDisplay = document.getElementById('deviceIdDisplay');
 const editNameBtn = document.getElementById('editNameBtn');
 const editNameInputDiv = document.getElementById('editNameInput');
 const newInstanceNameInput = document.getElementById('newInstanceName');
@@ -57,7 +57,7 @@ async function loadState() {
         showMessage(`Error loading settings: ${error.message}`, true);
         // Clear potentially stale UI elements
         deviceNameDisplay.textContent = 'Error';
-        deviceIdDisplay.textContent = 'Error';
+        // deviceIdDisplay.textContent = 'Error';
         definedGroupsListDiv.innerHTML = '<p>Error loading groups.</p>';
     } finally {
         showLoading(false);
@@ -72,7 +72,7 @@ function renderAll() {
 
 function renderDeviceName() {
     deviceNameDisplay.textContent = currentState.instanceName || 'N/A';
-    deviceIdDisplay.textContent = currentState.instanceId || 'N/A';
+    // deviceIdDisplay.textContent = currentState.instanceId || 'N/A';
     newInstanceNameInput.value = currentState.instanceName || ''; // Pre-fill edit input
 }
 

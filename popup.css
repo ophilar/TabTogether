@@ -87,3 +87,23 @@ a:hover {
   border-radius: 3px;
   text-align: center;
 }
+#sendTabSection {
+  display: flex;
+  align-items: center;
+  margin-top: 5px;
+}
+#sendTabGroupSelect {
+  flex-grow: 1;
+  margin-right: 5px;
+  padding: 4px;
+  font-size: 0.95em;
+}
+#sendTabBtn {
+  padding: 4px 8px;
+  font-size: 0.95em;
+}
+.status-message {
+  font-size: 0.9em;
+  margin-top: 5px;
+  padding: 3px;
+}

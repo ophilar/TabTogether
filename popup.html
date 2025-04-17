@@ -15,9 +15,22 @@
         <section>
             <h3>This Device</h3>
             <p><strong>Name:</strong> <span id="deviceName">Loading...</span></p>
-            <p class="small-text">ID: <span id="deviceId">Loading...</span></p>
+            <!-- <p class="small-text">ID: <span id="deviceId">Loading...</span></p> -->
         </section>
-
+        <!-- ... (Status section) ... -->
+        <hr>
+        <section>
+            <h3>Send Current Tab</h3>
+            <div id="sendTabSection">
+                <select id="sendTabGroupSelect">
+                    <option value="">-- Select Group --</option>
+                    <!-- Groups populated by JS -->
+                </select>
+                <button id="sendTabBtn" disabled>Send</button>
+            </div>
+            <div id="sendTabStatus" class="status-message" style="display: none;"></div>
+        </section>
+        <!-- ... (Subscriptions, Registry, Options Link) ... -->
         <section>
             <h3>My Subscriptions</h3>
             <ul id="mySubscriptionsList"><li>Loading...</li></ul>
@@ -31,9 +44,8 @@
         </section>
 
         <hr>
-        <p class="options-link"><a href="#" id="openOptionsLink">Manage Settings & Groups...</a></p>
-        <p class="refresh-link"><a href="#" id="refreshLink">Refresh Status</a></p>
-
+        <p class="options-link"><a href="#" id="openOptionsLink">Settings ...</a></p>
+        <p class="refresh-link"><a href="#" id="refreshLink">Sync</a></p>
 
     </div>
     <script src="popup.js"></script>

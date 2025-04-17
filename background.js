@@ -30,36 +30,41 @@ let isInitialized = false; // Flag to track initialization completion
 // --- Initialization ---
 
 async function initializeExtension() {
-    console.log("Initializing TabTogether (Advanced)...");
-    isInitialized = false; // Mark as not initialized until done
-
-    // Fetch local data first
-    localInstanceId = await getInstanceId();
-    localInstanceName = await getInstanceName();
-    localSubscriptions = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
-    localGroupBits = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {});
-    localProcessedTasks = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, {});
-
-    // Fetch and cache sync data
     try {
-        [cachedDefinedGroups, cachedGroupState, cachedDeviceRegistry] = await Promise.all([
-            getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []),
-            getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {}),
-            getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {})
-        ]);
-        console.log("Initial sync data cached.");
+        console.log("Initializing TabTogether (Advanced)...");
+        isInitialized = false; // Mark as not initialized until done
+
+        // Fetch local data first
+        localInstanceId = await getInstanceId();
+        localInstanceName = await getInstanceName();
+        localSubscriptions = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
+        localGroupBits = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {});
+        localProcessedTasks = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, {});
+
+        // Fetch and cache sync data
+        try {
+            [cachedDefinedGroups, cachedGroupState, cachedDeviceRegistry] = await Promise.all([
+                getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []),
+                getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {}),
+                getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {})
+            ]);
+            console.log("Initial sync data cached.");
+        } catch (error) {
+            console.error("Failed to fetch initial sync data for caching:", error);
+            // Proceed without cache, it will be populated by storage listener or next getState call
+            cachedDefinedGroups = [];
+            cachedGroupState = {};
+            cachedDeviceRegistry = {};
+        }
+
+
+        await setupAlarms();
+        await updateContextMenu(); // Use cachedDefinedGroups if available
+        await performHeartbeat(); // Perform initial heartbeat/registry update
+        console.log(`Initialization complete. Name: ${localInstanceName}`);
     } catch (error) {
-        console.error("Failed to fetch initial sync data for caching:", error);
-        // Proceed without cache, it will be populated by storage listener or next getState call
-        cachedDefinedGroups = [];
-        cachedGroupState = {};
-        cachedDeviceRegistry = {};
+        console.error("CRITICAL ERROR during initializeExtension:", error);
     }
-
-
-    await setupAlarms();
-    await updateContextMenu(); // Use cachedDefinedGroups if available
-    await performHeartbeat(); // Perform initial heartbeat/registry update
 
     isInitialized = true; // Mark initialization complete
     console.log(`Initialization complete. ID: ${localInstanceId}, Name: ${localInstanceName}`);
@@ -219,10 +224,11 @@ async function updateContextMenu() {
     await browser.contextMenus.removeAll();
     // Use cache if available, otherwise fetch
     const groups = cachedDefinedGroups ?? await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []);
+    const contexts = ["page", "link", "image", "video", "audio", "selection", "tab"];
 
     if (groups.length === 0) {
         browser.contextMenus.create({
-            id: "no-groups", title: "No groups defined", contexts: ["page", "link", "image", "video", "audio", "selection"], enabled: false
+            id: "no-groups", title: "No groups defined", contexts: contexts, enabled: false
         });
         return;
     }
@@ -230,7 +236,7 @@ async function updateContextMenu() {
     browser.contextMenus.create({
         id: "send-to-group-parent",
         title: "Send Tab to Group",
-        contexts: ["page", "link", "image", "video", "audio", "selection"]
+        contexts: contexts
     });
 
     groups.sort().forEach(groupName => {
@@ -238,23 +244,43 @@ async function updateContextMenu() {
             id: `send-to-${groupName}`,
             parentId: "send-to-group-parent",
             title: groupName,
-            contexts: ["page", "link", "image", "video", "audio", "selection"]
+            contexts: contexts
         });
     });
 }
 
 browser.contextMenus.onClicked.addListener(async (info, tab) => {
-    // ... (Context menu click handler remains the same as before) ...
+    console.log("BACKGROUND.JS: onContextMenuClicked triggered. Info:", info, "Tab:", tab); // Log both
+
     if (!info.menuItemId.startsWith("send-to-") || info.menuItemId === "send-to-group-parent") return;
 
     const groupName = info.menuItemId.replace("send-to-", "");
-    const urlToSend = info.linkUrl || info.srcUrl || info.pageUrl || tab?.url;
-    const titleToSend = info.selectionText || info.linkText || tab?.title || "Link";
+
+    // Determine URL and Title
+    let urlToSend = info.pageUrl; // Default to the page URL
+    let titleToSend = tab?.title || "Link"; // Default to tab title
+
+    if (info.linkUrl) { // Clicked on a link
+        urlToSend = info.linkUrl;
+        titleToSend = info.linkText || urlToSend;
+    } else if (info.srcUrl) { // Clicked on media
+        urlToSend = info.srcUrl;
+        titleToSend = tab?.title || urlToSend; // Media doesn't have specific link text
+    } else if (info.selectionText) { // Clicked on selected text
+        urlToSend = info.pageUrl || tab?.url; // Send the page URL
+        titleToSend = `"${info.selectionText}" on ${tab?.title || urlToSend}`;
+    } else if (info.menuItemId.startsWith("send-to-") && tab) {
+        // Clicked directly on the tab context menu item OR page/frame context
+        // The 'tab' object passed to the listener IS the relevant tab
+        urlToSend = tab.url;
+        titleToSend = tab.title || urlToSend;
+    }
+
     const taskId = crypto.randomUUID();
 
-    if (!urlToSend) {
-        console.error("Could not determine URL to send from context:", info);
-        browser.notifications.create({ type: "basic", iconUrl: browser.runtime.getURL("icons/icon-48.png"), title: "Send Failed", message: "Could not determine URL." });
+    if (!urlToSend || urlToSend === "about:blank") { // Added check for about:blank
+        console.error("Could not determine a valid URL to send from context:", info, "Tab:", tab);
+        browser.notifications.create({ type: "basic", iconUrl: browser.runtime.getURL("icons/icon-48.png"), title: "Send Failed", message: "Cannot send this type of link/page." });
         return;
     }
 
@@ -565,6 +591,28 @@ browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
                 }
             } else {
                 return { success: false, message: "Not subscribed." };
+            }
+
+        case "sendTabFromPopup":
+            const { groupName, tabData } = request;
+            const taskId = crypto.randomUUID();
+            const newTask = {
+                [taskId]: {
+                    url: tabData.url,
+                    title: tabData.title || tabData.url,
+                    processedMask: 0,
+                    creationTimestamp: Date.now()
+                }
+            };
+            const update = { [groupName]: newTask };
+            console.log(`Sending task ${taskId} from popup to group ${groupName}: ${tabData.url}`);
+            const success = await mergeSyncStorage(SYNC_STORAGE_KEYS.GROUP_TASKS, update);
+            if (success) {
+                // Optional: Send notification as well?
+                // browser.notifications.create(...)
+                return { success: true };
+            } else {
+                return { success: false, message: "Failed to save task to sync storage." };
             }
 
         default:
