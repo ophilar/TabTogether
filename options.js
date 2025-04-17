@@ -71,14 +71,14 @@ function renderAll() {
 }
 
 function renderDeviceName() {
-    deviceNameDisplay.textContent = currentState.instanceName || 'N/A';
+    deviceNameDisplay.textContent = currentState.instanceName || '(Not Set)';
     // deviceIdDisplay.textContent = currentState.instanceId || 'N/A';
     newInstanceNameInput.value = currentState.instanceName || ''; // Pre-fill edit input
 }
 
 function renderDefinedGroups() {
     if (!currentState || !currentState.definedGroups) {
-        definedGroupsListDiv.innerHTML = '<p>No groups defined yet.</p>';
+        definedGroupsListDiv.innerHTML = '<p>Loading groups ...</p>';
         return;
     }
 
@@ -86,12 +86,12 @@ function renderDefinedGroups() {
     const subscriptions = currentState.subscriptions || [];
 
     if (groups.length === 0) {
-        definedGroupsListDiv.innerHTML = '<p>No groups defined yet.</p>';
+        definedGroupsListDiv.innerHTML = '<p>No groups defined yet. Create one below.</p>';
         return;
     }
 
     const ul = document.createElement('ul');
-    groups.forEach(groupName => {
+    groups.sort().forEach(groupName => {
         const li = document.createElement('li');
         const isSubscribed = subscriptions.includes(groupName);
 
@@ -105,12 +105,13 @@ function renderDefinedGroups() {
         const subButton = document.createElement('button');
         subButton.textContent = isSubscribed ? 'Unsubscribe' : 'Subscribe';
         subButton.dataset.group = groupName;
+        subButton.className = isSubscribed ? 'unsubscribe-btn' : 'subscribe-btn'; // Add classes for styling
         subButton.addEventListener('click', isSubscribed ? handleUnsubscribe : handleSubscribe);
         actionsDiv.appendChild(subButton);
 
         const deleteButton = document.createElement('button');
         deleteButton.textContent = 'Delete';
-        deleteButton.className = 'danger';
+        deleteButton.className = 'delete-btn';
         deleteButton.dataset.group = groupName;
         deleteButton.addEventListener('click', handleDeleteGroup);
         actionsDiv.appendChild(deleteButton);
