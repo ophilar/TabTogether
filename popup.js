@@ -200,6 +200,10 @@ sendTabBtn.onclick = async () => {
 
 function showLoading(isLoading) {
     loadingIndicator.style.display = isLoading ? 'block' : 'none';
+    // Disable all buttons and inputs while loading
+    document.querySelectorAll('button, input, select').forEach(el => {
+        el.disabled = isLoading || el.disabled;
+    });
 }
 
 function showSendStatus(message, isError) {

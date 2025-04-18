@@ -9,20 +9,20 @@
     <div class="container">
         <h1>TabTogether Settings</h1> <!-- Updated Title -->
 
-        <div id="loadingIndicator" class="loading" style="display: none;">Loading...</div>
-        <div id="messageArea" style="display: none;"></div> <!-- Combined error/success messages -->
+        <div id="loadingIndicator" class="loading" style="display: none;" aria-live="polite">Loading...</div>
+        <div id="messageArea" style="display: none;" aria-live="assertive"></div> <!-- Combined error/success messages -->
 
         <fieldset>
             <legend>Device Settings</legend>
             <div class="setting-item">
                 <strong>Name:</strong>
-                <span id="deviceNameDisplay">Loading...</span>
-                <button id="editNameBtn" class="inline-btn">Edit</button>
+                <span id="deviceNameDisplay" aria-label="Device Name">Loading...</span>
+                <button id="editNameBtn" class="inline-btn" aria-label="Edit Device Name">Edit</button>
             </div>
             <div id="editNameInput" class="input-group" style="display: none;">
-                <input type="text" id="newInstanceName" placeholder="Enter new device name">
-                <button id="saveNameBtn" disabled>Save</button> <!-- Initially disabled -->
-                <button id="cancelNameBtn" class="secondary">Cancel</button>
+                <input type="text" id="newInstanceName" placeholder="Enter new device name" aria-label="New Device Name">
+                <button id="saveNameBtn" disabled aria-label="Save Device Name">Save</button>
+                <button id="cancelNameBtn" class="secondary" aria-label="Cancel Edit">Cancel</button>
             </div>
             <!-- <p class="small-text">Device ID: <span id="deviceIdDisplay">Loading...</span></p> -->
         </fieldset>

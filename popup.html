@@ -9,12 +9,12 @@
     <div class="container">
         <h2>Status</h2>
 
-        <div id="loadingIndicator" class="loading" style="display: none;">Loading...</div>
-        <div id="errorMessage" class="error" style="display: none;"></div>
+        <div id="loadingIndicator" class="loading" style="display: none;" aria-live="polite">Loading...</div>
+        <div id="errorMessage" class="error" style="display: none;" aria-live="assertive"></div>
 
         <section>
             <h3>This Device</h3>
-            <p><strong>Name:</strong> <span id="deviceName">Loading...</span></p>
+            <p><strong>Name:</strong> <span id="deviceName" aria-label="Device Name">Loading...</span></p>
             <!-- <p class="small-text">ID: <span id="deviceId">Loading...</span></p> -->
         </section>
         <!-- ... (Status section) ... -->

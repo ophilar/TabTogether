@@ -82,32 +82,44 @@ function isObject(item) {
 
 
 // --- Instance ID/Name ---
+// Store device name and ID in both local and sync storage for persistence
 async function getInstanceId() {
     let id = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID);
     if (!id) {
-        id = crypto.randomUUID();
+        // Try to restore from sync
+        id = await getStorage(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_ID);
+        if (!id) {
+            id = crypto.randomUUID();
+            await browser.storage.sync.set({ [LOCAL_STORAGE_KEYS.INSTANCE_ID]: id });
+        }
         await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.INSTANCE_ID]: id });
-        console.log("Generated new instance ID:", id);
     }
+    // Always keep sync up to date
+    await browser.storage.sync.set({ [LOCAL_STORAGE_KEYS.INSTANCE_ID]: id });
     return id;
 }
 
 async function getInstanceName() {
     let name = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_NAME);
     if (!name) {
-        // Try to get platform info for a default name
-        try {
-            const platformInfo = await browser.runtime.getPlatformInfo();
-            // Make name slightly more descriptive if possible
-            let osName = platformInfo.os.charAt(0).toUpperCase() + platformInfo.os.slice(1);
-            if (osName === "Mac") osName = "Mac"; // Correct capitalization
-            if (osName === "Win") osName = "Windows";
-            name = `${osName} Device`;
-        } catch (e) {
-            name = "My Device"; // Fallback
+        // Try to restore from sync
+        name = await getStorage(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_NAME);
+        if (!name) {
+            try {
+                const platformInfo = await browser.runtime.getPlatformInfo();
+                let osName = platformInfo.os.charAt(0).toUpperCase() + platformInfo.os.slice(1);
+                if (osName === "Mac") osName = "Mac";
+                if (osName === "Win") osName = "Windows";
+                name = `${osName} Device`;
+            } catch (e) {
+                name = "My Device";
+            }
+            await browser.storage.sync.set({ [LOCAL_STORAGE_KEYS.INSTANCE_NAME]: name });
         }
         await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.INSTANCE_NAME]: name });
     }
+    // Always keep sync up to date
+    await browser.storage.sync.set({ [LOCAL_STORAGE_KEYS.INSTANCE_NAME]: name });
     return name;
 }
 

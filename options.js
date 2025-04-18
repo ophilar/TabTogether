@@ -295,14 +295,18 @@ async function handleDeleteGroup(event) {
 
 function showLoading(isLoading) {
     loadingIndicator.style.display = isLoading ? 'block' : 'none';
+    // Disable all buttons and inputs while loading
+    document.querySelectorAll('button, input, select').forEach(el => {
+        el.disabled = isLoading || el.disabled;
+    });
 }
 
 function showMessage(message, isError = false) {
     messageArea.textContent = message;
-    messageArea.className = isError ? 'error' : 'success'; // Use classes for styling
+    messageArea.className = isError ? 'error' : 'success';
     messageArea.style.display = 'block';
     // Optionally hide message after a delay
-    // setTimeout(clearMessage, 5000);
+    if (!isError) setTimeout(clearMessage, 4000);
 }
 
 function clearMessage() {
