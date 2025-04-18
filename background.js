@@ -14,60 +14,36 @@ const TASK_CLEANUP_INTERVAL_MIN = 60 * 24 * 2; // Every 2 days
 const STALE_DEVICE_THRESHOLD_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
 const TASK_EXPIRY_MS = 1000 * 60 * 60 * 24 * 14; // 14 days
 
-// --- Local State & Caches ---
-let localInstanceId = null;
-let localInstanceName = null;
-let localSubscriptions = [];
-let localGroupBits = {};
-let localProcessedTasks = {};
-
-// Caches for sync data to reduce reads in getState
-let cachedDefinedGroups = null;
-let cachedGroupState = null;
-let cachedDeviceRegistry = null;
-let isInitialized = false; // Flag to track initialization completion
-
 // --- Initialization ---
 
 async function initializeExtension() {
     try {
         console.log("Initializing TabTogether (Advanced)...");
-        isInitialized = false; // Mark as not initialized until done
 
         // Fetch local data first
-        localInstanceId = await getInstanceId();
-        localInstanceName = await getInstanceName();
-        localSubscriptions = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
-        localGroupBits = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {});
-        localProcessedTasks = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, {});
+        let localInstanceId = await getInstanceId();
+        let localInstanceName = await getInstanceName();
+        let localSubscriptions = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
+        let localGroupBits = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {});
+        let localProcessedTasks = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, {});
 
-        // Fetch and cache sync data
-        try {
-            [cachedDefinedGroups, cachedGroupState, cachedDeviceRegistry] = await Promise.all([
-                getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []),
-                getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {}),
-                getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {})
-            ]);
-            console.log("Initial sync data cached.");
-        } catch (error) {
-            console.error("Failed to fetch initial sync data for caching:", error);
-            // Proceed without cache, it will be populated by storage listener or next getState call
-            cachedDefinedGroups = [];
-            cachedGroupState = {};
-            cachedDeviceRegistry = {};
-        }
-
+        // Only read from sync storage, do not write defaults
+        let cachedDefinedGroups = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, undefined);
+        let cachedGroupState = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, undefined);
+        let cachedDeviceRegistry = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, undefined);
+        if (cachedDefinedGroups === undefined) cachedDefinedGroups = [];
+        if (cachedGroupState === undefined) cachedGroupState = {};
+        if (cachedDeviceRegistry === undefined) cachedDeviceRegistry = {};
 
         await setupAlarms();
-        await updateContextMenu(); // Use cachedDefinedGroups if available
-        await performHeartbeat(); // Perform initial heartbeat/registry update
+        await updateContextMenu(cachedDefinedGroups); // Use cachedDefinedGroups if available
+        await performHeartbeat(localInstanceId, localInstanceName, localGroupBits, cachedDeviceRegistry); // Perform initial heartbeat/registry update
         console.log(`Initialization complete. Name: ${localInstanceName}`);
     } catch (error) {
         console.error("CRITICAL ERROR during initializeExtension:", error);
     }
 
-    isInitialized = true; // Mark initialization complete
-    console.log(`Initialization complete. ID: ${localInstanceId}, Name: ${localInstanceName}`);
+    console.log("Initialization complete.");
 }
 
 async function setupAlarms() {
@@ -85,28 +61,33 @@ browser.runtime.onStartup.addListener(initializeExtension);
 // --- Alarm Handlers ---
 
 browser.alarms.onAlarm.addListener(async (alarm) => {
-    // Ensure initialization is complete before running alarms
-    if (!isInitialized) {
-        console.warn(`Alarm ${alarm.name} triggered before initialization complete. Skipping.`);
-        return;
-    }
+    // Always fetch latest state from storage
+    let localInstanceId = await getInstanceId();
+    let localInstanceName = await getInstanceName();
+    let localSubscriptions = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
+    let localGroupBits = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {});
+    let localProcessedTasks = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, {});
+    let cachedDefinedGroups = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []);
+    let cachedGroupState = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {});
+    let cachedDeviceRegistry = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
+
     console.log(`Alarm triggered: ${alarm.name}`);
     switch (alarm.name) {
         case ALARM_HEARTBEAT:
-            await performHeartbeat();
+            await performHeartbeat(localInstanceId, localInstanceName, localGroupBits, cachedDeviceRegistry);
             break;
         case ALARM_STALE_CHECK:
-            await performStaleDeviceCheck();
+            await performStaleDeviceCheck(cachedDeviceRegistry, cachedGroupState);
             break;
         case ALARM_TASK_CLEANUP:
-            await performTimeBasedTaskCleanup();
+            await performTimeBasedTaskCleanup(localProcessedTasks);
             break;
     }
 });
 
 // --- Core Logic Functions ---
 
-async function performHeartbeat() {
+async function performHeartbeat(localInstanceId, localInstanceName, localGroupBits, cachedDeviceRegistry) {
     if (!localInstanceId) {
         console.warn("Heartbeat skipped: Instance ID not available yet.");
         return;
@@ -128,7 +109,7 @@ async function performHeartbeat() {
     console.log("Heartbeat complete.");
 }
 
-async function performStaleDeviceCheck() {
+async function performStaleDeviceCheck(cachedDeviceRegistry, cachedGroupState) {
     console.log("Performing stale device check...");
     // Use cache first, fetch if needed (should be populated after init)
     let registry = cachedDeviceRegistry ?? await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
@@ -182,7 +163,7 @@ async function performStaleDeviceCheck() {
     console.log("Stale device check complete.");
 }
 
-async function performTimeBasedTaskCleanup() {
+async function performTimeBasedTaskCleanup(localProcessedTasks) {
     console.log("Performing time-based task cleanup...");
     const allGroupTasks = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, {}); // Fetch fresh tasks
     let groupTasksUpdates = {};
@@ -220,7 +201,7 @@ async function performTimeBasedTaskCleanup() {
 
 // --- Context Menu ---
 
-async function updateContextMenu() {
+async function updateContextMenu(cachedDefinedGroups) {
     await browser.contextMenus.removeAll();
     // Use cache if available, otherwise fetch
     const groups = cachedDefinedGroups ?? await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []);
@@ -307,16 +288,16 @@ browser.storage.onChanged.addListener(async (changes, areaName) => {
 
     // Update caches based on changes
     if (changes[SYNC_STORAGE_KEYS.DEFINED_GROUPS]) {
-        cachedDefinedGroups = changes[SYNC_STORAGE_KEYS.DEFINED_GROUPS].newValue ?? [];
+        const cachedDefinedGroups = changes[SYNC_STORAGE_KEYS.DEFINED_GROUPS].newValue ?? [];
         console.log("Cache updated: definedGroups");
         contextMenuNeedsUpdate = true; // Groups changed, update menu
     }
     if (changes[SYNC_STORAGE_KEYS.GROUP_STATE]) {
-        cachedGroupState = changes[SYNC_STORAGE_KEYS.GROUP_STATE].newValue ?? {};
+        const cachedGroupState = changes[SYNC_STORAGE_KEYS.GROUP_STATE].newValue ?? {};
         console.log("Cache updated: groupState");
     }
     if (changes[SYNC_STORAGE_KEYS.DEVICE_REGISTRY]) {
-        cachedDeviceRegistry = changes[SYNC_STORAGE_KEYS.DEVICE_REGISTRY].newValue ?? {};
+        const cachedDeviceRegistry = changes[SYNC_STORAGE_KEYS.DEVICE_REGISTRY].newValue ?? {};
         console.log("Cache updated: deviceRegistry");
     }
 
@@ -341,6 +322,9 @@ async function processIncomingTasks(allGroupTasks) {
         return;
     }
 
+    let localSubscriptions = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
+    let localGroupBits = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {});
+    let localProcessedTasks = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, {});
     const currentSubscriptions = localSubscriptions;
     const currentGroupBits = localGroupBits;
     let currentProcessedTasks = { ...localProcessedTasks };
@@ -379,7 +363,7 @@ async function processIncomingTasks(allGroupTasks) {
     if (tasksToProcess.length > 0) {
         console.log(`Processing ${tasksToProcess.length} new tasks...`);
         // Use cached groupState if available, fetch otherwise
-        const groupState = cachedGroupState ?? await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {});
+        const cachedGroupState = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {});
         let processedTasksUpdateBatch = {};
 
         for (const { groupName, taskId, task, myBit } of tasksToProcess) {
@@ -397,7 +381,7 @@ async function processIncomingTasks(allGroupTasks) {
             const mergeSuccess = await mergeSyncStorage(SYNC_STORAGE_KEYS.GROUP_TASKS, taskUpdate);
 
             if (mergeSuccess) {
-                const currentGroupState = groupState[groupName];
+                const currentGroupState = cachedGroupState[groupName];
                 if (currentGroupState && newProcessedMask === currentGroupState.assignedMask) {
                     console.log(`Task ${taskId} fully processed by all assigned devices in group ${groupName}. Cleaning up.`);
                     const cleanupUpdate = { [groupName]: { [taskId]: null } };
@@ -424,11 +408,15 @@ async function processIncomingTasks(allGroupTasks) {
 browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
     console.log("Message received:", request.action, "Data:", request);
 
-    // Ensure initialization is complete before handling UI messages
-    if (!isInitialized && request.action !== 'getState') { // Allow getState even before full init? Maybe risky.
-         console.warn(`Message ${request.action} received before initialization complete. Rejecting.`);
-         return { success: false, message: "Extension is still initializing. Please try again shortly." };
-    }
+    // Always fetch latest state from storage
+    let localInstanceId = await getInstanceId();
+    let localInstanceName = await getInstanceName();
+    let localSubscriptions = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
+    let localGroupBits = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {});
+    let localProcessedTasks = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, {});
+    let cachedDefinedGroups = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []);
+    let cachedGroupState = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {});
+    let cachedDeviceRegistry = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
 
     switch (request.action) {
         case "getState":
@@ -437,11 +425,6 @@ browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
             const groups = cachedDefinedGroups ?? await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []);
             const state = cachedGroupState ?? await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {});
             const registry = cachedDeviceRegistry ?? await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
-
-            // Update caches if they were null and we just fetched them
-            if (cachedDefinedGroups === null) cachedDefinedGroups = groups;
-            if (cachedGroupState === null) cachedGroupState = state;
-            if (cachedDeviceRegistry === null) cachedDeviceRegistry = registry;
 
             return {
                 instanceId: localInstanceId,
@@ -460,7 +443,7 @@ browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
             }
             localInstanceName = request.name.trim();
             await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.INSTANCE_NAME]: localInstanceName });
-            await performHeartbeat(); // Updates registry and potentially cache
+            await performHeartbeat(localInstanceId, localInstanceName, localGroupBits, cachedDeviceRegistry); // Updates registry and potentially cache
             return { success: true, newName: localInstanceName }; // Return new name for UI update
 
         case "createGroup":
@@ -536,14 +519,14 @@ browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
             const groupToSubscribe = request.groupName;
              if (!groupToSubscribe) return { success: false, message: "No group name provided." };
             if (!localSubscriptions.includes(groupToSubscribe)) {
-                const assignedBit = await assignBitForGroup(groupToSubscribe); // This updates registry/state
+                const assignedBit = await assignBitForGroup(groupToSubscribe, localInstanceId, localGroupBits, cachedGroupState, cachedDeviceRegistry); // This updates registry/state
                 if (assignedBit !== null) {
                     localSubscriptions.push(groupToSubscribe);
                     localSubscriptions.sort();
                     localGroupBits[groupToSubscribe] = assignedBit;
                     await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.SUBSCRIPTIONS]: localSubscriptions });
                     await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.GROUP_BITS]: localGroupBits });
-                    await performHeartbeat(); // Ensure full localGroupBits map is synced
+                    await performHeartbeat(localInstanceId, localInstanceName, localGroupBits, cachedDeviceRegistry); // Ensure full localGroupBits map is synced
                     return { success: true, subscribedGroup: groupToSubscribe, assignedBit: assignedBit }; // Return info for UI update
                 } else {
                     return { success: false, message: "Group is full or error assigning bit." };
@@ -623,7 +606,7 @@ browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
 
 
 // --- Helper for Bit Assignment (Remains the same) ---
-async function assignBitForGroup(groupName) {
+async function assignBitForGroup(groupName, localInstanceId, localGroupBits, cachedGroupState, cachedDeviceRegistry) {
     // ... (assignBitForGroup logic remains the same as the previous version) ...
     // It already uses mergeSyncStorage which handles sync updates.
     // It updates registry immediately after state update.

@@ -16,7 +16,7 @@
     "128": "icons/icon-128.png"
   },
   "background": {
-    "scripts": ["utils.js", "background.js"] 
+    "scripts": ["utils.js", "background.js"]
   },
   "action": {
     "default_icon": {
