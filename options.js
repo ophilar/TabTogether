@@ -1,5 +1,9 @@
 // options.js
 
+import { applyThemeFromStorage, setupThemeDropdown } from './theme.js';
+import { renderDeviceList, renderGroupList, renderDeviceName, renderSubscriptions } from './utils.js';
+import { injectSharedUI } from './shared-ui.js';
+
 const deviceNameDisplay = document.getElementById('deviceNameDisplay');
 const deviceRegistryListDiv = document.getElementById('deviceRegistryList');
 const editNameBtn = document.getElementById('editNameBtn');
@@ -19,7 +23,12 @@ let currentState = null; // Cache for state fetched from background
 
 // --- Initialization ---
 
-document.addEventListener('DOMContentLoaded', loadState);
+document.addEventListener('DOMContentLoaded', () => {
+    injectSharedUI();
+    applyThemeFromStorage();
+    setupThemeDropdown('darkModeSelect');
+    loadState();
+});
 
 // --- State Loading and Rendering ---
 
@@ -58,101 +67,29 @@ function renderAll() {
 }
 
 function renderDeviceName() {
-    deviceNameDisplay.textContent = currentState.instanceName || '(Not Set)';
+    renderDeviceName(deviceNameDisplay, currentState.instanceName);
     newInstanceNameInput.value = currentState.instanceName || ''; // Pre-fill edit input
 }
 
 function renderDeviceRegistry() {
-    const registry = currentState.deviceRegistry || {};
-    if (!registry || Object.keys(registry).length === 0) {
-        deviceRegistryListDiv.innerHTML = '<div class="small-text">Registry is empty.</div>';
-        return;
-    }
-    const sortedDeviceIds = Object.keys(registry).sort((a, b) => {
-        const nameA = registry[a]?.name?.toLowerCase() || '';
-        const nameB = registry[b]?.name?.toLowerCase() || '';
-        return nameA.localeCompare(nameB);
-    });
-    const ul = document.createElement('ul');
-    sortedDeviceIds.forEach(deviceId => {
-        const device = registry[deviceId];
-        const li = document.createElement('li');
-        const nameStrong = document.createElement('strong');
-        nameStrong.textContent = device.name || 'Unnamed Device';
-        li.appendChild(nameStrong);
-        const idSpan = document.createElement('span');
-        idSpan.textContent = ` (${deviceId})`;
-        idSpan.className = 'small-text';
-        li.appendChild(idSpan);
-        const lastSeenDiv = document.createElement('div');
-        lastSeenDiv.className = 'small-text';
-        const lastSeenDate = device.lastSeen ? new Date(device.lastSeen) : null;
-        const lastSeenString = lastSeenDate
-            ? `Last seen: ${lastSeenDate.toLocaleDateString()} ${lastSeenDate.toLocaleTimeString()}`
-            : 'Last seen: Unknown';
-        lastSeenDiv.textContent = lastSeenString;
-        li.appendChild(lastSeenDiv);
-        ul.appendChild(li);
-    });
-    deviceRegistryListDiv.innerHTML = '';
-    deviceRegistryListDiv.appendChild(ul);
+    renderDeviceList(deviceRegistryListDiv, currentState.deviceRegistry);
 }
 
 function renderDefinedGroups() {
-    if (!currentState || !currentState.definedGroups) {
-        definedGroupsListDiv.innerHTML = '<p>Loading groups ...</p>';
-        return;
-    }
+    renderGroupList(
+        definedGroupsListDiv,
+        currentState.definedGroups,
+        currentState.subscriptions,
+        handleSubscribe,
+        handleUnsubscribe,
+        handleDeleteGroup,
+        startRenameGroup
+    );
+}
 
-    const groups = currentState.definedGroups;
-    const subscriptions = currentState.subscriptions || [];
-
-    if (groups.length === 0) {
-        definedGroupsListDiv.innerHTML = '<p>No groups defined yet. Create one below.</p>';
-        return;
-    }
-
-    const ul = document.createElement('ul');
-    groups.sort().forEach(groupName => {
-        const li = document.createElement('li');
-        const isSubscribed = subscriptions.includes(groupName);
-
-        // Group name (editable)
-        const nameSpan = document.createElement('span');
-        nameSpan.textContent = groupName;
-        nameSpan.className = 'group-name-label';
-        nameSpan.title = 'Click to rename';
-        nameSpan.style.cursor = 'pointer';
-        nameSpan.onclick = () => startRenameGroup(groupName, nameSpan);
-        li.appendChild(nameSpan);
-
-        // Actions
-        const actionsDiv = document.createElement('div');
-        actionsDiv.className = 'group-actions';
-
-        const subButton = document.createElement('button');
-        subButton.textContent = isSubscribed ? 'Unsubscribe' : 'Subscribe';
-        subButton.dataset.group = groupName;
-        subButton.className = isSubscribed ? 'unsubscribe-btn' : 'subscribe-btn'; // Add classes for styling
-        subButton.addEventListener('click', isSubscribed ? handleUnsubscribe : handleSubscribe);
-        actionsDiv.appendChild(subButton);
-
-        // Removed leave button
-
-        const deleteButton = document.createElement('button');
-        deleteButton.textContent = 'Delete';
-        deleteButton.className = 'delete-btn';
-        deleteButton.dataset.group = groupName;
-        deleteButton.title = 'Delete group for all devices';
-        deleteButton.addEventListener('click', handleDeleteGroup);
-        actionsDiv.appendChild(deleteButton);
-
-        li.appendChild(actionsDiv);
-        ul.appendChild(li);
-    });
-
-    definedGroupsListDiv.innerHTML = ''; // Clear previous list
-    definedGroupsListDiv.appendChild(ul);
+function renderSubscriptionsUI() {
+    // If you want to show subscriptions in options, call this with the right container
+    // renderSubscriptions(subscriptionsContainer, currentState.subscriptions);
 }
 
 // --- Group Rename ---
@@ -377,40 +314,6 @@ document.getElementById('testNotificationBtn').addEventListener('click', async (
         showMessage('Failed to send notification: ' + e.message, true);
     } finally {
         showLoading(false);
-    }
-});
-
-// --- Dark Mode Toggle ---
-const darkModeSelect = document.getElementById('darkModeSelect');
-darkModeSelect.addEventListener('change', (e) => {
-    const value = e.target.value;
-    if (value === 'enabled') {
-        document.documentElement.setAttribute('data-theme', 'dark');
-        localStorage.setItem('tt_dark_mode', 'enabled');
-    } else if (value === 'disabled') {
-        document.documentElement.setAttribute('data-theme', 'light');
-        localStorage.setItem('tt_dark_mode', 'disabled');
-    } else {
-        // auto
-        localStorage.setItem('tt_dark_mode', 'auto');
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
-    }
-});
-
-window.addEventListener('DOMContentLoaded', () => {
-    const saved = localStorage.getItem('tt_dark_mode');
-    if (saved === 'enabled') {
-        document.documentElement.setAttribute('data-theme', 'dark');
-        darkModeSelect.value = 'enabled';
-    } else if (saved === 'disabled') {
-        document.documentElement.setAttribute('data-theme', 'light');
-        darkModeSelect.value = 'disabled';
-    } else {
-        // auto or not set
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
-        darkModeSelect.value = 'auto';
     }
 });
 

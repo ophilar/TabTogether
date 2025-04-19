@@ -1,46 +1,5 @@
 /* options.css */
-:root {
-  --ffx-orange: #ff9400;
-  --ffx-orange-dark: #c75c00;
-  --ffx-bg: #fff8f3;
-  --ffx-bg-dark: #181818;
-  --ffx-card: #fff;
-  --ffx-card-dark: #232323;
-  --ffx-border: #ffe0b2;
-  --ffx-border-dark: #333;
-  --ffx-text: #2a2a2a;
-  --ffx-text-dark: #f7f7f7;
-  --ffx-accent: #ff9400;
-  --ffx-accent-dark: #ffb84d;
-  --ffx-error: #ffb3a7;
-  --ffx-success: #b7e4c7;
-  --transition: 0.22s cubic-bezier(.4,0,.2,1);
-}
-
-[data-theme="dark"] {
-  --ffx-bg: var(--ffx-bg-dark);
-  --ffx-card: var(--ffx-card-dark);
-  --ffx-border: var(--ffx-border-dark);
-  --ffx-text: var(--ffx-text-dark);
-  --ffx-accent: var(--ffx-accent-dark);
-}
-[data-theme="light"] {
-  --ffx-bg: #fff8f3;
-  --ffx-card: #fff;
-  --ffx-border: #ffe0b2;
-  --ffx-text: #2a2a2a;
-  --ffx-accent: #ff9400;
-}
-
-body {
-    font-family: 'Segoe UI', Arial, sans-serif;
-    margin: 0;
-    background: var(--ffx-bg);
-    min-width: 420px;
-    padding: 0;
-    color: var(--ffx-text);
-    transition: background var(--transition), color var(--transition);
-}
+@import url("styles.css");
 
 .container {
     background: var(--ffx-card);
@@ -96,60 +55,12 @@ legend {
     margin-bottom: 10px;
 }
 
-input[type="text"] {
-    padding: 8px 10px;
-    border: 1.5px solid var(--ffx-border);
-    border-radius: 5px;
-    flex-grow: 1;
-    font-size: 1em;
-    background: var(--ffx-bg);
-    color: var(--ffx-text);
-    transition: border var(--transition), color var(--transition), background var(--transition);
-}
-input[type="text"]:focus {
-    border: 1.5px solid var(--ffx-orange);
-    outline: none;
-}
-
 [data-theme="dark"] input[type="text"],
 [data-theme="light"] input[type="text"] {
     color: #fff !important;
     background: #232323;
 }
 
-button {
-    padding: 8px 18px;
-    border: none;
-    border-radius: 5px;
-    background: var(--ffx-orange);
-    color: #fff;
-    cursor: pointer;
-    font-size: 1em;
-    transition: background var(--transition), box-shadow var(--transition), transform var(--transition);
-    box-shadow: 0 1px 2px rgba(255,148,0,0.09);
-    font-weight: 500;
-}
-button:hover:not(:disabled) {
-    background: var(--ffx-orange-dark);
-    transform: translateY(-2px) scale(1.04);
-}
-button:disabled {
-    background: #ffe0b2;
-    color: #fff;
-    cursor: not-allowed;
-}
-button.secondary {
-    background: #6c757d;
-}
-button.secondary:hover:not(:disabled) {
-    background: #495057;
-}
-button.danger {
-    background: #dc3545;
-}
-button.danger:hover:not(:disabled) {
-    background: #b71c1c;
-}
 button.inline-btn {
     padding: 4px 10px;
     margin-left: 10px;

@@ -1,47 +1,5 @@
 /* popup.css */
-:root {
-  --palette-blue: #eaf3fb;
-  --palette-blue-dark: #b3cbe6;
-  --palette-orange: #f7c59f;
-  --palette-orange-dark: #e6a96b;
-  --palette-bg: #f7f8fa;
-  --palette-bg-dark: #23272e;
-  --palette-card: #fff;
-  --palette-card-dark: #23272e;
-  --palette-border: #dbe6ef;
-  --palette-border-dark: #333;
-  --palette-text: #2a2a2a;
-  --palette-text-dark: #f7f7f7;
-  --palette-accent: #e6a96b;
-  --palette-accent-dark: #b3cbe6;
-  --palette-error: #f7c59f;
-  --palette-success: #b3cbe6;
-  --transition: 0.22s cubic-bezier(.4,0,.2,1);
-}
-
-[data-theme="dark"] {
-  --palette-bg: var(--palette-bg-dark);
-  --palette-card: var(--palette-card-dark);
-  --palette-border: var(--palette-border-dark);
-  --palette-text: var(--palette-text-dark);
-  --palette-accent: var(--palette-accent-dark);
-}
-[data-theme="light"] {
-  --palette-bg: #f7f8fa;
-  --palette-card: #fff;
-  --palette-border: #dbe6ef;
-  --palette-text: #2a2a2a;
-  --palette-accent: #e6a96b;
-}
-
-body {
-  font-family: 'Segoe UI', Arial, sans-serif;
-  margin: 0;
-  min-width: 320px;
-  color: var(--palette-text);
-  background: var(--palette-bg);
-  transition: background var(--transition), color var(--transition);
-}
+@import url("styles.css");
 
 .container {
   padding: 18px 16px 16px 16px;

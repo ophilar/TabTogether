@@ -1,5 +1,9 @@
 // popup.js
 
+import { applyThemeFromStorage } from './theme.js';
+import { renderDeviceList, renderDeviceName, renderSubscriptions } from './utils.js';
+import { injectSharedUI } from './shared-ui.js';
+
 const deviceNameSpan = document.getElementById('deviceName');
 const sendTabGroupsList = document.getElementById('sendTabGroupsList');
 const sendTabStatus = document.getElementById('sendTabStatus');
@@ -14,17 +18,8 @@ let localInstanceId = null; // Store local ID for highlighting
 
 // --- Initialization ---
 document.addEventListener('DOMContentLoaded', () => {
-    // Apply dark mode setting from localStorage
-    const saved = localStorage.getItem('tt_dark_mode');
-    if (saved === 'enabled') {
-        document.documentElement.setAttribute('data-theme', 'dark');
-    } else if (saved === 'disabled') {
-        document.documentElement.setAttribute('data-theme', 'light');
-    } else {
-        // auto or not set
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
-    }
+    injectSharedUI();
+    applyThemeFromStorage();
     loadStatus();
 });
 openOptionsLink.addEventListener('click', (e) => {
@@ -56,8 +51,8 @@ async function loadStatus() {
 
         console.log("Popup state loaded:", state);
         localInstanceId = state.instanceId; // Store for comparison
-        renderDeviceName(state.instanceName);
-        renderSubscriptions(state.subscriptions);
+        renderDeviceNameUI(state.instanceName);
+        renderSubscriptionsUI(state.subscriptions);
         renderRegistry(state.deviceRegistry);
         renderSendTabGroups(state.definedGroups);
         showLoading(false); // Ensure loading indicator is hidden on success
@@ -73,8 +68,12 @@ async function loadStatus() {
     }
 }
 
-function renderDeviceName(name) {
-    deviceNameSpan.textContent = name || '(Not Set)';
+function renderDeviceNameUI(name) {
+    renderDeviceName(deviceNameSpan, name);
+}
+
+function renderSubscriptionsUI(subscriptions) {
+    renderSubscriptions(mySubscriptionsList, subscriptions);
 }
 
 function renderSendTabGroups(groups) {
@@ -100,29 +99,8 @@ function renderSendTabGroups(groups) {
     });
 }
 
-function renderSubscriptions(subscriptions) {
-    if (!subscriptions || subscriptions.length === 0) {
-        mySubscriptionsList.textContent = 'Not subscribed to any groups.';
-        return;
-    }
-    mySubscriptionsList.textContent = 'Subscribed groups: ' + subscriptions.join(', ');
-}
-
 function renderRegistry(deviceRegistry) {
-    if (!deviceRegistry || Object.keys(deviceRegistry).length === 0) {
-        deviceRegistryList.textContent = 'No devices registered.';
-        return;
-    }
-    const entries = Object.entries(deviceRegistry)
-        .sort((a, b) => (a[1]?.name || '').localeCompare(b[1]?.name || ''));
-    let html = '<ul>';
-    for (const [id, device] of entries) {
-        // html += `<li${id === localInstanceId ? ' class="this-device"' : ''}>`;
-        html += `<span>${device.name || 'Unnamed Device'}</span>`;
-        html += '</li>';
-    }
-    html += '</ul>';
-    deviceRegistryList.innerHTML = html;
+    renderDeviceList(deviceRegistryList, deviceRegistry, localInstanceId);
 }
 
 async function sendTabToGroup(groupName) {

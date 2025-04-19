@@ -1,0 +1,74 @@
+/* styles.css - shared styles for TabTogether */
+:root {
+  --main-orange: #ff9400;
+  --main-orange-dark: #c75c00;
+  --main-bg: #fff8f3;
+  --main-bg-dark: #181818;
+  --main-card: #fff;
+  --main-card-dark: #232323;
+  --main-border: #ffe0b2;
+  --main-border-dark: #333;
+  --main-text: #2a2a2a;
+  --main-text-dark: #f7f7f7;
+  --main-accent: #ff9400;
+  --main-accent-dark: #ffb84d;
+  --main-blue: #eaf3fb;
+  --main-blue-dark: #b3cbe6;
+  --main-error: #ffb3a7;
+  --main-success: #b7e4c7;
+  --transition: 0.22s cubic-bezier(.4,0,.2,1);
+}
+[data-theme="dark"] {
+  --main-bg: var(--main-bg-dark);
+  --main-card: var(--main-card-dark);
+  --main-border: var(--main-border-dark);
+  --main-text: var(--main-text-dark);
+  --main-accent: var(--main-accent-dark);
+}
+[data-theme="light"] {
+  --main-bg: #fff8f3;
+  --main-card: #fff;
+  --main-border: #ffe0b2;
+  --main-text: #2a2a2a;
+  --main-accent: #ff9400;
+}
+body {
+  font-family: 'Segoe UI', Arial, sans-serif;
+  margin: 0;
+  background: var(--main-bg);
+  color: var(--main-text);
+  transition: background var(--transition), color var(--transition);
+}
+input[type="text"] {
+  color: var(--main-text);
+  background: var(--main-bg);
+  border: 1.5px solid var(--main-border);
+  border-radius: 5px;
+  padding: 8px 10px;
+  font-size: 1em;
+  transition: border var(--transition), color var(--transition), background var(--transition);
+}
+[data-theme="dark"] input[type="text"] {
+  color: #fff !important;
+  background: #232323;
+}
+button {
+  background: var(--main-accent);
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  padding: 8px 18px;
+  font-size: 1em;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background var(--transition), box-shadow var(--transition), transform var(--transition);
+}
+button:hover:not(:disabled) {
+  background: var(--main-orange-dark);
+  transform: translateY(-2px) scale(1.04);
+}
+button:disabled {
+  background: #ffe0b2;
+  color: #fff;
+  cursor: not-allowed;
+}

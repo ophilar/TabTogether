@@ -1,5 +1,7 @@
 // utils.js
 
+import { STRINGS } from './constants.js';
+
 const SYNC_STORAGE_KEYS = {
     DEFINED_GROUPS: 'definedGroups', // string[]
     GROUP_STATE: 'groupState',       // { [groupName: string]: { assignedMask: number, assignedCount: number } }
@@ -131,4 +133,73 @@ function getNextAvailableBitPosition(mask) {
         }
     }
     return -1; // No available bits
+}
+
+// utils.js - shared rendering and storage helpers for TabTogether
+
+export function renderDeviceList(container, devices, highlightId = null) {
+    if (!devices || Object.keys(devices).length === 0) {
+        container.textContent = 'No devices registered.';
+        return;
+    }
+    const entries = Object.entries(devices)
+        .sort((a, b) => (a[1]?.name || '').localeCompare(b[1]?.name || ''));
+    let html = '<ul>';
+    for (const [id, device] of entries) {
+        html += `<li${id === highlightId ? ' class="this-device"' : ''}>`;
+        html += `<span>${device.name || 'Unnamed Device'}</span>`;
+        html += '</li>';
+    }
+    html += '</ul>';
+    container.innerHTML = html;
+}
+
+export function renderGroupList(container, groups, subscriptions, onSubscribe, onUnsubscribe, onDelete, onRename) {
+    if (!groups || groups.length === 0) {
+        container.innerHTML = '<p>No groups defined yet. Create one below.</p>';
+        return;
+    }
+    const ul = document.createElement('ul');
+    groups.sort().forEach(groupName => {
+        const li = document.createElement('li');
+        const isSubscribed = subscriptions && subscriptions.includes(groupName);
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = groupName;
+        nameSpan.className = 'group-name-label';
+        nameSpan.title = 'Click to rename';
+        nameSpan.style.cursor = 'pointer';
+        if (onRename) nameSpan.onclick = () => onRename(groupName, nameSpan);
+        li.appendChild(nameSpan);
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'group-actions';
+        const subButton = document.createElement('button');
+        subButton.textContent = isSubscribed ? 'Unsubscribe' : 'Subscribe';
+        subButton.dataset.group = groupName;
+        subButton.className = isSubscribed ? 'unsubscribe-btn' : 'subscribe-btn';
+        subButton.addEventListener('click', isSubscribed ? onUnsubscribe : onSubscribe);
+        actionsDiv.appendChild(subButton);
+        const deleteButton = document.createElement('button');
+        deleteButton.textContent = 'Delete';
+        deleteButton.className = 'delete-btn';
+        deleteButton.dataset.group = groupName;
+        deleteButton.title = 'Delete group for all devices';
+        deleteButton.addEventListener('click', onDelete);
+        actionsDiv.appendChild(deleteButton);
+        li.appendChild(actionsDiv);
+        ul.appendChild(li);
+    });
+    container.innerHTML = '';
+    container.appendChild(ul);
+}
+
+export function renderDeviceName(container, name) {
+    container.textContent = name || STRINGS.deviceNameNotSet;
+}
+
+export function renderSubscriptions(container, subscriptions) {
+    if (!subscriptions || subscriptions.length === 0) {
+        container.textContent = STRINGS.notSubscribed;
+        return;
+    }
+    container.textContent = STRINGS.subscribedGroups + subscriptions.join(', ');
 }
