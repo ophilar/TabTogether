@@ -413,7 +413,7 @@ browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
     let localInstanceName = await getInstanceName();
     let localSubscriptions = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
     let localGroupBits = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {});
-    let localProcessedTasks = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, {});
+    let localProcessedTasks = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, []);
     let cachedDefinedGroups = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []);
     let cachedGroupState = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {});
     let cachedDeviceRegistry = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
@@ -598,6 +598,69 @@ browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
                 return { success: false, message: "Failed to save task to sync storage." };
             }
 
+        case "heartbeat":
+            // Manual heartbeat for popup open/send
+            localInstanceId = await getInstanceId();
+            localInstanceName = await getInstanceName();
+            localGroupBits = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {});
+            cachedDeviceRegistry = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
+            await performHeartbeat(localInstanceId, localInstanceName, localGroupBits, cachedDeviceRegistry);
+            return { success: true };
+
+        case "renameGroup": {
+            const { oldName, newName } = request;
+            if (!oldName || !newName || typeof newName !== 'string' || newName.trim().length === 0) {
+                return { success: false, message: "Invalid group name." };
+            }
+            const groups = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []);
+            if (!groups.includes(oldName)) {
+                return { success: false, message: "Group does not exist." };
+            }
+            if (groups.includes(newName)) {
+                return { success: false, message: "A group with that name already exists." };
+            }
+            // Rename in definedGroups
+            const updatedGroups = groups.map(g => g === oldName ? newName : g);
+            await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.DEFINED_GROUPS]: updatedGroups });
+            // Rename in groupState
+            const groupState = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {});
+            if (groupState[oldName]) {
+                groupState[newName] = groupState[oldName];
+                delete groupState[oldName];
+                await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.GROUP_STATE]: groupState });
+            }
+            // Rename in groupTasks
+            const groupTasks = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, {});
+            if (groupTasks[oldName]) {
+                groupTasks[newName] = groupTasks[oldName];
+                delete groupTasks[oldName];
+                await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.GROUP_TASKS]: groupTasks });
+            }
+            // Update deviceRegistry groupBits
+            const deviceRegistry = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
+            let registryChanged = false;
+            for (const deviceId in deviceRegistry) {
+                if (deviceRegistry[deviceId]?.groupBits?.[oldName] !== undefined) {
+                    const bit = deviceRegistry[deviceId].groupBits[oldName];
+                    delete deviceRegistry[deviceId].groupBits[oldName];
+                    deviceRegistry[deviceId].groupBits[newName] = bit;
+                    registryChanged = true;
+                }
+            }
+            if (registryChanged) {
+                await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: deviceRegistry });
+            }
+            return { success: true };
+        }
+        case "testNotification": {
+            await browser.notifications.create({
+                type: "basic",
+                iconUrl: browser.runtime.getURL("icons/icon-48.png"),
+                title: "TabTogether Test",
+                message: "This is a test notification."
+            });
+            return { success: true };
+        }
         default:
             console.warn("Unknown action received:", request.action);
             return Promise.reject(new Error(`Unknown action: ${request.action}`));

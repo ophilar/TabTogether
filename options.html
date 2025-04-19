@@ -7,37 +7,65 @@
 </head>
 <body>
     <div class="container">
-        <h1>TabTogether Settings</h1> <!-- Updated Title -->
-
-        <div id="loadingIndicator" class="loading" style="display: none;" aria-live="polite">Loading...</div>
-        <div id="messageArea" style="display: none;" aria-live="assertive"></div> <!-- Combined error/success messages -->
-
+        <h1>Device Settings</h1>
         <fieldset>
-            <legend>Device Settings</legend>
+            <legend>Device</legend>
             <div class="setting-item">
                 <strong>Name:</strong>
                 <span id="deviceNameDisplay" aria-label="Device Name">Loading...</span>
-                <button id="editNameBtn" class="inline-btn" aria-label="Edit Device Name">Edit</button>
+                <button id="editNameBtn" class="inline-btn" aria-label="Edit Device Name" title="Edit device name">Edit</button>
             </div>
             <div id="editNameInput" class="input-group" style="display: none;">
                 <input type="text" id="newInstanceName" placeholder="Enter new device name" aria-label="New Device Name">
-                <button id="saveNameBtn" disabled aria-label="Save Device Name">Save</button>
-                <button id="cancelNameBtn" class="secondary" aria-label="Cancel Edit">Cancel</button>
+                <button id="saveNameBtn" disabled aria-label="Save Device Name" title="Save device name">Save</button>
+                <button id="cancelNameBtn" class="secondary" aria-label="Cancel Edit" title="Cancel">Cancel</button>
             </div>
-            <!-- <p class="small-text">Device ID: <span id="deviceIdDisplay">Loading...</span></p> -->
         </fieldset>
-
         <fieldset>
-            <legend>Manage Groups</legend>
-            <p>Define groups and manage this device's subscriptions.</p>
+            <legend>Device Registry</legend>
+            <div id="deviceRegistryList">Loading registry...</div>
+        </fieldset>
+        <h1>Group Management</h1>
+        <fieldset>
+            <legend>Groups</legend>
             <div id="definedGroupsList">Loading groups...</div>
             <div class="input-group">
-                <input type="text" id="newGroupName" placeholder="New group name">
-                <button id="createGroupBtn" disabled>Create Group</button> <!-- Initially disabled -->
+                <input type="text" id="newGroupName" placeholder="New group name" aria-label="New Group Name">
+                <button id="createGroupBtn" disabled title="Create group">Create Group</button>
             </div>
         </fieldset>
-
+        <fieldset>
+            <legend>Settings & Tools</legend>
+            <div class="setting-item">
+                <label for="darkModeSelect"><strong>Dark Mode:</strong></label>
+                <select id="darkModeSelect">
+                    <option value="auto">Auto</option>
+                    <option value="enabled">Enabled</option>
+                    <option value="disabled">Disabled</option>
+                </select>
+            </div>
+            <div class="setting-item">
+                <button id="testNotificationBtn" type="button">Test Notification</button>
+            </div>
+        </fieldset>
+        <fieldset>
+            <legend>Help / About</legend>
+            <div class="help-section">
+                <p><strong>TabTogether</strong> lets you send tabs to groups of devices instantly. <br>To use:</p>
+                <ul>
+                    <li>Use the popup to send the current tab to any group.</li>
+                    <li>Manage device name, groups, and subscriptions here in settings.</li>
+                    <li>Rename groups by clicking their name.</li>
+                    <li>Use the test notification to check if notifications work.</li>
+                    <li>Dark mode can be toggled manually or follows your system preference.</li>
+                    <li>Leaving or deleting a group is permanent and affects all devices.</li>
+                </ul>
+                <p>For more help, visit the <a href="https://github.com/ophilar/TabTogether" target="_blank">project page</a>.</p>
+            </div>
+        </fieldset>
     </div>
+    <div id="loadingIndicator" class="loading" style="display:none;">Loading...</div>
+    <div id="messageArea" style="display:none;"></div>
     <script src="options.js"></script>
 </body>
 </html>

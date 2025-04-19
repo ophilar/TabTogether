@@ -1,7 +1,7 @@
 // options.js
 
 const deviceNameDisplay = document.getElementById('deviceNameDisplay');
-// const deviceIdDisplay = document.getElementById('deviceIdDisplay');
+const deviceRegistryListDiv = document.getElementById('deviceRegistryList');
 const editNameBtn = document.getElementById('editNameBtn');
 const editNameInputDiv = document.getElementById('editNameInput');
 const newInstanceNameInput = document.getElementById('newInstanceName');
@@ -27,38 +27,24 @@ async function loadState() {
     showLoading(true);
     clearMessage();
     try {
-        // Retry mechanism in case background script isn't ready immediately
-        let retries = 3;
-        while (retries > 0) {
-            try {
-                currentState = await browser.runtime.sendMessage({ action: 'getState' });
-                if (currentState && !currentState.error) {
-                    break; // Success
-                } else if (currentState && currentState.error) {
-                     throw new Error(currentState.error);
-                }
-            } catch (error) {
-                console.warn(`Attempt to get state failed: ${error.message}. Retrying...`);
-                retries--;
-                if (retries === 0) throw error; // Rethrow after last retry
-                await new Promise(resolve => setTimeout(resolve, 500)); // Wait before retry
+        // Always call getState, do not cache or skip
+        currentState = await browser.runtime.sendMessage({ action: 'getState' });
+        if (!currentState || currentState.error) {
+            throw new Error(currentState?.error || 'Failed to load state from background script.');
+        }
+        renderAll();
+    } catch (error) {
+        showMessage(`Error loading settings: ${error.message}`, true);
+        deviceNameDisplay.textContent = 'Error';
+        definedGroupsListDiv.innerHTML = '<p>Error loading groups.</p>';
+        deviceRegistryListDiv.innerHTML = '<p>Error loading registry.</p>';
+        // Extra error logging for debugging
+        if (typeof console !== 'undefined') {
+            console.error('TabTogether options.js loadState error:', error);
+            if (error && error.stack) {
+                console.error('Stack trace:', error.stack);
             }
         }
-
-        if (!currentState) {
-            throw new Error("Failed to load state from background script after retries.");
-        }
-
-        console.log("State loaded:", currentState);
-        renderAll(); // Render UI based on the loaded state
-
-    } catch (error) {
-        console.error("Error loading state:", error);
-        showMessage(`Error loading settings: ${error.message}`, true);
-        // Clear potentially stale UI elements
-        deviceNameDisplay.textContent = 'Error';
-        // deviceIdDisplay.textContent = 'Error';
-        definedGroupsListDiv.innerHTML = '<p>Error loading groups.</p>';
     } finally {
         showLoading(false);
     }
@@ -67,13 +53,49 @@ async function loadState() {
 function renderAll() {
     if (!currentState) return;
     renderDeviceName();
+    renderDeviceRegistry();
     renderDefinedGroups();
 }
 
 function renderDeviceName() {
     deviceNameDisplay.textContent = currentState.instanceName || '(Not Set)';
-    // deviceIdDisplay.textContent = currentState.instanceId || 'N/A';
     newInstanceNameInput.value = currentState.instanceName || ''; // Pre-fill edit input
+}
+
+function renderDeviceRegistry() {
+    const registry = currentState.deviceRegistry || {};
+    if (!registry || Object.keys(registry).length === 0) {
+        deviceRegistryListDiv.innerHTML = '<div class="small-text">Registry is empty.</div>';
+        return;
+    }
+    const sortedDeviceIds = Object.keys(registry).sort((a, b) => {
+        const nameA = registry[a]?.name?.toLowerCase() || '';
+        const nameB = registry[b]?.name?.toLowerCase() || '';
+        return nameA.localeCompare(nameB);
+    });
+    const ul = document.createElement('ul');
+    sortedDeviceIds.forEach(deviceId => {
+        const device = registry[deviceId];
+        const li = document.createElement('li');
+        const nameStrong = document.createElement('strong');
+        nameStrong.textContent = device.name || 'Unnamed Device';
+        li.appendChild(nameStrong);
+        const idSpan = document.createElement('span');
+        idSpan.textContent = ` (${deviceId})`;
+        idSpan.className = 'small-text';
+        li.appendChild(idSpan);
+        const lastSeenDiv = document.createElement('div');
+        lastSeenDiv.className = 'small-text';
+        const lastSeenDate = device.lastSeen ? new Date(device.lastSeen) : null;
+        const lastSeenString = lastSeenDate
+            ? `Last seen: ${lastSeenDate.toLocaleDateString()} ${lastSeenDate.toLocaleTimeString()}`
+            : 'Last seen: Unknown';
+        lastSeenDiv.textContent = lastSeenString;
+        li.appendChild(lastSeenDiv);
+        ul.appendChild(li);
+    });
+    deviceRegistryListDiv.innerHTML = '';
+    deviceRegistryListDiv.appendChild(ul);
 }
 
 function renderDefinedGroups() {
@@ -95,10 +117,16 @@ function renderDefinedGroups() {
         const li = document.createElement('li');
         const isSubscribed = subscriptions.includes(groupName);
 
+        // Group name (editable)
         const nameSpan = document.createElement('span');
         nameSpan.textContent = groupName;
+        nameSpan.className = 'group-name-label';
+        nameSpan.title = 'Click to rename';
+        nameSpan.style.cursor = 'pointer';
+        nameSpan.onclick = () => startRenameGroup(groupName, nameSpan);
         li.appendChild(nameSpan);
 
+        // Actions
         const actionsDiv = document.createElement('div');
         actionsDiv.className = 'group-actions';
 
@@ -109,10 +137,13 @@ function renderDefinedGroups() {
         subButton.addEventListener('click', isSubscribed ? handleUnsubscribe : handleSubscribe);
         actionsDiv.appendChild(subButton);
 
+        // Removed leave button
+
         const deleteButton = document.createElement('button');
         deleteButton.textContent = 'Delete';
         deleteButton.className = 'delete-btn';
         deleteButton.dataset.group = groupName;
+        deleteButton.title = 'Delete group for all devices';
         deleteButton.addEventListener('click', handleDeleteGroup);
         actionsDiv.appendChild(deleteButton);
 
@@ -122,6 +153,59 @@ function renderDefinedGroups() {
 
     definedGroupsListDiv.innerHTML = ''; // Clear previous list
     definedGroupsListDiv.appendChild(ul);
+}
+
+// --- Group Rename ---
+function startRenameGroup(oldName, nameSpan) {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = oldName;
+    input.className = 'rename-group-input';
+    input.style.marginRight = '8px';
+    input.onkeydown = async (e) => {
+        if (e.key === 'Enter') {
+            await finishRenameGroup(oldName, input.value, nameSpan);
+        } else if (e.key === 'Escape') {
+            nameSpan.style.display = '';
+            input.replaceWith(nameSpan);
+        }
+    };
+    input.onblur = () => {
+        nameSpan.style.display = '';
+        input.replaceWith(nameSpan);
+    };
+    nameSpan.style.display = 'none';
+    nameSpan.parentNode.insertBefore(input, nameSpan);
+    input.focus();
+    input.select();
+}
+
+async function finishRenameGroup(oldName, newName, nameSpan) {
+    newName = newName.trim();
+    if (!newName || newName === oldName) {
+        nameSpan.style.display = '';
+        nameSpan.parentNode.querySelector('input.rename-group-input').replaceWith(nameSpan);
+        return;
+    }
+    if (!confirm(`Rename group "${oldName}" to "${newName}"?`)) {
+        nameSpan.style.display = '';
+        nameSpan.parentNode.querySelector('input.rename-group-input').replaceWith(nameSpan);
+        return;
+    }
+    showLoading(true);
+    try {
+        const response = await browser.runtime.sendMessage({ action: 'renameGroup', oldName, newName });
+        if (response.success) {
+            showMessage(`Group renamed to "${newName}".`, false);
+            await loadState();
+        } else {
+            showMessage(response.message || 'Rename failed.', true);
+        }
+    } catch (e) {
+        showMessage('Rename failed: ' + e.message, true);
+    } finally {
+        showLoading(false);
+    }
 }
 
 // --- UI Interaction Handlers ---
@@ -211,22 +295,18 @@ createGroupBtn.addEventListener('click', async () => {
 
 async function handleSubscribe(event) {
     const groupName = event.target.dataset.group;
+    // Removed confirmation popup
     showLoading(true);
     clearMessage();
     try {
         const response = await browser.runtime.sendMessage({ action: 'subscribeToGroup', groupName: groupName });
         if (response.success) {
-            // --- Optimization: Update local cache and re-render ---
             if (!currentState.subscriptions.includes(response.subscribedGroup)) {
                 currentState.subscriptions.push(response.subscribedGroup);
                 currentState.subscriptions.sort();
             }
-            // Optional: Update groupBits cache if needed elsewhere in UI
-            // if (!currentState.groupBits) currentState.groupBits = {};
-            // currentState.groupBits[response.subscribedGroup] = response.assignedBit;
-            renderDefinedGroups(); // Re-render group list
+            renderDefinedGroups();
             showMessage(`Subscribed to "${response.subscribedGroup}".`, false);
-            // --- End Optimization ---
         } else {
             showMessage(response.message || "Failed to subscribe.", true);
         }
@@ -239,18 +319,15 @@ async function handleSubscribe(event) {
 
 async function handleUnsubscribe(event) {
     const groupName = event.target.dataset.group;
+    // Removed confirmation popup
     showLoading(true);
     clearMessage();
     try {
         const response = await browser.runtime.sendMessage({ action: 'unsubscribeFromGroup', groupName: groupName });
         if (response.success) {
-             // --- Optimization: Update local cache and re-render ---
-             currentState.subscriptions = currentState.subscriptions.filter(g => g !== response.unsubscribedGroup);
-             // Optional: Update groupBits cache
-             // if (currentState.groupBits) delete currentState.groupBits[response.unsubscribedGroup];
-             renderDefinedGroups(); // Re-render group list
-             showMessage(`Unsubscribed from "${response.unsubscribedGroup}".`, false);
-             // --- End Optimization ---
+            currentState.subscriptions = currentState.subscriptions.filter(g => g !== response.unsubscribedGroup);
+            renderDefinedGroups();
+            showMessage(`Unsubscribed from "${response.unsubscribedGroup}".`, false);
         } else {
             showMessage(response.message || "Failed to unsubscribe.", true);
         }
@@ -263,7 +340,7 @@ async function handleUnsubscribe(event) {
 
 async function handleDeleteGroup(event) {
     const groupName = event.target.dataset.group;
-    if (!confirm(`Are you sure you want to delete the group "${groupName}"? This cannot be undone.`)) {
+    if (!confirm(`Are you sure you want to delete the group "${groupName}"? This cannot be undone and will affect all devices.`)) {
         return;
     }
 
@@ -290,15 +367,59 @@ async function handleDeleteGroup(event) {
     }
 }
 
+// --- Test Notification ---
+document.getElementById('testNotificationBtn').addEventListener('click', async () => {
+    showLoading(true);
+    try {
+        await browser.runtime.sendMessage({ action: 'testNotification' });
+        showMessage('Test notification sent!', false);
+    } catch (e) {
+        showMessage('Failed to send notification: ' + e.message, true);
+    } finally {
+        showLoading(false);
+    }
+});
+
+// --- Dark Mode Toggle ---
+const darkModeSelect = document.getElementById('darkModeSelect');
+darkModeSelect.addEventListener('change', (e) => {
+    const value = e.target.value;
+    if (value === 'enabled') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        localStorage.setItem('tt_dark_mode', 'enabled');
+    } else if (value === 'disabled') {
+        document.documentElement.setAttribute('data-theme', 'light');
+        localStorage.setItem('tt_dark_mode', 'disabled');
+    } else {
+        // auto
+        localStorage.setItem('tt_dark_mode', 'auto');
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+    }
+});
+
+window.addEventListener('DOMContentLoaded', () => {
+    const saved = localStorage.getItem('tt_dark_mode');
+    if (saved === 'enabled') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        darkModeSelect.value = 'enabled';
+    } else if (saved === 'disabled') {
+        document.documentElement.setAttribute('data-theme', 'light');
+        darkModeSelect.value = 'disabled';
+    } else {
+        // auto or not set
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+        darkModeSelect.value = 'auto';
+    }
+});
 
 // --- UI Helper Functions ---
 
 function showLoading(isLoading) {
     loadingIndicator.style.display = isLoading ? 'block' : 'none';
-    // Disable all buttons and inputs while loading
-    document.querySelectorAll('button, input, select').forEach(el => {
-        el.disabled = isLoading || el.disabled;
-    });
+    loadingIndicator.innerHTML = isLoading ? '<span class="spinner"></span> Loading...' : '';
+    // Do NOT disable any buttons/inputs while loading
 }
 
 function showMessage(message, isError = false) {
