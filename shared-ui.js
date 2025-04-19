@@ -1,7 +1,7 @@
 // shared-ui.js
 // Injects shared header, loading, and message area into the container
 
-export function injectSharedUI(containerSelector = '.container') {
+function injectSharedUI(containerSelector = '.container') {
     const container = document.querySelector(containerSelector);
     if (!container) return;
     // Only inject if not already present

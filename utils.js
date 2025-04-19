@@ -1,7 +1,5 @@
 // utils.js
 
-import { STRINGS } from './constants.js';
-
 const SYNC_STORAGE_KEYS = {
     DEFINED_GROUPS: 'definedGroups', // string[]
     GROUP_STATE: 'groupState',       // { [groupName: string]: { assignedMask: number, assignedCount: number } }
@@ -137,7 +135,7 @@ function getNextAvailableBitPosition(mask) {
 
 // utils.js - shared rendering and storage helpers for TabTogether
 
-export function renderDeviceList(container, devices, highlightId = null) {
+function renderDeviceList(container, devices, highlightId = null) {
     if (!devices || Object.keys(devices).length === 0) {
         container.textContent = 'No devices registered.';
         return;
@@ -154,7 +152,7 @@ export function renderDeviceList(container, devices, highlightId = null) {
     container.innerHTML = html;
 }
 
-export function renderGroupList(container, groups, subscriptions, onSubscribe, onUnsubscribe, onDelete, onRename) {
+function renderGroupList(container, groups, subscriptions, onSubscribe, onUnsubscribe, onDelete, onRename) {
     if (!groups || groups.length === 0) {
         container.innerHTML = '<p>No groups defined yet. Create one below.</p>';
         return;
@@ -192,11 +190,11 @@ export function renderGroupList(container, groups, subscriptions, onSubscribe, o
     container.appendChild(ul);
 }
 
-export function renderDeviceName(container, name) {
+function renderDeviceName(container, name) {
     container.textContent = name || STRINGS.deviceNameNotSet;
 }
 
-export function renderSubscriptions(container, subscriptions) {
+function renderSubscriptions(container, subscriptions) {
     if (!subscriptions || subscriptions.length === 0) {
         container.textContent = STRINGS.notSubscribed;
         return;

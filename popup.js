@@ -1,9 +1,5 @@
 // popup.js
 
-import { applyThemeFromStorage } from './theme.js';
-import { renderDeviceList, renderDeviceName, renderSubscriptions } from './utils.js';
-import { injectSharedUI } from './shared-ui.js';
-
 const deviceNameSpan = document.getElementById('deviceName');
 const sendTabGroupsList = document.getElementById('sendTabGroupsList');
 const sendTabStatus = document.getElementById('sendTabStatus');

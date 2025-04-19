@@ -1,7 +1,7 @@
 // theme.js
 // Shared dark mode logic for TabTogether
 
-export function applyThemeFromStorage() {
+function applyThemeFromStorage() {
     const saved = localStorage.getItem('tt_dark_mode');
     if (saved === 'enabled') {
         document.documentElement.setAttribute('data-theme', 'dark');
@@ -14,7 +14,7 @@ export function applyThemeFromStorage() {
     }
 }
 
-export function setupThemeDropdown(dropdownId) {
+function setupThemeDropdown(dropdownId) {
     const select = document.getElementById(dropdownId);
     if (!select) return;
     select.addEventListener('change', (e) => {

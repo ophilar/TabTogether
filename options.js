@@ -1,9 +1,5 @@
 // options.js
 
-import { applyThemeFromStorage, setupThemeDropdown } from './theme.js';
-import { renderDeviceList, renderGroupList, renderDeviceName, renderSubscriptions } from './utils.js';
-import { injectSharedUI } from './shared-ui.js';
-
 const deviceNameDisplay = document.getElementById('deviceNameDisplay');
 const deviceRegistryListDiv = document.getElementById('deviceRegistryList');
 const editNameBtn = document.getElementById('editNameBtn');
@@ -61,12 +57,12 @@ async function loadState() {
 
 function renderAll() {
     if (!currentState) return;
-    renderDeviceName();
+    renderDeviceNameUI();
     renderDeviceRegistry();
     renderDefinedGroups();
 }
 
-function renderDeviceName() {
+function renderDeviceNameUI() {
     renderDeviceName(deviceNameDisplay, currentState.instanceName);
     newInstanceNameInput.value = currentState.instanceName || ''; // Pre-fill edit input
 }
@@ -182,7 +178,7 @@ saveNameBtn.addEventListener('click', async () => {
         if (response.success) {
             // --- Optimization: Update local cache and re-render ---
             currentState.instanceName = response.newName; // Update cache
-            renderDeviceName(); // Re-render device name section
+            renderDeviceNameUI(); // Re-render device name section
             showMessage("Device name saved successfully.", false);
             // --- End Optimization ---
             // Hide edit UI
