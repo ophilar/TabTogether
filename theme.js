@@ -4,14 +4,17 @@
 function applyThemeFromStorage() {
     const saved = localStorage.getItem('tt_dark_mode');
     if (saved === 'enabled') {
-        document.documentElement.setAttribute('data-theme', 'dark');
+        setTheme('dark');
     } else if (saved === 'disabled') {
-        document.documentElement.setAttribute('data-theme', 'light');
+        setTheme('light');
     } else {
         // auto or not set
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+        setTheme(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
     }
+}
+
+function setTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
 }
 
 function setupThemeDropdown(dropdownId) {
@@ -20,28 +23,26 @@ function setupThemeDropdown(dropdownId) {
     select.addEventListener('change', (e) => {
         const value = e.target.value;
         if (value === 'enabled') {
-            document.documentElement.setAttribute('data-theme', 'dark');
+            setTheme('dark');
             localStorage.setItem('tt_dark_mode', 'enabled');
         } else if (value === 'disabled') {
-            document.documentElement.setAttribute('data-theme', 'light');
+            setTheme('light');
             localStorage.setItem('tt_dark_mode', 'disabled');
         } else {
             localStorage.setItem('tt_dark_mode', 'auto');
-            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+            setTheme(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
         }
     });
     // Set initial value
     const saved = localStorage.getItem('tt_dark_mode');
     if (saved === 'enabled') {
-        document.documentElement.setAttribute('data-theme', 'dark');
+        setTheme('dark');
         select.value = 'enabled';
     } else if (saved === 'disabled') {
-        document.documentElement.setAttribute('data-theme', 'light');
+        setTheme('light');
         select.value = 'disabled';
     } else {
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+        setTheme(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
         select.value = 'auto';
     }
 }

@@ -146,6 +146,10 @@ function renderDeviceList(container, devices, highlightId = null) {
     for (const [id, device] of entries) {
         html += `<li${id === highlightId ? ' class="this-device"' : ''}>`;
         html += `<span>${device.name || 'Unnamed Device'}</span>`;
+        if (device.lastSeen) {
+            const lastSeen = new Date(device.lastSeen);
+            html += `<span class="small-text" style="margin-left:10px;font-size:0.95em;">Last seen: ${lastSeen.toLocaleString()}</span>`;
+        }
         html += '</li>';
     }
     html += '</ul>';

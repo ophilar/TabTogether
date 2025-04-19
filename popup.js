@@ -49,7 +49,6 @@ async function loadStatus() {
         localInstanceId = state.instanceId; // Store for comparison
         renderDeviceNameUI(state.instanceName);
         renderSubscriptionsUI(state.subscriptions);
-        renderRegistry(state.deviceRegistry);
         renderSendTabGroups(state.definedGroups);
         showLoading(false); // Ensure loading indicator is hidden on success
 
@@ -69,7 +68,19 @@ function renderDeviceNameUI(name) {
 }
 
 function renderSubscriptionsUI(subscriptions) {
-    renderSubscriptions(mySubscriptionsList, subscriptions);
+    const ul = document.getElementById('subscriptionsUl');
+    ul.innerHTML = '';
+    if (!subscriptions || subscriptions.length === 0) {
+        const li = document.createElement('li');
+        li.textContent = 'Not subscribed to any groups.';
+        ul.appendChild(li);
+        return;
+    }
+    subscriptions.forEach(group => {
+        const li = document.createElement('li');
+        li.textContent = group;
+        ul.appendChild(li);
+    });
 }
 
 function renderSendTabGroups(groups) {
@@ -85,7 +96,7 @@ function renderSendTabGroups(groups) {
         label.textContent = groupName;
         label.className = 'send-group-label';
         const btn = document.createElement('button');
-        btn.textContent = 'Send Current Tab';
+        btn.textContent = 'Send Tab to Group';
         btn.className = 'send-group-btn';
         btn.title = `Send current tab to group '${groupName}'`;
         btn.onclick = () => sendTabToGroup(groupName);

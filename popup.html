@@ -6,15 +6,11 @@
     <link rel="stylesheet" href="popup.css">
     <title>TabTogether Status</title>
     <style>
-      html, body { min-width: 340px; min-height: 420px; }
+      html, body { min-width: 120px; min-height: 180px; }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- Shared header/title area -->
-        <header>
-            <h1 id="mainTitle">TabTogether</h1>
-        </header>
         <!-- Shared loading and message area -->
         <div id="loadingIndicator" class="loading" style="display:none;">Loading...</div>
         <div id="messageArea" style="display:none;"></div>
@@ -23,7 +19,9 @@
         <div id="sendTabStatus" class="status-message" style="display: none;"></div>
         <hr>
         <div><strong>Device Name:</strong> <span id="deviceName">Loading...</span></div>
-        <div id="mySubscriptionsList" class="small-text"></div>
+        <div id="mySubscriptionsList" class="small-text">
+          <ul id="subscriptionsUl" style="padding-left: 0; margin: 0;"></ul>
+        </div>
         <div id="deviceRegistryList" class="small-text"></div>
         <div id="errorMessage" class="error" style="display:none;"></div>
         <p class="options-link"><a href="#" id="openOptionsLink">Settings ...</a></p>
