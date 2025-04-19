@@ -12,7 +12,7 @@ body {
   border-radius: 12px;
   /* Consider using a variable for shadow color if theming is needed */
   box-shadow: 0 2px 16px rgba(180,200,230,0.10);
-  border: 1.5px solid var(--main-blue); /* Using blue theme */
+  /* border: 1.5px solid var(--main-blue); /* Using blue theme */
   background-color: var(--main-card); /* Use background-color */
   margin: 18px auto 0 auto;
 }
