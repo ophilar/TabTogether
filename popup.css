@@ -3,21 +3,26 @@
 
 /* Only override or extend styles here that are unique to the popup UI. */
 
+body {
+  background: var(--main-card);
+}
+
 .container {
   padding: 28px 20px 22px 20px;
   border-radius: 12px;
+  /* Consider using a variable for shadow color if theming is needed */
   box-shadow: 0 2px 16px rgba(180,200,230,0.10);
-  border: 1.5px solid var(--main-blue);
-  background: var(--main-card);
+  border: 1.5px solid var(--main-blue); /* Using blue theme */
+  background-color: var(--main-card); /* Use background-color */
   margin: 18px auto 0 auto;
 }
 
 h2 {
-  color: var(--main-blue);
+  color: var(--main-text); /* Using blue theme */
   margin-top: 0;
   margin-bottom: 14px;
   padding-bottom: 4px;
-  border-bottom: 1px solid var(--main-blue);
+  border-bottom: 1px solid var(--main-blue); /* Using blue theme */
   font-size: 1.18em;
   letter-spacing: 0.01em;
   font-weight: 600;
@@ -25,7 +30,7 @@ h2 {
 
 hr {
   border: 0;
-  border-top: 1px solid var(--main-blue);
+  border-top: 1px solid var(--main-blue); /* Using blue theme */
   margin: 18px 0;
 }
 
@@ -35,8 +40,8 @@ hr {
   margin-top: 10px;
   gap: 10px;
   padding: 10px 0;
-  border-bottom: 1px dashed var(--main-blue);
-  transition: background var(--transition);
+  border-bottom: 1px dashed var(--main-blue); /* Using blue theme */
+  transition: background-color var(--transition); /* Be specific */
 }
 .send-group-row:last-child {
   border-bottom: none;
@@ -44,82 +49,106 @@ hr {
 .send-group-label {
   flex-grow: 1;
   font-weight: 500;
-  color: var(--main-text);
+  color: var(--main-text); /* Use base text color */
   font-size: 1.04em;
 }
+
+/* Specific button style for the popup */
 .send-group-btn {
   padding: 7px 18px;
   font-size: 1em;
   border-radius: 5px;
   border: none;
-  background: var(--main-blue-dark);
-  color: var(--main-card);
+  /* Using blue theme colors - define a hover color if needed */
+  /* Consider adding --main-blue-hover variable in styles.css */
+  background-color: var(--main-blue-dark);
+  color: var(--main-card); /* Text color on dark blue bg */
   cursor: pointer;
-  transition: background var(--transition), box-shadow var(--transition), transform var(--transition);
-  box-shadow: 0 1px 2px rgba(180,200,230,0.09);
+  transition: background-color var(--transition), box-shadow var(--transition), transform var(--transition), color var(--transition);
+  box-shadow: 0 1px 2px rgba(180,200,230,0.09); /* Consider variable */
   font-weight: 500;
 }
 .send-group-btn:disabled {
-  background: #eaf3fb;
-  color: #fff;
+  /* Use light blue from theme for disabled bg */
+  background-color: var(--main-blue);
+  /* Use a less prominent text color for disabled state */
+  /* Maybe define --main-button-disabled-text in styles.css? */
+  /* For now, using a greyish tone, adjust as needed */
+  color: #a0a0a0;
   cursor: not-allowed;
+  transform: none; /* Reset transform */
+  box-shadow: none; /* Reset shadow */
 }
 .send-group-btn:hover:not(:disabled) {
-  background: var(--main-accent);
+  /* Using accent color for hover - ensure this contrast is intended */
+  /* Alternatively, use a darker blue: var(--main-blue-dark-hover) */
+  background-color: var(--main-accent);
   transform: translateY(-2px) scale(1.04);
 }
+
 .status-message {
   font-size: 1em;
   margin-top: 10px;
   padding: 4px 0;
-  color: var(--main-accent);
+  color: var(--main-accent); /* Using accent color */
   text-align: left;
   animation: fadein var(--transition);
 }
+
 .options-link, .refresh-link {
   margin-top: 18px;
   text-align: center;
 }
 .options-link a, .refresh-link a {
-  color: var(--main-blue-dark);
+  color: var(--main-blue-dark); /* Using blue theme */
   text-decoration: none;
   font-weight: 500;
   transition: color var(--transition);
 }
 .options-link a:hover, .refresh-link a:hover {
   text-decoration: underline;
-  color: var(--main-accent);
+  color: var(--main-accent); /* Using accent for hover */
 }
-.loading {
+
+/* .loading {
   text-align: center;
   padding: 12px;
   color: var(--main-blue-dark);
   font-size: 1.05em;
-}
-.error {
-  background: var(--main-orange-bg);
-  color: #b71c1c;
-  border: 1px solid var(--main-blue);
+} */
+
+/* Popup specific error styling */
+/* .error {
+  background-color: var(--main-orange-bg);
+  /* Define --main-error-text in styles.css if not already */
+  /* color: var(--main-error-text, #b71c1c);
+  border: 1px solid var(--main-blue); 
   padding: 10px;
   margin-bottom: 10px;
   border-radius: 4px;
-  text-align: center;
-}
-.small-text {
+  text-align: center; */ 
+/* }*/
+
+ /* .small-text {
   font-size: 0.97em;
   color: var(--main-accent);
   margin-top: 6px;
   word-break: break-all;
-}
+} */
+
 @keyframes fadein {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: none; }
 }
+
 @media (max-width: 480px) {
   .container {
-    padding: 12px 2px 12px 2px;
+    padding: 12px 8px; /* Slightly more horizontal padding */
+    margin: 10px auto 0 auto; /* Adjust margin */
   }
   h2 {
-    font-size: 1em;
+    font-size: 1.05em; /* Slightly larger than 1em */
   }
+  /* Add other responsive adjustments as needed */
 }
+
