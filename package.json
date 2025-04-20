@@ -9,9 +9,14 @@
     "minify:css": "cleancss -o styles.min.css styles.css && cleancss -o popup.min.css popup.css && cleancss -o options.min.css options.css && cleancss -o popup-Storos.min.css popup-Storos.css",
     "minify:html": "html-minifier --collapse-whitespace --remove-comments --minify-css true --minify-js true -o popup.min.html popup.html && html-minifier --collapse-whitespace --remove-comments --minify-css true --minify-js true -o options.min.html options.html",
     "minify": "npm run minify:js && npm run minify:css && npm run minify:html",
-    "build": "npm run minify",
-    "package": "npm run build && powershell Compress-Archive -Path * -DestinationPath TabTogether.zip"
+    "npmbuild": "npm run minify",
+    "package": "npm run build && powershell Compress-Archive -Path * -DestinationPath TabTogether.zip",
+    "start": "web-ext run",
+    "lint": "web-ext lint",
+    "build": "web-ext build --overwrite-dest",
+    "sign": "web-ext sign"
   },
+  
   "devDependencies": {
     "uglify-js": "^3.17.4",
     "clean-css-cli": "^5.7.0",
