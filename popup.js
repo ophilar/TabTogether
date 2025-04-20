@@ -6,7 +6,7 @@ import { applyThemeFromStorage } from './theme.js';
 const deviceNameSpan = document.getElementById('deviceName');
 const sendTabGroupsList = document.getElementById('sendTabGroupsList');
 const sendTabStatus = document.getElementById('sendTabStatus');
-const mySubscriptionsList = document.getElementById('mySubscriptionsList');
+// const mySubscriptionsList = document.getElementById('mySubscriptionsList');
 const deviceRegistryList = document.getElementById('deviceRegistryList');
 const openOptionsLink = document.getElementById('openOptionsLink');
 const refreshLink = document.getElementById('refreshLink');
