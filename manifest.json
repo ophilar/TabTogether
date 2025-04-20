@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TabTogether",
-  "version": "2.1",
+  "version": "0.0.1",
   "description": "Send tabs to multiple devices simultaneously.",
   "permissions": [
     "storage",        
