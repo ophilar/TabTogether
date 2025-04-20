@@ -6,7 +6,7 @@ const ALARM_HEARTBEAT = 'deviceHeartbeat';
 const ALARM_STALE_CHECK = 'staleDeviceCheck';
 const ALARM_TASK_CLEANUP = 'taskCleanup';
 
-const HEARTBEAT_INTERVAL_MIN = 60 * 6; // Every 6 hours
+const HEARTBEAT_INTERVAL_MIN = 5; // Every 5 minutes
 const STALE_CHECK_INTERVAL_MIN = 60 * 24; // Every day
 const TASK_CLEANUP_INTERVAL_MIN = 60 * 24 * 2; // Every 2 days
 
@@ -22,9 +22,9 @@ async function initializeExtension() {
         // Fetch local data first
         let localInstanceId = await getInstanceId();
         let localInstanceName = await getInstanceName();
-        let localSubscriptions = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
+        // let localSubscriptions = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
         let localGroupBits = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {});
-        let localProcessedTasks = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, {});
+        // let localProcessedTasks = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, {});
 
         // Only read from sync storage, do not write defaults
         let cachedDefinedGroups = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, undefined);
@@ -257,6 +257,9 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
     }
 
     const taskId = crypto.randomUUID();
+    // --- Get sender's bit for processedMask ---
+    let localGroupBits = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {});
+    const senderBit = localGroupBits[groupName] || 0;
 
     if (!urlToSend || urlToSend === "about:blank") { // Added check for about:blank
         console.error("Could not determine a valid URL to send from context:", info, "Tab:", tab);
@@ -264,7 +267,8 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
         return;
     }
 
-    const newTask = { [taskId]: { url: urlToSend, title: titleToSend, processedMask: 0, creationTimestamp: Date.now() } };
+    // Set processedMask to senderBit so sender is marked as processed
+    const newTask = { [taskId]: { url: urlToSend, title: titleToSend, processedMask: senderBit, creationTimestamp: Date.now() } };
     const update = { [groupName]: newTask };
 
     console.log(`Sending task ${taskId} to group ${groupName}: ${urlToSend}`);
@@ -342,7 +346,8 @@ async function processIncomingTasks(allGroupTasks) {
             for (const taskId in allGroupTasks[groupName]) {
                 if (!currentProcessedTasks[taskId]) {
                     const task = allGroupTasks[groupName][taskId];
-                    if (!((task.processedMask >> bitPosition) & 1)) {
+                    // --- Only process if my bit is not set in processedMask ---
+                    if (!((task.processedMask & myBit) === myBit)) {
                         tasksToProcess.push({ groupName, taskId, task, myBit });
                     } else {
                         console.log(`Task ${taskId} already processed by this device according to sync mask. Marking locally.`);
@@ -575,27 +580,28 @@ browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
                 return { success: false, message: "Not subscribed." };
             }
 
-        case "sendTabFromPopup":
+        case "sendTabFromPopup": {
             const { groupName, tabData } = request;
             const taskId = crypto.randomUUID();
+            // Move declaration outside to avoid TDZ error
+            let localGroupBits = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {});
+            const senderBit = localGroupBits[groupName] || 0;
             const newTask = {
                 [taskId]: {
                     url: tabData.url,
                     title: tabData.title || tabData.url,
-                    processedMask: 0,
+                    processedMask: senderBit,
                     creationTimestamp: Date.now()
                 }
             };
             const update = { [groupName]: newTask };
-            console.log(`Sending task ${taskId} from popup to group ${groupName}: ${tabData.url}`);
             const success = await mergeSyncStorage(SYNC_STORAGE_KEYS.GROUP_TASKS, update);
             if (success) {
-                // Optional: Send notification as well?
-                // browser.notifications.create(...)
                 return { success: true };
             } else {
                 return { success: false, message: "Failed to save task to sync storage." };
             }
+        }
 
         case "heartbeat":
             // Manual heartbeat for popup open/send
@@ -658,6 +664,53 @@ browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
                 title: "TabTogether Test",
                 message: "This is a test notification."
             });
+            return { success: true };
+        }
+        case "renameDevice": {
+            const { deviceId, newName } = request;
+            if (!deviceId || !newName || typeof newName !== 'string' || newName.trim().length === 0) {
+                return { success: false, message: "Invalid device or name." };
+            }
+            const deviceRegistry = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
+            if (!deviceRegistry[deviceId]) {
+                return { success: false, message: "Device not found." };
+            }
+            deviceRegistry[deviceId].name = newName.trim();
+            await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: deviceRegistry });
+            // If renaming self, update local storage as well
+            let localInstanceId = await getInstanceId();
+            if (deviceId === localInstanceId) {
+                await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.INSTANCE_NAME]: newName.trim() });
+            }
+            return { success: true };
+        }
+        case "deleteDevice": {
+            const { deviceId } = request;
+            if (!deviceId) return { success: false, message: "No device ID provided." };
+            // Remove from deviceRegistry
+            const deviceRegistry = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
+            if (!deviceRegistry[deviceId]) return { success: false, message: "Device not found." };
+            const groupBits = deviceRegistry[deviceId].groupBits || {};
+            delete deviceRegistry[deviceId];
+            await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: deviceRegistry });
+            // Remove device's bits from groupState
+            const groupState = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {});
+            let groupStateChanged = false;
+            for (const groupName in groupBits) {
+                const bit = groupBits[groupName];
+                if (groupState[groupName] && bit !== undefined) {
+                    const currentMask = groupState[groupName].assignedMask;
+                    const newMask = currentMask & ~bit;
+                    if (newMask !== currentMask) {
+                        groupState[groupName].assignedMask = newMask;
+                        groupStateChanged = true;
+                    }
+                }
+            }
+            if (groupStateChanged) {
+                await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.GROUP_STATE]: groupState });
+            }
+            // Optionally: Remove processed tasks for this device (not strictly necessary)
             return { success: true };
         }
         default:

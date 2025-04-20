@@ -73,7 +73,51 @@ function renderDeviceNameUI() {
 }
 
 function renderDeviceRegistry() {
-    renderDeviceList(deviceRegistryListDiv, currentState.deviceRegistry);
+    // Render device list with rename/delete buttons for each device
+    const devices = currentState.deviceRegistry;
+    if (!devices || Object.keys(devices).length === 0) {
+        deviceRegistryListDiv.textContent = STRINGS.noDevices;
+        return;
+    }
+    const localId = currentState.instanceId;
+    const ul = document.createElement('ul');
+    ul.setAttribute('role', 'list');
+    Object.entries(devices).sort((a, b) => (a[1]?.name || '').localeCompare(b[1]?.name || '')).forEach(([id, device]) => {
+        const li = document.createElement('li');
+        li.setAttribute('role', 'listitem');
+        if (id === localId) li.classList.add('this-device');
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = device.name || 'Unnamed Device';
+        li.appendChild(nameSpan);
+        if (device.lastSeen) {
+            const lastSeen = new Date(device.lastSeen);
+            const lastSeenSpan = document.createElement('span');
+            lastSeenSpan.className = 'small-text';
+            lastSeenSpan.style.marginLeft = '10px';
+            lastSeenSpan.style.fontSize = '0.95em';
+            lastSeenSpan.textContent = `Last seen: ${lastSeen.toLocaleString()}`;
+            li.appendChild(lastSeenSpan);
+        }
+        // Rename button
+        const renameBtn = document.createElement('button');
+        renameBtn.textContent = 'Rename';
+        renameBtn.className = 'inline-btn';
+        renameBtn.style.marginLeft = '10px';
+        renameBtn.onclick = () => startRenameDevice(id, device.name, li, nameSpan);
+        li.appendChild(renameBtn);
+        // Delete button (prevent deleting self)
+        const deleteBtn = document.createElement('button');
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.className = 'inline-btn danger';
+        deleteBtn.style.marginLeft = '7px';
+        deleteBtn.disabled = (id === localId);
+        deleteBtn.title = (id === localId) ? 'Cannot delete this device from itself' : 'Delete device';
+        deleteBtn.onclick = () => handleDeleteDevice(id, device.name);
+        li.appendChild(deleteBtn);
+        ul.appendChild(li);
+    });
+    deviceRegistryListDiv.innerHTML = '';
+    deviceRegistryListDiv.appendChild(ul);
 }
 
 function renderDefinedGroups() {
@@ -141,6 +185,79 @@ async function finishRenameGroup(oldName, newName, nameSpan) {
         }
     } catch (e) {
         showMessage('Rename failed: ' + e.message, true);
+    } finally {
+        showLoading(false);
+    }
+}
+
+// Device rename UI
+function startRenameDevice(deviceId, oldName, li, nameSpan) {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = oldName;
+    input.className = 'rename-group-input';
+    input.style.marginLeft = '10px';
+    input.onkeydown = async (e) => {
+        if (e.key === 'Enter') {
+            await finishRenameDevice(deviceId, input.value, li, nameSpan);
+        } else if (e.key === 'Escape') {
+            nameSpan.style.display = '';
+            input.remove();
+        }
+    };
+    input.onblur = () => {
+        nameSpan.style.display = '';
+        input.remove();
+    };
+    nameSpan.style.display = 'none';
+    li.insertBefore(input, nameSpan.nextSibling);
+    input.focus();
+    input.select();
+}
+
+async function finishRenameDevice(deviceId, newName, li, nameSpan) {
+    newName = newName.trim();
+    if (!newName) {
+        nameSpan.style.display = '';
+        li.querySelector('input.rename-group-input').remove();
+        return;
+    }
+    if (!confirm(`Rename device to "${newName}"?`)) {
+        nameSpan.style.display = '';
+        li.querySelector('input.rename-group-input').remove();
+        return;
+    }
+    showLoading(true);
+    try {
+        const response = await browser.runtime.sendMessage({ action: 'renameDevice', deviceId, newName });
+        if (response.success) {
+            showMessage(`Device renamed to "${newName}".`, false);
+            await loadState();
+        } else {
+            showMessage(response.message || 'Rename failed.', true);
+        }
+    } catch (e) {
+        showMessage('Rename failed: ' + e.message, true);
+    } finally {
+        showLoading(false);
+    }
+}
+
+async function handleDeleteDevice(deviceId, deviceName) {
+    if (!confirm(`Are you sure you want to delete device "${deviceName}"? This cannot be undone and will affect all groups.`)) {
+        return;
+    }
+    showLoading(true);
+    try {
+        const response = await browser.runtime.sendMessage({ action: 'deleteDevice', deviceId });
+        if (response.success) {
+            showMessage(`Device "${deviceName}" deleted successfully.`, false);
+            await loadState();
+        } else {
+            showMessage(response.message || 'Delete failed.', true);
+        }
+    } catch (e) {
+        showMessage('Delete failed: ' + e.message, true);
     } finally {
         showLoading(false);
     }
