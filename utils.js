@@ -1,5 +1,7 @@
 // utils.js
 
+import { STRINGS } from './constants.js';
+
 const SYNC_STORAGE_KEYS = {
     DEFINED_GROUPS: 'definedGroups', // string[]
     GROUP_STATE: 'groupState',       // { [groupName: string]: { assignedMask: number, assignedCount: number } }
@@ -19,7 +21,7 @@ const MAX_DEVICES_PER_GROUP = 15; // Using 16-bit integers safely (bit 0 to 15)
 
 // --- Storage Access Helpers ---
 
-async function getStorage(area, key, defaultValue = null) {
+export async function getStorage(area, key, defaultValue = null) {
     try {
         const result = await area.get(key);
         return result?.[key] ?? defaultValue;
@@ -31,7 +33,7 @@ async function getStorage(area, key, defaultValue = null) {
 
 // Safely merges updates into potentially large objects in storage.sync
 // Avoids race conditions where concurrent updates overwrite each other.
-async function mergeSyncStorage(key, updates) {
+export async function mergeSyncStorage(key, updates) {
     try {
         const currentData = await getStorage(browser.storage.sync, key, {});
         // Basic deep merge (can be improved for arrays if needed)
@@ -46,7 +48,7 @@ async function mergeSyncStorage(key, updates) {
 }
 
 // Simple deep merge utility (adjust if complex array merging is needed)
-function deepMerge(target, source) {
+export function deepMerge(target, source) {
     const output = { ...target };
     if (isObject(target) && isObject(source)) {
         Object.keys(source).forEach(key => {
@@ -76,14 +78,14 @@ function deepMerge(target, source) {
 }
 
 
-function isObject(item) {
+export function isObject(item) {
     return (item && typeof item === 'object' && !Array.isArray(item));
 }
 
 
 // --- Instance ID/Name ---
 // Store device name and ID in both local and sync storage for persistence
-async function getInstanceId() {
+export async function getInstanceId() {
     let id = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID);
     if (!id) {
         // Try to restore from sync
@@ -99,7 +101,7 @@ async function getInstanceId() {
     return id;
 }
 
-async function getInstanceName() {
+export async function getInstanceName() {
     let name = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_NAME);
     if (!name) {
         // Try to restore from sync
@@ -135,42 +137,68 @@ function getNextAvailableBitPosition(mask) {
 
 // utils.js - shared rendering and storage helpers for TabTogether
 
-function renderDeviceList(container, devices, highlightId = null) {
+export function renderDeviceList(container, devices, highlightId = null) {
     if (!devices || Object.keys(devices).length === 0) {
-        container.textContent = 'No devices registered.';
-        return;
-    }
-    const entries = Object.entries(devices)
-        .sort((a, b) => (a[1]?.name || '').localeCompare(b[1]?.name || ''));
-    let html = '<ul>';
-    for (const [id, device] of entries) {
-        html += `<li${id === highlightId ? ' class="this-device"' : ''}>`;
-        html += `<span>${device.name || 'Unnamed Device'}</span>`;
-        if (device.lastSeen) {
-            const lastSeen = new Date(device.lastSeen);
-            html += `<span class="small-text" style="margin-left:10px;font-size:0.95em;">Last seen: ${lastSeen.toLocaleString()}</span>`;
-        }
-        html += '</li>';
-    }
-    html += '</ul>';
-    container.innerHTML = html;
-}
-
-function renderGroupList(container, groups, subscriptions, onSubscribe, onUnsubscribe, onDelete, onRename) {
-    if (!groups || groups.length === 0) {
-        container.innerHTML = '<p>No groups defined yet. Create one below.</p>';
+        container.textContent = STRINGS.noDevices;
         return;
     }
     const ul = document.createElement('ul');
+    ul.setAttribute('role', 'list');
+    const entries = Object.entries(devices)
+        .sort((a, b) => (a[1]?.name || '').localeCompare(b[1]?.name || ''));
+    for (const [id, device] of entries) {
+        const li = document.createElement('li');
+        li.setAttribute('role', 'listitem');
+        if (id === highlightId) li.classList.add('this-device');
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = device.name || 'Unnamed Device';
+        li.appendChild(nameSpan);
+        if (device.lastSeen) {
+            const lastSeen = new Date(device.lastSeen);
+            const lastSeenSpan = document.createElement('span');
+            lastSeenSpan.className = 'small-text';
+            lastSeenSpan.style.marginLeft = '10px';
+            lastSeenSpan.style.fontSize = '0.95em';
+            lastSeenSpan.textContent = `Last seen: ${lastSeen.toLocaleString()}`;
+            li.appendChild(lastSeenSpan);
+        }
+        ul.appendChild(li);
+    }
+    container.innerHTML = '';
+    container.appendChild(ul);
+}
+
+export function renderGroupList(container, groups, subscriptions, onSubscribe, onUnsubscribe, onDelete, onRename) {
+    if (!groups || groups.length === 0) {
+        const p = document.createElement('p');
+        p.textContent = STRINGS.noGroups;
+        container.innerHTML = '';
+        container.appendChild(p);
+        return;
+    }
+    const ul = document.createElement('ul');
+    ul.setAttribute('role', 'list');
     groups.sort().forEach(groupName => {
         const li = document.createElement('li');
+        li.setAttribute('role', 'listitem');
         const isSubscribed = subscriptions && subscriptions.includes(groupName);
         const nameSpan = document.createElement('span');
         nameSpan.textContent = groupName;
         nameSpan.className = 'group-name-label';
         nameSpan.title = 'Click to rename';
         nameSpan.style.cursor = 'pointer';
-        if (onRename) nameSpan.onclick = () => onRename(groupName, nameSpan);
+        nameSpan.tabIndex = 0;
+        nameSpan.setAttribute('role', 'button');
+        nameSpan.setAttribute('aria-label', `Rename group ${groupName}`);
+        if (onRename) {
+            nameSpan.onclick = () => onRename(groupName, nameSpan);
+            nameSpan.onkeydown = (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onRename(groupName, nameSpan);
+                }
+            };
+        }
         li.appendChild(nameSpan);
         const actionsDiv = document.createElement('div');
         actionsDiv.className = 'group-actions';
@@ -178,6 +206,7 @@ function renderGroupList(container, groups, subscriptions, onSubscribe, onUnsubs
         subButton.textContent = isSubscribed ? 'Unsubscribe' : 'Subscribe';
         subButton.dataset.group = groupName;
         subButton.className = isSubscribed ? 'unsubscribe-btn' : 'subscribe-btn';
+        subButton.setAttribute('aria-label', `${isSubscribed ? 'Unsubscribe from' : 'Subscribe to'} group ${groupName}`);
         subButton.addEventListener('click', isSubscribed ? onUnsubscribe : onSubscribe);
         actionsDiv.appendChild(subButton);
         const deleteButton = document.createElement('button');
@@ -185,6 +214,7 @@ function renderGroupList(container, groups, subscriptions, onSubscribe, onUnsubs
         deleteButton.className = 'delete-btn';
         deleteButton.dataset.group = groupName;
         deleteButton.title = 'Delete group for all devices';
+        deleteButton.setAttribute('aria-label', `Delete group ${groupName}`);
         deleteButton.addEventListener('click', onDelete);
         actionsDiv.appendChild(deleteButton);
         li.appendChild(actionsDiv);
@@ -194,14 +224,16 @@ function renderGroupList(container, groups, subscriptions, onSubscribe, onUnsubs
     container.appendChild(ul);
 }
 
-function renderDeviceName(container, name) {
+export function renderDeviceName(container, name) {
     container.textContent = name || STRINGS.deviceNameNotSet;
 }
 
-function renderSubscriptions(container, subscriptions) {
+export function renderSubscriptions(container, subscriptions) {
     if (!subscriptions || subscriptions.length === 0) {
         container.textContent = STRINGS.notSubscribed;
         return;
     }
     container.textContent = STRINGS.subscribedGroups + subscriptions.join(', ');
 }
+
+export { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, MAX_DEVICES_PER_GROUP };

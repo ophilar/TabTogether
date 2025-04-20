@@ -1,7 +1,6 @@
 // background.js
 
-// Import necessary functions from utils.js (assuming utils.js is loaded via manifest)
-// If using Modules (MV3): import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, MAX_DEVICES_PER_GROUP, getStorage, mergeSyncStorage, getInstanceId, getInstanceName } from './utils.js';
+import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, MAX_DEVICES_PER_GROUP, getStorage, mergeSyncStorage, getInstanceId, getInstanceName, deepMerge, isObject } from './utils.js';
 
 const ALARM_HEARTBEAT = 'deviceHeartbeat';
 const ALARM_STALE_CHECK = 'staleDeviceCheck';
@@ -741,29 +740,4 @@ async function assignBitForGroup(groupName, localInstanceId, localGroupBits, cac
     }
     console.error(`Failed to assign bit for ${groupName} after ${MAX_RETRIES} retries.`);
     return null;
-}
-
-// --- Utility (needed if not imported from utils.js) ---
-function isObject(item) {
-    return (item && typeof item === 'object' && !Array.isArray(item));
-}
-
-function deepMerge(target, source) {
-    const output = { ...target };
-    if (isObject(target) && isObject(source)) {
-        Object.keys(source).forEach(key => {
-            if (source[key] === null) {
-                 delete output[key];
-            } else if (isObject(source[key])) {
-                if (!(key in target) || !isObject(target[key])) {
-                    output[key] = source[key];
-                } else {
-                     output[key] = deepMerge(target[key], source[key]);
-                }
-            } else {
-                output[key] = source[key];
-            }
-        });
-    }
-    return output;
 }

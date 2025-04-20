@@ -1,7 +1,7 @@
 // shared-ui.js
 // Injects shared header, loading, and message area into the container
 
-function injectSharedUI(containerSelector = '.container') {
+export function injectSharedUI(containerSelector = '.container') {
     const container = document.querySelector(containerSelector);
     if (!container) return;
     // Only inject if not already present
@@ -13,15 +13,14 @@ function injectSharedUI(containerSelector = '.container') {
     if (!container.querySelector('#loadingIndicator')) {
         const loadingDiv = document.createElement('div');
         loadingDiv.id = 'loadingIndicator';
-        loadingDiv.className = 'loading';
-        loadingDiv.style.display = 'none';
+        loadingDiv.className = 'loading hidden';
         loadingDiv.textContent = 'Loading...';
         container.insertBefore(loadingDiv, container.firstChild.nextSibling);
     }
     if (!container.querySelector('#messageArea')) {
         const messageDiv = document.createElement('div');
         messageDiv.id = 'messageArea';
-        messageDiv.style.display = 'none';
+        messageDiv.className = 'hidden';
         container.insertBefore(messageDiv, container.firstChild.nextSibling.nextSibling);
     }
 }

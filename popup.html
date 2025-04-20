@@ -12,25 +12,25 @@
 <body>
     <div class="container">
         <!-- Shared loading and message area -->
-        <div id="loadingIndicator" class="loading" style="display:none;">Loading...</div>
-        <div id="messageArea" style="display:none;"></div>
+        <div id="loadingIndicator" class="loading hidden">Loading...</div>
+        <div id="messageArea" class="hidden"></div>
         <h2>Send Current Tab</h2>
         <div id="sendTabGroupsList">Loading groups...</div>
-        <div id="sendTabStatus" class="status-message" style="display: none;"></div>
+        <div id="sendTabStatus" class="status-message hidden"></div>
         <hr>
         <div><strong>Device Name:</strong> <span id="deviceName">Loading...</span></div>
         <div id="mySubscriptionsList" class="small-text">
           <ul id="subscriptionsUl" style="padding-left: 0; margin: 0;"></ul>
         </div>
         <div id="deviceRegistryList" class="small-text"></div>
-        <div id="errorMessage" class="error" style="display:none;"></div>
+        <div id="errorMessage" class="error hidden"></div>
         <p class="options-link"><a href="#" id="openOptionsLink">Settings ...</a></p>
         <p class="refresh-link"><a href="#" id="refreshLink">Sync</a></p>
     </div>
-    <script src="constants.js"></script>
-    <script src="theme.js"></script>
-    <script src="utils.js"></script>
-    <script src="shared-ui.js"></script>
-    <script src="popup.js"></script>
+    <script type="module" src="constants.js"></script>
+    <script type="module" src="theme.js"></script>
+    <script type="module" src="utils.js"></script>
+    <script type="module" src="shared-ui.js"></script>
+    <script type="module" src="popup.js"></script>
 </body>
 </html>

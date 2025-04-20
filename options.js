@@ -1,5 +1,10 @@
 // options.js
 
+import { STRINGS } from './constants.js';
+import { renderDeviceName, renderDeviceList, renderGroupList } from './utils.js';
+import { injectSharedUI } from './shared-ui.js';
+import { applyThemeFromStorage, setupThemeDropdown } from './theme.js';
+
 const deviceNameDisplay = document.getElementById('deviceNameDisplay');
 const deviceRegistryListDiv = document.getElementById('deviceRegistryList');
 const editNameBtn = document.getElementById('editNameBtn');
@@ -316,21 +321,23 @@ document.getElementById('testNotificationBtn').addEventListener('click', async (
 // --- UI Helper Functions ---
 
 function showLoading(isLoading) {
-    loadingIndicator.style.display = isLoading ? 'block' : 'none';
-    loadingIndicator.innerHTML = isLoading ? '<span class="spinner"></span> Loading...' : '';
-    // Do NOT disable any buttons/inputs while loading
+    if (isLoading) {
+        loadingIndicator.classList.remove('hidden');
+        loadingIndicator.innerHTML = '<span class="spinner"></span> Loading...';
+    } else {
+        loadingIndicator.classList.add('hidden');
+        loadingIndicator.innerHTML = '';
+    }
 }
 
 function showMessage(message, isError = false) {
     messageArea.textContent = message;
     messageArea.className = isError ? 'error' : 'success';
-    messageArea.style.display = 'block';
-    // Optionally hide message after a delay
+    messageArea.classList.remove('hidden');
     if (!isError) setTimeout(clearMessage, 4000);
 }
 
 function clearMessage() {
     messageArea.textContent = '';
-    messageArea.style.display = 'none';
-    messageArea.className = ''; // Clear classes
+    messageArea.className = 'hidden';
 }
