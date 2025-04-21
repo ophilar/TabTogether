@@ -1,6 +1,6 @@
 // background.js
 
-import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, MAX_DEVICES_PER_GROUP, getStorage, mergeSyncStorage, getInstanceId, getInstanceName, deepMerge, isObject } from './utils.js';
+import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, MAX_DEVICES_PER_GROUP, getStorage, mergeSyncStorage, getInstanceId, getInstanceName, deepMerge } from './utils.mjs';
 
 const ALARM_HEARTBEAT = 'deviceHeartbeat';
 const ALARM_STALE_CHECK = 'staleDeviceCheck';
