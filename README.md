@@ -62,7 +62,7 @@ Alternatively, you can manually zip all files (except dev files like `.gitignore
 - All source code is in this repository.
 - Main files:
   - `background.js` — background logic, sync, alarms
-  - `utils.mjs` — storage and rendering helpers
+  - `utils.js` — storage and rendering helpers
   - `popup.js` — popup UI logic
   - `options.js` — options/settings page logic
   - `theme.js` — dark mode and theming

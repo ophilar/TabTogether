@@ -1,4 +1,4 @@
-// utils.mjs
+// utils.js
 
 import { STRINGS } from './constants.js';
 
@@ -143,7 +143,7 @@ function getNextAvailableBitPosition(mask) {
     return -1; // No available bits
 }
 
-// utils.mjs - shared rendering and storage helpers for TabTogether
+// utils.js - shared rendering and storage helpers for TabTogether
 
 export function renderDeviceList(container, devices, highlightId = null) {
     if (!devices || Object.keys(devices).length === 0) {
