@@ -85,11 +85,9 @@ export function deepMerge(target, source) {
     return output;
 }
 
-
 export function isObject(item) {
-    return (item && typeof item === 'object' && !Array.isArray(item));
+    return !!item && typeof item === 'object' && !Array.isArray(item);
 }
-
 
 // --- Instance ID/Name ---
 // Store device name and ID in both local and sync storage for persistence
@@ -275,7 +273,7 @@ export function showAndroidBanner(container, msg) {
         banner.style.border = '1px solid #ffcdd2';
         banner.style.padding = '7px';
         banner.style.borderRadius = '4px';
-        container.insertBefore(banner, container.firstChild.nextSibling);
+        container.insertBefore(banner, container.firstChild ? container.firstChild.nextSibling : null);
     }
     banner.textContent = msg;
 }
@@ -323,5 +321,15 @@ export function showDebugInfo(container, state) {
     addLine('Device Registry', state?.deviceRegistry ? JSON.stringify(state.deviceRegistry) : '-');
     addLine('Group State', state?.groupState ? JSON.stringify(state.groupState) : '-');
 }
+
+// Export direct storage helpers for tests and Android logic
+export async function createGroupDirect(groupName) { /* ...existing code... */ }
+export async function subscribeToGroupDirect(groupName) { /* ...existing code... */ }
+export async function unsubscribeFromGroupDirect(groupName) { /* ...existing code... */ }
+export async function sendTabToGroupDirect(groupName, tabData) { /* ...existing code... */ }
+export async function deleteGroupDirect(groupName) { /* ...existing code... */ }
+export async function renameGroupDirect(oldName, newName) { /* ...existing code... */ }
+export async function renameDeviceDirect(deviceId, newName) { /* ...existing code... */ }
+export async function deleteDeviceDirect(deviceId) { /* ...existing code... */ }
 
 export { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, MAX_DEVICES_PER_GROUP };
