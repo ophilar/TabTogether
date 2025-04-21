@@ -95,4 +95,30 @@ describe('utils', () => {
     const task = Object.values(groupTasks.TestGroup)[0];
     expect(task.url).toBe 'https://example.com';
   });
+
+  test('showAndroidBanner and setLastSyncTime create elements', () => {
+    document.body.innerHTML = '<div class="container"></div>';
+    const container = document.querySelector('.container');
+    utils.showAndroidBanner(container, 'Android banner test');
+    expect(container.querySelector('.android-banner').textContent).toBe('Android banner test');
+    utils.setLastSyncTime(container, 1234567890000);
+    expect(container.querySelector('.last-sync-time').textContent).toContain('Last sync:');
+  });
+
+  test('showDebugInfo displays debug info', () => {
+    document.body.innerHTML = '<div class="container"></div>';
+    const container = document.querySelector('.container');
+    const state = {
+      instanceId: 'id',
+      instanceName: 'name',
+      subscriptions: ['g1'],
+      groupBits: { g1: 1 },
+      definedGroups: ['g1'],
+      deviceRegistry: { id: { name: 'name', lastSeen: 1, groupBits: { g1: 1 } } },
+      groupState: { g1: { assignedMask: 1, assignedCount: 1 } }
+    };
+    utils.showDebugInfo(container, state);
+    expect(container.querySelector('.debug-info').innerHTML).toContain('Instance ID: id');
+    expect(container.querySelector('.debug-info').innerHTML).toContain('Defined Groups:');
+  });
 });
