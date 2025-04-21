@@ -2,5 +2,5 @@ export default {
   transform: {},
   testEnvironment: 'jsdom',
   moduleFileExtensions: ['js', 'mjs', 'json', 'node'],
-  testMatch: ["**/test/**/*.test.mjs"]
+  testMatch: ["**/test/**/*.test.js"]
 };
