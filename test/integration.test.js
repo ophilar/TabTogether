@@ -1,8 +1,7 @@
-import { jest } from '@jest/globals';
-// test/integration.test.js
-import * as utils from '../utils.js';
-
 global.crypto = { randomUUID: () => 'mock-uuid-1234' };
+
+import { jest } from '@jest/globals';
+import * as utils from '../utils.js';
 
 global.browser = {
   storage: {
@@ -16,6 +15,9 @@ describe('Integration: Group and Tab Flow', () => {
     // Clear all storage before each test
     await browser.storage.local.clear();
     await browser.storage.sync.clear();
+    // Set up a realistic device registry and group state
+    await browser.storage.local.set({ myInstanceId: 'test-device-id', myInstanceName: 'Test Device' });
+    await browser.storage.sync.set({ deviceRegistry: { 'test-device-id': { name: 'Test Device', lastSeen: Date.now(), groupBits: {} } } });
   });
 
   test('Full group create, subscribe, send tab, process tab, unsubscribe, delete', async () => {
@@ -63,11 +65,9 @@ describe('Integration: Group and Tab Flow', () => {
     }
     await browser.storage.local.set({ processedTaskIds: localProcessedTasks });
     await browser.storage.sync.set({ groupTasks });
-    // Accept both true and false for processed, but log for debug
-    if (!processed) {
-      console.warn('No tasks were processed. This may be due to test mocks or bitmask logic.');
-    }
-    expect(typeof processed).toBe('boolean');
+    // Now check that the task is marked as processed for this device
+    const processedTask = Object.values((await browser.storage.sync.get('groupTasks')).groupTasks['IntegrationGroup'])[0];
+    expect(processedTask.processedMask & state.groupBits['IntegrationGroup']).toBe(state.groupBits['IntegrationGroup']);
     // Unsubscribe
     const unsubRes = await utils.unsubscribeFromGroupDirect('IntegrationGroup');
     expect(unsubRes.success).toBe(true);
