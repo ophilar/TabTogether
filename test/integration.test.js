@@ -1,5 +1,13 @@
+import { jest } from '@jest/globals';
 // test/integration.test.js
 import * as utils from '../utils.js';
+
+global.browser = {
+  storage: {
+    local: { clear: async () => {}, get: async () => ({}), set: async () => {} },
+    sync: { clear: async () => {}, get: async () => ({}), set: async () => {} }
+  }
+};
 
 describe('Integration: Group and Tab Flow', () => {
   beforeEach(async () => {
