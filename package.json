@@ -14,7 +14,8 @@
     "start": "web-ext run",
     "lint": "web-ext lint",
     "build": "web-ext build --overwrite-dest",
-    "sign": "web-ext sign"
+    "sign": "web-ext sign",
+    "test": "jest"
   },
   "devDependencies": {
     "clean-css-cli": "^5.6.2",

@@ -305,15 +305,23 @@ export function showDebugInfo(container, state) {
         debugDiv.style.borderRadius = '4px';
         container.appendChild(debugDiv);
     }
-    debugDiv.innerHTML =
-        '<strong>Debug Info</strong><br>' +
-        'Instance ID: ' + (state?.instanceId || '-') + '<br>' +
-        'Instance Name: ' + (state?.instanceName || '-') + '<br>' +
-        'Subscriptions: ' + (state?.subscriptions ? JSON.stringify(state.subscriptions) : '-') + '<br>' +
-        'Group Bits: ' + (state?.groupBits ? JSON.stringify(state.groupBits) : '-') + '<br>' +
-        'Defined Groups: ' + (state?.definedGroups ? JSON.stringify(state.definedGroups) : '-') + '<br>' +
-        'Device Registry: ' + (state?.deviceRegistry ? JSON.stringify(state.deviceRegistry) : '-') + '<br>' +
-        'Group State: ' + (state?.groupState ? JSON.stringify(state.groupState) : '-') + '<br>';
+    debugDiv.innerHTML = '';
+    const title = document.createElement('strong');
+    title.textContent = 'Debug Info';
+    debugDiv.appendChild(title);
+    debugDiv.appendChild(document.createElement('br'));
+    function addLine(label, value) {
+        const line = document.createElement('div');
+        line.textContent = `${label}: ${value}`;
+        debugDiv.appendChild(line);
+    }
+    addLine('Instance ID', state?.instanceId || '-');
+    addLine('Instance Name', state?.instanceName || '-');
+    addLine('Subscriptions', state?.subscriptions ? JSON.stringify(state.subscriptions) : '-');
+    addLine('Group Bits', state?.groupBits ? JSON.stringify(state.groupBits) : '-');
+    addLine('Defined Groups', state?.definedGroups ? JSON.stringify(state.definedGroups) : '-');
+    addLine('Device Registry', state?.deviceRegistry ? JSON.stringify(state.deviceRegistry) : '-');
+    addLine('Group State', state?.groupState ? JSON.stringify(state.groupState) : '-');
 }
 
 export { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, MAX_DEVICES_PER_GROUP };
