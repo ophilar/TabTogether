@@ -1,6 +1,8 @@
-import { jest } from '@jest/globals';
+// import { jest } from '@jest/globals';
 // test/integration.test.js
 import * as utils from '../utils.js';
+
+global.crypto = { randomUUID: () => 'mock-uuid-1234' };
 
 global.browser = {
   storage: {

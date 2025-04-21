@@ -2,6 +2,8 @@ import { jest } from '@jest/globals';
 // Automated tests for utils.js
 import * as utils from '../utils.js';
 
+global.crypto = { randomUUID: () => 'mock-uuid-1234' };
+
 // Mock browser API for storage and platform
 const mockStorage = (() => {
   let store = {};
