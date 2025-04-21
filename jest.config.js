@@ -1,4 +1,6 @@
 export default {
   transform: {},
-  testEnvironment: 'jsdom'
+  testEnvironment: 'jsdom',
+  extensionsToTreatAsEsm: ['.mjs'],
+  moduleFileExtensions: ['js', 'mjs', 'json', 'node']
 };
