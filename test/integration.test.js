@@ -66,7 +66,12 @@ describe('Integration: Group and Tab Flow', () => {
     await browser.storage.local.set({ processedTaskIds: localProcessedTasks });
     await browser.storage.sync.set({ groupTasks });
     // Now check that the task is marked as processed for this device
-    const processedTask = Object.values((await browser.storage.sync.get('groupTasks')).groupTasks['IntegrationGroup'])[0];
+    const groupTasksResult = await browser.storage.sync.get('groupTasks');
+    if (!groupTasksResult.groupTasks || !groupTasksResult.groupTasks['IntegrationGroup']) {
+      console.error('groupTasks or groupTasks[IntegrationGroup] is undefined:', groupTasksResult);
+      throw new Error('No group tasks found for IntegrationGroup');
+    }
+    const processedTask = Object.values(groupTasksResult.groupTasks['IntegrationGroup'])[0];
     expect(processedTask.processedMask & state.groupBits['IntegrationGroup']).toBe(state.groupBits['IntegrationGroup']);
     // Unsubscribe
     const unsubRes = await utils.unsubscribeFromGroupDirect('IntegrationGroup');
