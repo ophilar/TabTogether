@@ -19,8 +19,16 @@ const LOCAL_STORAGE_KEYS = {
 
 const MAX_DEVICES_PER_GROUP = 15; // Using 16-bit integers safely (bit 0 to 15)
 
-// --- Storage Access Helpers ---
+export async function isAndroid() {
+    try {
+        const info = await browser.runtime.getPlatformInfo();
+        return info.os === "android";
+    } catch {
+        return false;
+    }
+}
 
+// --- Storage Access Helpers ---
 export async function getStorage(area, key, defaultValue = null) {
     try {
         const result = await area.get(key);
