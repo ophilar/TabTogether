@@ -1,5 +1,5 @@
 // test/integration.test.js
-import * as utils from '../utils.mjs';
+import * as utils from '../utils.js';
 
 describe('Integration: Group and Tab Flow', () => {
   beforeEach(async () => {
