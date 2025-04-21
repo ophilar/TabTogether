@@ -21,7 +21,7 @@ const MAX_DEVICES_PER_GROUP = 15; // Using 16-bit integers safely (bit 0 to 15)
 
 export async function isAndroid() {
     try {
-        const info = await browser.runtime.getPlatformInfo();
+        const info = await getPlatformInfo();
         return info.os === "android";
     } catch {
         return false;
@@ -253,10 +253,10 @@ export async function getPlatformInfo() {
     }
 }
 
-export async function isAndroid() {
-    const info = await getPlatformInfo();
-    return info.os === "android";
-}
+// export async function isAndroid() {
+    // const info = await getPlatformInfo();
+    // return info.os === "android";
+// }
 
 export async function isDesktop() {
     const info = await getPlatformInfo();
