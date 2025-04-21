@@ -292,4 +292,28 @@ export function setLastSyncTime(container, date) {
     syncDiv.textContent = 'Last sync: ' + (date ? new Date(date).toLocaleString() : 'Never');
 }
 
+// Debug/info section for troubleshooting
+export function showDebugInfo(container, state) {
+    let debugDiv = container.querySelector('.debug-info');
+    if (!debugDiv) {
+        debugDiv = document.createElement('div');
+        debugDiv.className = 'debug-info small-text';
+        debugDiv.style.marginTop = '12px';
+        debugDiv.style.background = '#f5f5f5';
+        debugDiv.style.border = '1px solid #ccc';
+        debugDiv.style.padding = '7px';
+        debugDiv.style.borderRadius = '4px';
+        container.appendChild(debugDiv);
+    }
+    debugDiv.innerHTML =
+        '<strong>Debug Info</strong><br>' +
+        'Instance ID: ' + (state?.instanceId || '-') + '<br>' +
+        'Instance Name: ' + (state?.instanceName || '-') + '<br>' +
+        'Subscriptions: ' + (state?.subscriptions ? JSON.stringify(state.subscriptions) : '-') + '<br>' +
+        'Group Bits: ' + (state?.groupBits ? JSON.stringify(state.groupBits) : '-') + '<br>' +
+        'Defined Groups: ' + (state?.definedGroups ? JSON.stringify(state.definedGroups) : '-') + '<br>' +
+        'Device Registry: ' + (state?.deviceRegistry ? JSON.stringify(state.deviceRegistry) : '-') + '<br>' +
+        'Group State: ' + (state?.groupState ? JSON.stringify(state.groupState) : '-') + '<br>';
+}
+
 export { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, MAX_DEVICES_PER_GROUP };
