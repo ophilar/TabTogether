@@ -93,7 +93,7 @@ describe('utils', () => {
     const groupTasks = (await mockStorage.get('groupTasks')).groupTasks;
     expect(groupTasks.TestGroup).toBeDefined();
     const task = Object.values(groupTasks.TestGroup)[0];
-    expect(task.url).toBe 'https://example.com';
+    expect(task.url).toBe('https://example.com');
   });
 
   test('showAndroidBanner and setLastSyncTime create elements', () => {
