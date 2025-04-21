@@ -1,5 +1,5 @@
 // Automated tests for utils.js
-import * as utils from '../utils.js';
+import * as utils from '../utils.mjs';
 
 // Mock browser API for storage and platform
 const mockStorage = (() => {
