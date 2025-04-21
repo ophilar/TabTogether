@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 // Automated tests for utils.js
 import * as utils from '../utils.js';
 
