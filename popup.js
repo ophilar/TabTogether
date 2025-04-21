@@ -2,6 +2,7 @@ import { STRINGS } from './constants.js';
 import { renderDeviceName, renderDeviceList } from './utils.js';
 import { injectSharedUI } from './shared-ui.js';
 import { applyThemeFromStorage } from './theme.js';
+import { isAndroid, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from './utils.js';
 
 const deviceNameSpan = document.getElementById('deviceName');
 const sendTabGroupsList = document.getElementById('sendTabGroupsList');
@@ -15,10 +16,27 @@ const errorMessageDiv = document.getElementById('errorMessage');
 
 let localInstanceId = null;
 
+// Add a Sync Now button for Android users at the top of the popup
+const syncNowBtn = document.createElement('button');
+syncNowBtn.textContent = 'Sync Now';
+syncNowBtn.className = 'send-group-btn';
+syncNowBtn.style.marginBottom = '10px';
+syncNowBtn.style.width = '100%';
+syncNowBtn.addEventListener('click', async () => {
+    await loadStatus();
+});
+
 // --- Initialization ---
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     injectSharedUI();
     applyThemeFromStorage();
+    if (await isAndroid()) {
+        // Insert Sync Now button at the top of the container
+        const container = document.querySelector('.container');
+        if (container && !container.querySelector('.send-group-btn')) {
+            container.insertBefore(syncNowBtn, container.firstChild);
+        }
+    }
     loadStatus();
 });
 openOptionsLink.addEventListener('click', (e) => {
@@ -31,12 +49,39 @@ refreshLink.addEventListener('click', (e) => {
 });
 
 // --- Load and Render Status ---
+async function getStateDirectly() {
+    const [instanceId, instanceName, subscriptions, groupBits, definedGroups, groupState, deviceRegistry] = await Promise.all([
+        browser.storage.local.get(LOCAL_STORAGE_KEYS.INSTANCE_ID).then(r => r[LOCAL_STORAGE_KEYS.INSTANCE_ID]),
+        browser.storage.local.get(LOCAL_STORAGE_KEYS.INSTANCE_NAME).then(r => r[LOCAL_STORAGE_KEYS.INSTANCE_NAME]),
+        browser.storage.local.get(LOCAL_STORAGE_KEYS.SUBSCRIPTIONS).then(r => r[LOCAL_STORAGE_KEYS.SUBSCRIPTIONS] || []),
+        browser.storage.local.get(LOCAL_STORAGE_KEYS.GROUP_BITS).then(r => r[LOCAL_STORAGE_KEYS.GROUP_BITS] || {}),
+        browser.storage.sync.get(SYNC_STORAGE_KEYS.DEFINED_GROUPS).then(r => r[SYNC_STORAGE_KEYS.DEFINED_GROUPS] || []),
+        browser.storage.sync.get(SYNC_STORAGE_KEYS.GROUP_STATE).then(r => r[SYNC_STORAGE_KEYS.GROUP_STATE] || {}),
+        browser.storage.sync.get(SYNC_STORAGE_KEYS.DEVICE_REGISTRY).then(r => r[SYNC_STORAGE_KEYS.DEVICE_REGISTRY] || {})
+    ]);
+    return {
+        instanceId,
+        instanceName,
+        subscriptions,
+        groupBits,
+        definedGroups,
+        groupState,
+        deviceRegistry
+    };
+}
+
 async function loadStatus() {
     showLoading(true);
     errorMessageDiv.classList.add('hidden');
     try {
-        await browser.runtime.sendMessage({ action: 'heartbeat' });
-        const state = await browser.runtime.sendMessage({ action: 'getState' });
+        let state;
+        if (await isAndroid()) {
+            state = await getStateDirectly();
+            await processIncomingTabsAndroid(state);
+        } else {
+            await browser.runtime.sendMessage({ action: 'heartbeat' });
+            state = await browser.runtime.sendMessage({ action: 'getState' });
+        }
         if (state && state.error) throw new Error(state.error);
         if (!state) throw new Error(STRINGS.error);
         localInstanceId = state.instanceId;
@@ -45,11 +90,52 @@ async function loadStatus() {
         renderSendTabGroups(state.definedGroups);
         showLoading(false);
     } catch (error) {
-        errorMessageDiv.textContent = `Error: ${error.message}`;
+        if (await isAndroid()) {
+            errorMessageDiv.textContent = "This extension may have limited functionality on Firefox for Android. Try reopening the popup or restarting the browser if you see this error.";
+        } else {
+            errorMessageDiv.textContent = `Error: ${error.message}`;
+        }
         errorMessageDiv.classList.remove('hidden');
         deviceNameSpan.textContent = STRINGS.error;
         sendTabGroupsList.textContent = error.message;
         showLoading(false);
+    }
+}
+
+async function processIncomingTabsAndroid(state) {
+    // This is a simplified version; you may want to deduplicate with background.js logic
+    if (!state || !state.definedGroups || !state.groupBits || !state.subscriptions) return;
+    const groupTasks = await browser.storage.sync.get(SYNC_STORAGE_KEYS.GROUP_TASKS).then(r => r[SYNC_STORAGE_KEYS.GROUP_TASKS] || {});
+    let localProcessedTasks = await browser.storage.local.get(LOCAL_STORAGE_KEYS.PROCESSED_TASKS).then(r => r[LOCAL_STORAGE_KEYS.PROCESSED_TASKS] || {});
+    let processedTasksUpdateBatch = {};
+    for (const groupName of state.subscriptions) {
+        const myBit = state.groupBits[groupName];
+        if (!myBit) continue;
+        if (!groupTasks[groupName]) continue;
+        for (const taskId in groupTasks[groupName]) {
+            const task = groupTasks[groupName][taskId];
+            if (!localProcessedTasks[taskId] && !((task.processedMask & myBit) === myBit)) {
+                try {
+                    await browser.tabs.create({ url: task.url, active: false });
+                } catch (e) {
+                    // Ignore tab open errors
+                }
+                processedTasksUpdateBatch[taskId] = true;
+                // Mark as processed in sync
+                const newProcessedMask = task.processedMask | myBit;
+                const taskUpdate = { [groupName]: { [taskId]: { processedMask: newProcessedMask } } };
+                await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.GROUP_TASKS]: {
+                    ...groupTasks,
+                    [groupName]: {
+                        ...groupTasks[groupName],
+                        [taskId]: { ...task, processedMask: newProcessedMask }
+                    }
+                }});
+            }
+        }
+    }
+    if (Object.keys(processedTasksUpdateBatch).length > 0) {
+        await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.PROCESSED_TASKS]: { ...localProcessedTasks, ...processedTasksUpdateBatch } });
     }
 }
 
@@ -107,19 +193,31 @@ function renderRegistry(deviceRegistry) {
 async function sendTabToGroup(groupName) {
     showSendStatus('Sending...', false);
     try {
-        await browser.runtime.sendMessage({ action: 'heartbeat' });
-        const tabs = await browser.tabs.query({ active: true, currentWindow: true });
-        if (!tabs || tabs.length === 0) throw new Error('No active tab found.');
-        const currentTab = tabs[0];
-        if (!currentTab.url || currentTab.url.startsWith('about:') || currentTab.url.startsWith('moz-extension:')) {
-            showSendStatus('Cannot send this type of tab.', true);
-            return;
+        let response;
+        if (await isAndroid()) {
+            const tabs = await browser.tabs.query({ active: true, currentWindow: true });
+            if (!tabs || tabs.length === 0) throw new Error('No active tab found.');
+            const currentTab = tabs[0];
+            if (!currentTab.url || currentTab.url.startsWith('about:') || currentTab.url.startsWith('moz-extension:')) {
+                showSendStatus('Cannot send this type of tab.', true);
+                return;
+            }
+            response = await sendTabToGroupDirect(groupName, { url: currentTab.url, title: currentTab.title });
+        } else {
+            await browser.runtime.sendMessage({ action: 'heartbeat' });
+            const tabs = await browser.tabs.query({ active: true, currentWindow: true });
+            if (!tabs || tabs.length === 0) throw new Error('No active tab found.');
+            const currentTab = tabs[0];
+            if (!currentTab.url || currentTab.url.startsWith('about:') || currentTab.url.startsWith('moz-extension:')) {
+                showSendStatus('Cannot send this type of tab.', true);
+                return;
+            }
+            response = await browser.runtime.sendMessage({
+                action: 'sendTabFromPopup',
+                groupName,
+                tabData: { url: currentTab.url, title: currentTab.title }
+            });
         }
-        const response = await browser.runtime.sendMessage({
-            action: 'sendTabFromPopup',
-            groupName,
-            tabData: { url: currentTab.url, title: currentTab.title }
-        });
         if (response.success) {
             showSendStatus(`Sent to ${groupName}!`, false);
         } else {
@@ -128,6 +226,23 @@ async function sendTabToGroup(groupName) {
     } catch (error) {
         showSendStatus('Error: ' + error.message, true);
     }
+}
+
+// Android: direct send tab logic
+async function sendTabToGroupDirect(groupName, tabData) {
+    const groupBits = await browser.storage.local.get(LOCAL_STORAGE_KEYS.GROUP_BITS).then(r => r[LOCAL_STORAGE_KEYS.GROUP_BITS] || {});
+    const senderBit = groupBits[groupName] || 0;
+    const taskId = crypto.randomUUID();
+    const groupTasks = await browser.storage.sync.get(SYNC_STORAGE_KEYS.GROUP_TASKS).then(r => r[SYNC_STORAGE_KEYS.GROUP_TASKS] || {});
+    if (!groupTasks[groupName]) groupTasks[groupName] = {};
+    groupTasks[groupName][taskId] = {
+        url: tabData.url,
+        title: tabData.title || tabData.url,
+        processedMask: senderBit,
+        creationTimestamp: Date.now()
+    };
+    await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.GROUP_TASKS]: groupTasks });
+    return { success: true };
 }
 
 function showSendStatus(message, isError) {

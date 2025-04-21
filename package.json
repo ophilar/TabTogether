@@ -16,10 +16,12 @@
     "build": "web-ext build --overwrite-dest",
     "sign": "web-ext sign"
   },
-  
   "devDependencies": {
-    "uglify-js": "^3.17.4",
-    "clean-css-cli": "^5.7.0",
-    "html-minifier": "^4.0.0"
+    "clean-css-cli": "^5.6.2",
+    "html-minifier": "^4.0.0",
+    "uglify-js": "^3.17.4"
+  },
+  "dependencies": {
+    "web-ext": "^8.4.0"
   }
 }

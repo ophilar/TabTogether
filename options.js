@@ -1,7 +1,7 @@
 // options.js
 
 import { STRINGS } from './constants.js';
-import { renderDeviceName, renderDeviceList, renderGroupList } from './utils.js';
+import { renderDeviceName, renderDeviceList, renderGroupList, isAndroid, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from './utils.js';
 import { injectSharedUI } from './shared-ui.js';
 import { applyThemeFromStorage, setupThemeDropdown } from './theme.js';
 
@@ -22,23 +22,74 @@ const messageArea = document.getElementById('messageArea'); // Combined message 
 
 let currentState = null; // Cache for state fetched from background
 
+// Add a Sync Now button for Android users at the top of the options page
+const syncNowBtn = document.createElement('button');
+syncNowBtn.textContent = 'Sync Now';
+syncNowBtn.className = 'send-group-btn';
+syncNowBtn.style.marginBottom = '10px';
+syncNowBtn.style.width = '100%';
+syncNowBtn.addEventListener('click', async () => {
+    await loadState();
+});
+
 // --- Initialization ---
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     injectSharedUI();
     applyThemeFromStorage();
     setupThemeDropdown('darkModeSelect');
+    if (await isAndroid()) {
+        // Insert Sync Now button at the top of the container
+        const container = document.querySelector('.container');
+        if (container && !container.querySelector('.send-group-btn')) {
+            container.insertBefore(syncNowBtn, container.firstChild);
+        }
+        // Add Android limitation message
+        const androidMsg = document.createElement('div');
+        androidMsg.className = 'small-text';
+        androidMsg.style.color = '#b71c1c';
+        androidMsg.style.marginBottom = '10px';
+        androidMsg.textContent = 'Note: On Firefox for Android, background processing is not available. Open this page and tap "Sync Now" to process new tabs or changes.';
+        container.insertBefore(androidMsg, syncNowBtn.nextSibling);
+    }
     loadState();
 });
 
 // --- State Loading and Rendering ---
 
+async function getStateDirectly() {
+    const [instanceId, instanceName, subscriptions, groupBits, definedGroups, groupState, deviceRegistry] = await Promise.all([
+        browser.storage.local.get(LOCAL_STORAGE_KEYS.INSTANCE_ID).then(r => r[LOCAL_STORAGE_KEYS.INSTANCE_ID]),
+        browser.storage.local.get(LOCAL_STORAGE_KEYS.INSTANCE_NAME).then(r => r[LOCAL_STORAGE_KEYS.INSTANCE_NAME]),
+        browser.storage.local.get(LOCAL_STORAGE_KEYS.SUBSCRIPTIONS).then(r => r[LOCAL_STORAGE_KEYS.SUBSCRIPTIONS] || []),
+        browser.storage.local.get(LOCAL_STORAGE_KEYS.GROUP_BITS).then(r => r[LOCAL_STORAGE_KEYS.GROUP_BITS] || {}),
+        browser.storage.sync.get(SYNC_STORAGE_KEYS.DEFINED_GROUPS).then(r => r[SYNC_STORAGE_KEYS.DEFINED_GROUPS] || []),
+        browser.storage.sync.get(SYNC_STORAGE_KEYS.GROUP_STATE).then(r => r[SYNC_STORAGE_KEYS.GROUP_STATE] || {}),
+        browser.storage.sync.get(SYNC_STORAGE_KEYS.DEVICE_REGISTRY).then(r => r[SYNC_STORAGE_KEYS.DEVICE_REGISTRY] || {})
+    ]);
+    return {
+        instanceId,
+        instanceName,
+        subscriptions,
+        groupBits,
+        definedGroups,
+        groupState,
+        deviceRegistry
+    };
+}
+
 async function loadState() {
     showLoading(true);
     clearMessage();
     try {
-        // Always call getState, do not cache or skip
-        currentState = await browser.runtime.sendMessage({ action: 'getState' });
+        let state;
+        if (await isAndroid()) {
+            state = await getStateDirectly();
+            await processIncomingTabsAndroid(state);
+        } else {
+            state = await browser.runtime.sendMessage({ action: 'getState' });
+        }
+        currentState = state;
         if (!currentState || currentState.error) {
             throw new Error(currentState?.error || 'Failed to load state from background script.');
         }
@@ -48,7 +99,6 @@ async function loadState() {
         deviceNameDisplay.textContent = 'Error';
         definedGroupsListDiv.innerHTML = '<p>Error loading groups.</p>';
         deviceRegistryListDiv.innerHTML = '<p>Error loading registry.</p>';
-        // Extra error logging for debugging
         if (typeof console !== 'undefined') {
             console.error('TabTogether options.js loadState error:', error);
             if (error && error.stack) {
@@ -57,6 +107,39 @@ async function loadState() {
         }
     } finally {
         showLoading(false);
+    }
+}
+
+async function processIncomingTabsAndroid(state) {
+    if (!state || !state.definedGroups || !state.groupBits || !state.subscriptions) return;
+    const groupTasks = await browser.storage.sync.get(SYNC_STORAGE_KEYS.GROUP_TASKS).then(r => r[SYNC_STORAGE_KEYS.GROUP_TASKS] || {});
+    let localProcessedTasks = await browser.storage.local.get(LOCAL_STORAGE_KEYS.PROCESSED_TASKS).then(r => r[LOCAL_STORAGE_KEYS.PROCESSED_TASKS] || {});
+    let processedTasksUpdateBatch = {};
+    for (const groupName of state.subscriptions) {
+        const myBit = state.groupBits[groupName];
+        if (!myBit) continue;
+        if (!groupTasks[groupName]) continue;
+        for (const taskId in groupTasks[groupName]) {
+            const task = groupTasks[groupName][taskId];
+            if (!localProcessedTasks[taskId] && !((task.processedMask & myBit) === myBit)) {
+                try {
+                    await browser.tabs.create({ url: task.url, active: false });
+                } catch (e) {}
+                processedTasksUpdateBatch[taskId] = true;
+                // Mark as processed in sync
+                const newProcessedMask = task.processedMask | myBit;
+                await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.GROUP_TASKS]: {
+                    ...groupTasks,
+                    [groupName]: {
+                        ...groupTasks[groupName],
+                        [taskId]: { ...task, processedMask: newProcessedMask }
+                    }
+                }});
+            }
+        }
+    }
+    if (Object.keys(processedTasksUpdateBatch).length > 0) {
+        await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.PROCESSED_TASKS]: { ...localProcessedTasks, ...processedTasksUpdateBatch } });
     }
 }
 
@@ -137,6 +220,137 @@ function renderSubscriptionsUI() {
     // renderSubscriptions(subscriptionsContainer, currentState.subscriptions);
 }
 
+// Android: direct storage logic for group and device renaming and deletion
+async function renameGroupDirect(oldName, newName) {
+    const definedGroups = await browser.storage.sync.get(SYNC_STORAGE_KEYS.DEFINED_GROUPS).then(r => r[SYNC_STORAGE_KEYS.DEFINED_GROUPS] || []);
+    if (!definedGroups.includes(oldName)) return { success: false, message: 'Group does not exist.' };
+    if (definedGroups.includes(newName)) return { success: false, message: 'A group with that name already exists.' };
+    const updatedGroups = definedGroups.map(g => g === oldName ? newName : g);
+    await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.DEFINED_GROUPS]: updatedGroups });
+    // Rename in groupState
+    const groupState = await browser.storage.sync.get(SYNC_STORAGE_KEYS.GROUP_STATE).then(r => r[SYNC_STORAGE_KEYS.GROUP_STATE] || {});
+    if (groupState[oldName]) {
+        groupState[newName] = groupState[oldName];
+        delete groupState[oldName];
+        await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.GROUP_STATE]: groupState });
+    }
+    // Rename in groupTasks
+    const groupTasks = await browser.storage.sync.get(SYNC_STORAGE_KEYS.GROUP_TASKS).then(r => r[SYNC_STORAGE_KEYS.GROUP_TASKS] || {});
+    if (groupTasks[oldName]) {
+        groupTasks[newName] = groupTasks[oldName];
+        delete groupTasks[oldName];
+        await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.GROUP_TASKS]: groupTasks });
+    }
+    // Update deviceRegistry groupBits
+    const deviceRegistry = await browser.storage.sync.get(SYNC_STORAGE_KEYS.DEVICE_REGISTRY).then(r => r[SYNC_STORAGE_KEYS.DEVICE_REGISTRY] || {});
+    let registryChanged = false;
+    for (const deviceId in deviceRegistry) {
+        if (deviceRegistry[deviceId]?.groupBits?.[oldName] !== undefined) {
+            const bit = deviceRegistry[deviceId].groupBits[oldName];
+            delete deviceRegistry[deviceId].groupBits[oldName];
+            deviceRegistry[deviceId].groupBits[newName] = bit;
+            registryChanged = true;
+        }
+    }
+    if (registryChanged) {
+        await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: deviceRegistry });
+    }
+    // Update local groupBits if present
+    let groupBits = await browser.storage.local.get(LOCAL_STORAGE_KEYS.GROUP_BITS).then(r => r[LOCAL_STORAGE_KEYS.GROUP_BITS] || {});
+    if (groupBits[oldName] !== undefined) {
+        groupBits[newName] = groupBits[oldName];
+        delete groupBits[oldName];
+        await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.GROUP_BITS]: groupBits });
+    }
+    let subscriptions = await browser.storage.local.get(LOCAL_STORAGE_KEYS.SUBSCRIPTIONS).then(r => r[LOCAL_STORAGE_KEYS.SUBSCRIPTIONS] || []);
+    if (subscriptions.includes(oldName)) {
+        subscriptions = subscriptions.map(g => g === oldName ? newName : g);
+        await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.SUBSCRIPTIONS]: subscriptions });
+    }
+    return { success: true };
+}
+
+async function deleteGroupDirect(groupName) {
+    const definedGroups = await browser.storage.sync.get(SYNC_STORAGE_KEYS.DEFINED_GROUPS).then(r => r[SYNC_STORAGE_KEYS.DEFINED_GROUPS] || []);
+    if (!definedGroups.includes(groupName)) return { success: false, message: 'Group does not exist.' };
+    const updatedGroups = definedGroups.filter(g => g !== groupName);
+    await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.DEFINED_GROUPS]: updatedGroups });
+    // Remove from groupState and groupTasks
+    const groupState = await browser.storage.sync.get(SYNC_STORAGE_KEYS.GROUP_STATE).then(r => r[SYNC_STORAGE_KEYS.GROUP_STATE] || {});
+    if (groupState[groupName]) {
+        delete groupState[groupName];
+        await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.GROUP_STATE]: groupState });
+    }
+    const groupTasks = await browser.storage.sync.get(SYNC_STORAGE_KEYS.GROUP_TASKS).then(r => r[SYNC_STORAGE_KEYS.GROUP_TASKS] || {});
+    if (groupTasks[groupName]) {
+        delete groupTasks[groupName];
+        await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.GROUP_TASKS]: groupTasks });
+    }
+    // Remove from deviceRegistry groupBits
+    const deviceRegistry = await browser.storage.sync.get(SYNC_STORAGE_KEYS.DEVICE_REGISTRY).then(r => r[SYNC_STORAGE_KEYS.DEVICE_REGISTRY] || {});
+    let registryChanged = false;
+    for (const deviceId in deviceRegistry) {
+        if (deviceRegistry[deviceId]?.groupBits?.[groupName] !== undefined) {
+            delete deviceRegistry[deviceId].groupBits[groupName];
+            registryChanged = true;
+        }
+    }
+    if (registryChanged) {
+        await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: deviceRegistry });
+    }
+    // Remove from local subscriptions and groupBits
+    let subscriptions = await browser.storage.local.get(LOCAL_STORAGE_KEYS.SUBSCRIPTIONS).then(r => r[LOCAL_STORAGE_KEYS.SUBSCRIPTIONS] || []);
+    if (subscriptions.includes(groupName)) {
+        subscriptions = subscriptions.filter(g => g !== groupName);
+        await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.SUBSCRIPTIONS]: subscriptions });
+    }
+    let groupBits = await browser.storage.local.get(LOCAL_STORAGE_KEYS.GROUP_BITS).then(r => r[LOCAL_STORAGE_KEYS.GROUP_BITS] || {});
+    if (groupBits[groupName] !== undefined) {
+        delete groupBits[groupName];
+        await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.GROUP_BITS]: groupBits });
+    }
+    return { success: true, deletedGroup: groupName };
+}
+
+async function renameDeviceDirect(deviceId, newName) {
+    const deviceRegistry = await browser.storage.sync.get(SYNC_STORAGE_KEYS.DEVICE_REGISTRY).then(r => r[SYNC_STORAGE_KEYS.DEVICE_REGISTRY] || {});
+    if (!deviceRegistry[deviceId]) return { success: false, message: 'Device not found.' };
+    deviceRegistry[deviceId].name = newName.trim();
+    await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: deviceRegistry });
+    // If renaming self, update local storage as well
+    const instanceId = await browser.storage.local.get(LOCAL_STORAGE_KEYS.INSTANCE_ID).then(r => r[LOCAL_STORAGE_KEYS.INSTANCE_ID]);
+    if (deviceId === instanceId) {
+        await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.INSTANCE_NAME]: newName.trim() });
+    }
+    return { success: true };
+}
+
+async function deleteDeviceDirect(deviceId) {
+    const deviceRegistry = await browser.storage.sync.get(SYNC_STORAGE_KEYS.DEVICE_REGISTRY).then(r => r[SYNC_STORAGE_KEYS.DEVICE_REGISTRY] || {});
+    if (!deviceRegistry[deviceId]) return { success: false, message: 'Device not found.' };
+    const groupBits = deviceRegistry[deviceId].groupBits || {};
+    delete deviceRegistry[deviceId];
+    await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: deviceRegistry });
+    // Remove device's bits from groupState
+    const groupState = await browser.storage.sync.get(SYNC_STORAGE_KEYS.GROUP_STATE).then(r => r[SYNC_STORAGE_KEYS.GROUP_STATE] || {});
+    let groupStateChanged = false;
+    for (const groupName in groupBits) {
+        const bit = groupBits[groupName];
+        if (groupState[groupName] && bit !== undefined) {
+            const currentMask = groupState[groupName].assignedMask;
+            const newMask = currentMask & ~bit;
+            if (newMask !== currentMask) {
+                groupState[groupName].assignedMask = newMask;
+                groupStateChanged = true;
+            }
+        }
+    }
+    if (groupStateChanged) {
+        await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.GROUP_STATE]: groupState });
+    }
+    return { success: true };
+}
+
 // --- Group Rename ---
 function startRenameGroup(oldName, nameSpan) {
     const input = document.createElement('input');
@@ -176,7 +390,12 @@ async function finishRenameGroup(oldName, newName, nameSpan) {
     }
     showLoading(true);
     try {
-        const response = await browser.runtime.sendMessage({ action: 'renameGroup', oldName, newName });
+        let response;
+        if (await isAndroid()) {
+            response = await renameGroupDirect(oldName, newName);
+        } else {
+            response = await browser.runtime.sendMessage({ action: 'renameGroup', oldName, newName });
+        }
         if (response.success) {
             showMessage(`Group renamed to "${newName}".`, false);
             await loadState();
@@ -229,7 +448,12 @@ async function finishRenameDevice(deviceId, newName, li, nameSpan) {
     }
     showLoading(true);
     try {
-        const response = await browser.runtime.sendMessage({ action: 'renameDevice', deviceId, newName });
+        let response;
+        if (await isAndroid()) {
+            response = await renameDeviceDirect(deviceId, newName);
+        } else {
+            response = await browser.runtime.sendMessage({ action: 'renameDevice', deviceId, newName });
+        }
         if (response.success) {
             showMessage(`Device renamed to "${newName}".`, false);
             await loadState();
@@ -249,7 +473,12 @@ async function handleDeleteDevice(deviceId, deviceName) {
     }
     showLoading(true);
     try {
-        const response = await browser.runtime.sendMessage({ action: 'deleteDevice', deviceId });
+        let response;
+        if (await isAndroid()) {
+            response = await deleteDeviceDirect(deviceId);
+        } else {
+            response = await browser.runtime.sendMessage({ action: 'deleteDevice', deviceId });
+        }
         if (response.success) {
             showMessage(`Device "${deviceName}" deleted successfully.`, false);
             await loadState();
@@ -321,23 +550,25 @@ newGroupNameInput.addEventListener('input', () => {
 
 createGroupBtn.addEventListener('click', async () => {
     const groupName = newGroupNameInput.value.trim();
-    if (groupName === '') return; // Should be disabled, but double-check
-
+    if (groupName === '') return;
     showLoading(true);
     clearMessage();
     try {
-        const response = await browser.runtime.sendMessage({ action: 'createGroup', groupName: groupName });
+        let response;
+        if (await isAndroid()) {
+            response = await createGroupDirect(groupName);
+        } else {
+            response = await browser.runtime.sendMessage({ action: 'createGroup', groupName: groupName });
+        }
         if (response.success) {
-             // --- Optimization: Update local cache and re-render ---
-             if (!currentState.definedGroups.includes(response.newGroup)) {
-                 currentState.definedGroups.push(response.newGroup);
-                 currentState.definedGroups.sort();
-             }
-             renderDefinedGroups(); // Re-render group list
-             showMessage(`Group "${response.newGroup}" created successfully.`, false);
-             // --- End Optimization ---
-             newGroupNameInput.value = ''; // Clear input
-             createGroupBtn.disabled = true; // Disable button again
+            if (!currentState.definedGroups.includes(response.newGroup)) {
+                currentState.definedGroups.push(response.newGroup);
+                currentState.definedGroups.sort();
+            }
+            renderDefinedGroups();
+            showMessage(`Group "${response.newGroup}" created successfully.`, false);
+            newGroupNameInput.value = '';
+            createGroupBtn.disabled = true;
         } else {
             showMessage(response.message || "Failed to create group.", true);
         }
@@ -350,11 +581,15 @@ createGroupBtn.addEventListener('click', async () => {
 
 async function handleSubscribe(event) {
     const groupName = event.target.dataset.group;
-    // Removed confirmation popup
     showLoading(true);
     clearMessage();
     try {
-        const response = await browser.runtime.sendMessage({ action: 'subscribeToGroup', groupName: groupName });
+        let response;
+        if (await isAndroid()) {
+            response = await subscribeToGroupDirect(groupName);
+        } else {
+            response = await browser.runtime.sendMessage({ action: 'subscribeToGroup', groupName: groupName });
+        }
         if (response.success) {
             if (!currentState.subscriptions.includes(response.subscribedGroup)) {
                 currentState.subscriptions.push(response.subscribedGroup);
@@ -374,11 +609,15 @@ async function handleSubscribe(event) {
 
 async function handleUnsubscribe(event) {
     const groupName = event.target.dataset.group;
-    // Removed confirmation popup
     showLoading(true);
     clearMessage();
     try {
-        const response = await browser.runtime.sendMessage({ action: 'unsubscribeFromGroup', groupName: groupName });
+        let response;
+        if (await isAndroid()) {
+            response = await unsubscribeFromGroupDirect(groupName);
+        } else {
+            response = await browser.runtime.sendMessage({ action: 'unsubscribeFromGroup', groupName: groupName });
+        }
         if (response.success) {
             currentState.subscriptions = currentState.subscriptions.filter(g => g !== response.unsubscribedGroup);
             renderDefinedGroups();
@@ -398,20 +637,20 @@ async function handleDeleteGroup(event) {
     if (!confirm(`Are you sure you want to delete the group "${groupName}"? This cannot be undone and will affect all devices.`)) {
         return;
     }
-
     showLoading(true);
     clearMessage();
     try {
-        const response = await browser.runtime.sendMessage({ action: 'deleteGroup', groupName: groupName });
+        let response;
+        if (await isAndroid()) {
+            response = await deleteGroupDirect(groupName);
+        } else {
+            response = await browser.runtime.sendMessage({ action: 'deleteGroup', groupName: groupName });
+        }
         if (response.success) {
-            // --- Optimization: Update local cache and re-render ---
             currentState.definedGroups = currentState.definedGroups.filter(g => g !== response.deletedGroup);
-            currentState.subscriptions = currentState.subscriptions.filter(g => g !== response.deletedGroup); // Also remove from subs if present
-            // Optional: Update groupBits cache
-            // if (currentState.groupBits) delete currentState.groupBits[response.deletedGroup];
-            renderDefinedGroups(); // Re-render group list
+            currentState.subscriptions = currentState.subscriptions.filter(g => g !== response.deletedGroup);
+            renderDefinedGroups();
             showMessage(`Group "${response.deletedGroup}" deleted successfully.`, false);
-            // --- End Optimization ---
         } else {
             showMessage(response.message || "Failed to delete group.", true);
         }
@@ -420,6 +659,87 @@ async function handleDeleteGroup(event) {
     } finally {
         showLoading(false);
     }
+}
+
+// Android: direct storage logic for group management and send tab
+async function createGroupDirect(groupName) {
+    const definedGroups = await browser.storage.sync.get(SYNC_STORAGE_KEYS.DEFINED_GROUPS).then(r => r[SYNC_STORAGE_KEYS.DEFINED_GROUPS] || []);
+    if (definedGroups.includes(groupName)) return { success: false, message: 'Group already exists.' };
+    const updatedGroups = [...definedGroups, groupName].sort();
+    await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.DEFINED_GROUPS]: updatedGroups });
+    const groupState = await browser.storage.sync.get(SYNC_STORAGE_KEYS.GROUP_STATE).then(r => r[SYNC_STORAGE_KEYS.GROUP_STATE] || {});
+    groupState[groupName] = { assignedMask: 0, assignedCount: 0 };
+    await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.GROUP_STATE]: groupState });
+    return { success: true, newGroup: groupName };
+}
+
+async function subscribeToGroupDirect(groupName) {
+    let subscriptions = await browser.storage.local.get(LOCAL_STORAGE_KEYS.SUBSCRIPTIONS).then(r => r[LOCAL_STORAGE_KEYS.SUBSCRIPTIONS] || []);
+    let groupBits = await browser.storage.local.get(LOCAL_STORAGE_KEYS.GROUP_BITS).then(r => r[LOCAL_STORAGE_KEYS.GROUP_BITS] || {});
+    if (subscriptions.includes(groupName)) return { success: false, message: 'Already subscribed.' };
+    // Assign next available bit
+    const groupState = await browser.storage.sync.get(SYNC_STORAGE_KEYS.GROUP_STATE).then(r => r[SYNC_STORAGE_KEYS.GROUP_STATE] || {});
+    const state = groupState[groupName] || { assignedMask: 0, assignedCount: 0 };
+    if (state.assignedCount >= 15) return { success: false, message: 'Group is full.' };
+    const myBit = 1 << state.assignedCount;
+    state.assignedMask |= myBit;
+    state.assignedCount++;
+    groupState[groupName] = state;
+    await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.GROUP_STATE]: groupState });
+    subscriptions.push(groupName);
+    subscriptions.sort();
+    groupBits[groupName] = myBit;
+    await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.SUBSCRIPTIONS]: subscriptions });
+    await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.GROUP_BITS]: groupBits });
+    // Update device registry
+    const instanceId = await browser.storage.local.get(LOCAL_STORAGE_KEYS.INSTANCE_ID).then(r => r[LOCAL_STORAGE_KEYS.INSTANCE_ID]);
+    const deviceRegistry = await browser.storage.sync.get(SYNC_STORAGE_KEYS.DEVICE_REGISTRY).then(r => r[SYNC_STORAGE_KEYS.DEVICE_REGISTRY] || {});
+    if (!deviceRegistry[instanceId]) deviceRegistry[instanceId] = { name: '', lastSeen: Date.now(), groupBits: {} };
+    deviceRegistry[instanceId].groupBits[groupName] = myBit;
+    deviceRegistry[instanceId].lastSeen = Date.now();
+    await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: deviceRegistry });
+    return { success: true, subscribedGroup: groupName, assignedBit: myBit };
+}
+
+async function unsubscribeFromGroupDirect(groupName) {
+    let subscriptions = await browser.storage.local.get(LOCAL_STORAGE_KEYS.SUBSCRIPTIONS).then(r => r[LOCAL_STORAGE_KEYS.SUBSCRIPTIONS] || []);
+    let groupBits = await browser.storage.local.get(LOCAL_STORAGE_KEYS.GROUP_BITS).then(r => r[LOCAL_STORAGE_KEYS.GROUP_BITS] || {});
+    if (!subscriptions.includes(groupName)) return { success: false, message: 'Not subscribed.' };
+    const removedBit = groupBits[groupName];
+    subscriptions = subscriptions.filter(g => g !== groupName);
+    delete groupBits[groupName];
+    await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.SUBSCRIPTIONS]: subscriptions });
+    await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.GROUP_BITS]: groupBits });
+    // Remove bit from group state
+    const groupState = await browser.storage.sync.get(SYNC_STORAGE_KEYS.GROUP_STATE).then(r => r[SYNC_STORAGE_KEYS.GROUP_STATE] || {});
+    if (groupState[groupName]) {
+        groupState[groupName].assignedMask &= ~removedBit;
+        await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.GROUP_STATE]: groupState });
+    }
+    // Remove from device registry
+    const instanceId = await browser.storage.local.get(LOCAL_STORAGE_KEYS.INSTANCE_ID).then(r => r[LOCAL_STORAGE_KEYS.INSTANCE_ID]);
+    const deviceRegistry = await browser.storage.sync.get(SYNC_STORAGE_KEYS.DEVICE_REGISTRY).then(r => r[SYNC_STORAGE_KEYS.DEVICE_REGISTRY] || {});
+    if (deviceRegistry[instanceId] && deviceRegistry[instanceId].groupBits) {
+        delete deviceRegistry[instanceId].groupBits[groupName];
+        await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: deviceRegistry });
+    }
+    return { success: true, unsubscribedGroup: groupName };
+}
+
+async function sendTabToGroupDirect(groupName, tabData) {
+    const groupBits = await browser.storage.local.get(LOCAL_STORAGE_KEYS.GROUP_BITS).then(r => r[LOCAL_STORAGE_KEYS.GROUP_BITS] || {});
+    const senderBit = groupBits[groupName] || 0;
+    const taskId = crypto.randomUUID();
+    const groupTasks = await browser.storage.sync.get(SYNC_STORAGE_KEYS.GROUP_TASKS).then(r => r[SYNC_STORAGE_KEYS.GROUP_TASKS] || {});
+    if (!groupTasks[groupName]) groupTasks[groupName] = {};
+    groupTasks[groupName][taskId] = {
+        url: tabData.url,
+        title: tabData.title || tabData.url,
+        processedMask: senderBit,
+        creationTimestamp: Date.now()
+    };
+    await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.GROUP_TASKS]: groupTasks });
+    return { success: true };
 }
 
 // --- Test Notification ---
