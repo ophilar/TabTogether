@@ -22,6 +22,14 @@ syncNowBtn.textContent = 'Sync Now';
 syncNowBtn.className = 'send-group-btn';
 syncNowBtn.style.marginBottom = '10px';
 syncNowBtn.style.width = '100%';
+syncNowBtn.setAttribute('aria-label', 'Sync extension data now');
+syncNowBtn.tabIndex = 0;
+syncNowBtn.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        syncNowBtn.click();
+    }
+});
 syncNowBtn.addEventListener('click', async () => {
     await loadStatus();
 });
@@ -75,7 +83,12 @@ async function getStateDirectly() {
     };
 }
 
+let syncing = false;
 async function loadStatus() {
+    if (await isAndroid()) {
+        syncNowBtn.disabled = true;
+        syncing = true;
+    }
     showLoading(true);
     errorMessageDiv.classList.add('hidden');
     try {
@@ -86,6 +99,14 @@ async function loadStatus() {
             // Show last sync time
             const container = document.querySelector('.container');
             import('./utils.js').then(utils => utils.setLastSyncTime(container, Date.now()));
+            if (typeof browser.notifications !== 'undefined') {
+                await browser.notifications.create({
+                    type: 'basic',
+                    iconUrl: browser.runtime.getURL('icons/icon-48.png'),
+                    title: 'TabTogether',
+                    message: 'Sync complete.'
+                });
+            }
         } else {
             await browser.runtime.sendMessage({ action: 'heartbeat' });
             state = await browser.runtime.sendMessage({ action: 'getState' });
@@ -107,6 +128,11 @@ async function loadStatus() {
         deviceNameSpan.textContent = STRINGS.error;
         sendTabGroupsList.textContent = error.message;
         showLoading(false);
+    } finally {
+        if (await isAndroid()) {
+            syncNowBtn.disabled = false;
+            syncing = false;
+        }
     }
 }
 
@@ -187,6 +213,13 @@ function renderSendTabGroups(groups) {
         btn.className = 'send-group-btn';
         btn.title = `Send current tab to group '${groupName}'`;
         btn.setAttribute('aria-label', `Send current tab to group ${groupName}`);
+        btn.tabIndex = 0;
+        btn.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                btn.click();
+            }
+        });
         btn.addEventListener('click', () => sendTabToGroup(groupName));
         groupDiv.appendChild(label);
         groupDiv.appendChild(btn);

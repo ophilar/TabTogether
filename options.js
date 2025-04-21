@@ -51,6 +51,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         androidMsg.style.marginBottom = '10px';
         androidMsg.textContent = 'Note: On Firefox for Android, background processing is not available. Open this page and tap "Sync Now" to process new tabs or changes.';
         container.insertBefore(androidMsg, syncNowBtn.nextSibling);
+        import('./utils.js').then(utils => {
+            utils.showAndroidBanner(container, 'Note: On Firefox for Android, background processing is not available. Open this page and tap "Sync Now" to process new tabs or changes.');
+            utils.setLastSyncTime(container, Date.now());
+            utils.showDebugInfo(container, currentState);
+        });
     }
     loadState();
 });
@@ -86,6 +91,12 @@ async function loadState() {
         if (await isAndroid()) {
             state = await getStateDirectly();
             await processIncomingTabsAndroid(state);
+            // Show last sync time and debug info
+            const container = document.querySelector('.container');
+            import('./utils.js').then(utils => {
+                utils.setLastSyncTime(container, Date.now());
+                utils.showDebugInfo(container, state);
+            });
         } else {
             state = await browser.runtime.sendMessage({ action: 'getState' });
         }
