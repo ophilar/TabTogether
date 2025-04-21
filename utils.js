@@ -244,4 +244,52 @@ export function renderSubscriptions(container, subscriptions) {
     container.textContent = STRINGS.subscribedGroups + subscriptions.join(', ');
 }
 
+// Utility: Platform info and feature support
+export async function getPlatformInfo() {
+    try {
+        return await browser.runtime.getPlatformInfo();
+    } catch {
+        return { os: 'unknown' };
+    }
+}
+
+export async function isAndroid() {
+    const info = await getPlatformInfo();
+    return info.os === "android";
+}
+
+export async function isDesktop() {
+    const info = await getPlatformInfo();
+    return info.os === "win" || info.os === "mac" || info.os === "linux";
+}
+
+// Utility: Show Android banner
+export function showAndroidBanner(container, msg) {
+    let banner = container.querySelector('.android-banner');
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.className = 'android-banner small-text';
+        banner.style.color = '#b71c1c';
+        banner.style.marginBottom = '10px';
+        banner.style.background = '#fff3e0';
+        banner.style.border = '1px solid #ffcdd2';
+        banner.style.padding = '7px';
+        banner.style.borderRadius = '4px';
+        container.insertBefore(banner, container.firstChild.nextSibling);
+    }
+    banner.textContent = msg;
+}
+
+// Utility: Last sync time
+export function setLastSyncTime(container, date) {
+    let syncDiv = container.querySelector('.last-sync-time');
+    if (!syncDiv) {
+        syncDiv = document.createElement('div');
+        syncDiv.className = 'last-sync-time small-text';
+        syncDiv.style.marginBottom = '7px';
+        container.insertBefore(syncDiv, container.firstChild.nextSibling);
+    }
+    syncDiv.textContent = 'Last sync: ' + (date ? new Date(date).toLocaleString() : 'Never');
+}
+
 export { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, MAX_DEVICES_PER_GROUP };

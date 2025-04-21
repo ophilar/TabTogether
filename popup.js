@@ -36,6 +36,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (container && !container.querySelector('.send-group-btn')) {
             container.insertBefore(syncNowBtn, container.firstChild);
         }
+        // Show Android banner and last sync time
+        import('./utils.js').then(utils => {
+            utils.showAndroidBanner(container, 'Note: On Firefox for Android, background processing is not available. Open this popup and tap "Sync Now" to process new tabs or changes.');
+            utils.setLastSyncTime(container, Date.now());
+        });
     }
     loadStatus();
 });
@@ -78,6 +83,9 @@ async function loadStatus() {
         if (await isAndroid()) {
             state = await getStateDirectly();
             await processIncomingTabsAndroid(state);
+            // Show last sync time
+            const container = document.querySelector('.container');
+            import('./utils.js').then(utils => utils.setLastSyncTime(container, Date.now()));
         } else {
             await browser.runtime.sendMessage({ action: 'heartbeat' });
             state = await browser.runtime.sendMessage({ action: 'getState' });
