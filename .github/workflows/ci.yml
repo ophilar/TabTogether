@@ -42,3 +42,22 @@ jobs:
         with:
           name: tabtogether-extension
           path: web-ext-artifacts/*.zip
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: build-and-upload
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: npm install
+      - name: Build extension (web-ext)
+        run: npx web-ext build --overwrite-dest
+      - name: Sign and publish to AMO
+        run: |
+          npx web-ext sign --api-key=${{ secrets.AMO_JWT_ISSUER }} --api-secret=${{ secrets.AMO_JWT_SECRET }} --channel=listed
