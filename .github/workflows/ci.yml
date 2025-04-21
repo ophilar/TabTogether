@@ -18,6 +18,8 @@ jobs:
           node-version: '20'
       - name: Install dependencies
         run: npm install
+      - name: Install jsdom test environment for Jest
+        run: npm install --save-dev jest-environment-jsdom
       - name: Lint extension with web-ext
         run: npm run lint
       - name: Run unit tests
