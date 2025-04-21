@@ -1,7 +1,7 @@
 // options.js
 
 import { STRINGS } from './constants.js';
-import { renderDeviceName, renderDeviceList, renderGroupList, isAndroid, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from './utils.js';
+import { renderDeviceName, renderDeviceList, renderGroupList, isAndroid, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from './utils.mjs';
 import { injectSharedUI } from './shared-ui.js';
 import { applyThemeFromStorage, setupThemeDropdown } from './theme.js';
 
@@ -51,7 +51,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         androidMsg.style.marginBottom = '10px';
         androidMsg.textContent = 'Note: On Firefox for Android, background processing is not available. Open this page and tap "Sync Now" to process new tabs or changes.';
         container.insertBefore(androidMsg, syncNowBtn.nextSibling);
-        import('./utils.js').then(utils => {
+        import('./utils.mjs').then(utils => {
             utils.showAndroidBanner(container, 'Note: On Firefox for Android, background processing is not available. Open this page and tap "Sync Now" to process new tabs or changes.');
             utils.setLastSyncTime(container, Date.now());
             utils.showDebugInfo(container, currentState);
@@ -93,7 +93,7 @@ async function loadState() {
             await processIncomingTabsAndroid(state);
             // Show last sync time and debug info
             const container = document.querySelector('.container');
-            import('./utils.js').then(utils => {
+            import('./utils.mjs').then(utils => {
                 utils.setLastSyncTime(container, Date.now());
                 utils.showDebugInfo(container, state);
             });
