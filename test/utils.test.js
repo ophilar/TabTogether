@@ -1,4 +1,4 @@
-// Automated tests for utils.mjs
+// Automated tests for utils.js
 import * as utils from '../utils.js';
 
 // Mock browser API for storage and platform
