@@ -1,12 +1,28 @@
 global.crypto = { randomUUID: () => 'mock-uuid-1234' };
-
 import { jest } from '@jest/globals';
 import * as utils from '../utils.js';
 
+// Persistent in-memory mock for browser.storage
+const memoryStore = {};
+const mockStorage = {
+  get: jest.fn(async (key) => {
+    if (!key) return { ...memoryStore };
+    if (typeof key === 'string') return { [key]: memoryStore[key] };
+    const result = {};
+    for (const k of key) result[k] = memoryStore[k];
+    return result;
+  }),
+  set: jest.fn(async (obj) => { Object.assign(memoryStore, obj); }),
+  clear: jest.fn(async () => { for (const k in memoryStore) delete memoryStore[k]; })
+};
+
 global.browser = {
   storage: {
-    local: { clear: async () => {}, get: async () => ({}), set: async () => {} },
-    sync: { clear: async () => {}, get: async () => ({}), set: async () => {} }
+    local: mockStorage,
+    sync: mockStorage
+  },
+  runtime: {
+    getPlatformInfo: jest.fn(async () => ({ os: 'win' }))
   }
 };
 
