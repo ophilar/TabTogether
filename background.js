@@ -1,6 +1,7 @@
 // background.js
 
 import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, MAX_DEVICES_PER_GROUP, getStorage, mergeSyncStorage, getInstanceId, getInstanceName, deepMerge } from './utils.js';
+import { getNextAvailableBitPosition } from './utils.js';
 
 const ALARM_HEARTBEAT = 'deviceHeartbeat';
 const ALARM_STALE_CHECK = 'staleDeviceCheck';
@@ -718,74 +719,63 @@ browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
 });
 
 
-// --- Helper for Bit Assignment (Remains the same) ---
+// --- Helper for Bit Assignment (Refactored for bit reuse, no assignedCount) ---
 async function assignBitForGroup(groupName, localInstanceId, localGroupBits, cachedGroupState, cachedDeviceRegistry) {
-    // ... (assignBitForGroup logic remains the same as the previous version) ...
-    // It already uses mergeSyncStorage which handles sync updates.
-    // It updates registry immediately after state update.
     const MAX_RETRIES = 5;
     const BASE_DELAY_MS = 100;
-
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
         try {
-            // Use cache for read, fetch if needed
             const groupState = cachedGroupState ?? await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {});
             const currentGroupData = groupState[groupName];
-
             if (!currentGroupData) {
-                 console.error(`Group ${groupName} does not exist in groupState. Cannot assign bit.`);
-                 return null;
+                console.error(`Group ${groupName} does not exist in groupState. Cannot assign bit.`);
+                return null;
             }
-
             const currentAssignedMask = currentGroupData.assignedMask;
-            const currentAssignedCount = currentGroupData.assignedCount;
-
-            if (currentAssignedCount >= MAX_DEVICES_PER_GROUP) {
+            const bitPosition = getNextAvailableBitPosition(currentAssignedMask);
+            if (bitPosition === -1) {
                 console.error(`Group ${groupName} is full (${MAX_DEVICES_PER_GROUP} devices). Cannot assign bit.`);
                 return null;
             }
-
-            const bitPosition = currentAssignedCount;
             const myBit = 1 << bitPosition;
-
             // Optimistic Lock Check (fetch fresh state for check)
             const checkGroupState = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {});
             const checkGroupData = checkGroupState[groupName];
-
-            if (!checkGroupData || checkGroupData.assignedCount !== currentAssignedCount) {
-                console.warn(`Race condition or group state change detected for ${groupName}. Retrying (${attempt + 1}/${MAX_RETRIES})...`);
+            if (!checkGroupData) {
+                console.warn(`Group state for ${groupName} missing during bit assignment. Retrying...`);
                 const delay = BASE_DELAY_MS * Math.pow(2, attempt) + Math.random() * BASE_DELAY_MS;
                 await new Promise(resolve => setTimeout(resolve, delay));
                 continue;
             }
-
+            // If the bit is now taken, retry
+            if (((checkGroupData.assignedMask >> bitPosition) & 1) !== 0) {
+                console.warn(`Race condition: bit ${bitPosition} for group ${groupName} is now taken. Retrying...`);
+                const delay = BASE_DELAY_MS * Math.pow(2, attempt) + Math.random() * BASE_DELAY_MS;
+                await new Promise(resolve => setTimeout(resolve, delay));
+                continue;
+            }
             // Proceed with update
             const newAssignedMask = currentAssignedMask | myBit;
-            const newAssignedCount = currentAssignedCount + 1;
-            const update = { [groupName]: { assignedMask: newAssignedMask, assignedCount: newAssignedCount } };
+            const update = { [groupName]: { assignedMask: newAssignedMask } };
             const success = await mergeSyncStorage(SYNC_STORAGE_KEYS.GROUP_STATE, update);
-
             if (success) {
                 // Update registry immediately
                 const registryUpdate = { [localInstanceId]: { groupBits: { [groupName]: myBit } } };
                 await mergeSyncStorage(SYNC_STORAGE_KEYS.DEVICE_REGISTRY, registryUpdate);
-                // Update caches immediately after successful sync operations
                 if (cachedGroupState) cachedGroupState = deepMerge(cachedGroupState, update);
                 if (cachedDeviceRegistry) cachedDeviceRegistry = deepMerge(cachedDeviceRegistry, registryUpdate);
-
                 console.log(`Assigned bit ${myBit} (pos ${bitPosition}) to device ${localInstanceId} for group ${groupName}`);
                 return myBit;
             } else {
                 console.error(`Failed to merge group state for ${groupName} during bit assignment. Retrying...`);
-                 await new Promise(resolve => setTimeout(resolve, 50 + Math.random() * 100));
-                 continue;
+                await new Promise(resolve => setTimeout(resolve, 50 + Math.random() * 100));
+                continue;
             }
-
         } catch (error) {
             console.error(`Error during bit assignment attempt ${attempt + 1} for ${groupName}:`, error);
             if (attempt < MAX_RETRIES - 1) {
-                 const delay = BASE_DELAY_MS * Math.pow(2, attempt) + Math.random() * BASE_DELAY_MS;
-                 await new Promise(resolve => setTimeout(resolve, delay));
+                const delay = BASE_DELAY_MS * Math.pow(2, attempt) + Math.random() * BASE_DELAY_MS;
+                await new Promise(resolve => setTimeout(resolve, delay));
             }
         }
     }
