@@ -566,4 +566,45 @@ export async function processIncomingTabs(state, openTabFn, updateProcessedTasks
     }
 }
 
+export async function subscribeToGroupUnified(groupName, isAndroidPlatform) {
+    if (isAndroidPlatform) {
+        return await subscribeToGroupDirect(groupName);
+    } else {
+        return await browser.runtime.sendMessage({ action: 'subscribeToGroup', groupName });
+    }
+}
+
+export async function unsubscribeFromGroupUnified(groupName, isAndroidPlatform) {
+    if (isAndroidPlatform) {
+        return await unsubscribeFromGroupDirect(groupName);
+    } else {
+        return await browser.runtime.sendMessage({ action: 'unsubscribeFromGroup', groupName });
+    }
+}
+
+export async function getUnifiedState(isAndroidPlatform) {
+    if (isAndroidPlatform) {
+        const [instanceId, instanceName, subscriptions, groupBits, definedGroups, groupState, deviceRegistry] = await Promise.all([
+            browser.storage.local.get(LOCAL_STORAGE_KEYS.INSTANCE_ID).then(r => r[LOCAL_STORAGE_KEYS.INSTANCE_ID]),
+            browser.storage.local.get(LOCAL_STORAGE_KEYS.INSTANCE_NAME).then(r => r[LOCAL_STORAGE_KEYS.INSTANCE_NAME]),
+            browser.storage.local.get(LOCAL_STORAGE_KEYS.SUBSCRIPTIONS).then(r => r[LOCAL_STORAGE_KEYS.SUBSCRIPTIONS] || []),
+            browser.storage.local.get(LOCAL_STORAGE_KEYS.GROUP_BITS).then(r => r[LOCAL_STORAGE_KEYS.GROUP_BITS] || {}),
+            browser.storage.sync.get(SYNC_STORAGE_KEYS.DEFINED_GROUPS).then(r => r[SYNC_STORAGE_KEYS.DEFINED_GROUPS] || []),
+            browser.storage.sync.get(SYNC_STORAGE_KEYS.GROUP_STATE).then(r => r[SYNC_STORAGE_KEYS.GROUP_STATE] || {}),
+            browser.storage.sync.get(SYNC_STORAGE_KEYS.DEVICE_REGISTRY).then(r => r[SYNC_STORAGE_KEYS.DEVICE_REGISTRY] || {})
+        ]);
+        return {
+            instanceId,
+            instanceName,
+            subscriptions,
+            groupBits,
+            definedGroups,
+            groupState,
+            deviceRegistry
+        };
+    } else {
+        return await browser.runtime.sendMessage({ action: 'getState' });
+    }
+}
+
 export { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, MAX_DEVICES_PER_GROUP };
