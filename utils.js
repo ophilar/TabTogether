@@ -251,11 +251,6 @@ export async function getPlatformInfo() {
     }
 }
 
-// export async function isAndroid() {
-    // const info = await getPlatformInfo();
-    // return info.os === "android";
-// }
-
 export async function isDesktop() {
     const info = await getPlatformInfo();
     return info.os === "win" || info.os === "mac" || info.os === "linux";

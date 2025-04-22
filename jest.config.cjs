@@ -5,6 +5,5 @@ module.exports = {
   transform: {},
   moduleFileExtensions: ['js', 'mjs', 'json', 'node'],
   testMatch: ["**/test/**/*.test.js"],
-  setupFiles: ["./test/jest.setup.js"],
   setupFilesAfterEnv: ["./test/setup.js"]
 };
