@@ -132,7 +132,7 @@ export async function getInstanceName() {
 }
 
 // --- Bitmask Helpers ---
-function getNextAvailableBitPosition(mask) {
+export function getNextAvailableBitPosition(mask) {
     for (let i = 0; i < MAX_DEVICES_PER_GROUP; i++) {
         if (!((mask >> i) & 1)) { // Check if bit i is 0
             return i;
@@ -601,6 +601,14 @@ export async function getUnifiedState(isAndroidPlatform) {
         };
     } else {
         return await browser.runtime.sendMessage({ action: 'getState' });
+    }
+}
+
+export async function renameDeviceUnified(deviceId, newName, isAndroidPlatform) {
+    if (isAndroidPlatform) {
+        return await renameDeviceDirect(deviceId, newName);
+    } else {
+        return await browser.runtime.sendMessage({ action: 'renameDevice', deviceId, newName });
     }
 }
 
