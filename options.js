@@ -1,7 +1,7 @@
 // options.js
 
 import { STRINGS } from './constants.js';
-import { renderDeviceName, renderDeviceList, renderGroupList, isAndroid, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, createGroupDirect, subscribeToGroupDirect, unsubscribeFromGroupDirect, sendTabToGroupDirect, deleteGroupDirect, renameGroupDirect, renameDeviceDirect, deleteDeviceDirect, processIncomingTabs } from './utils.js';
+import { renderDeviceName, renderDeviceList, renderGroupList, isAndroid, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, createGroupDirect, subscribeToGroupDirect, unsubscribeFromGroupDirect, sendTabToGroupDirect, deleteGroupDirect, renameGroupDirect, renameDeviceDirect, deleteDeviceDirect, processIncomingTabs, getUnifiedState, subscribeToGroupUnified, unsubscribeFromGroupUnified } from './utils.js';
 import { injectSharedUI } from './shared-ui.js';
 import { applyThemeFromStorage, setupThemeDropdown } from './theme.js';
 
@@ -87,9 +87,9 @@ async function loadState() {
     showLoading(true);
     clearMessage();
     try {
-        let state;
-        if (await isAndroid()) {
-            state = await getStateDirectly();
+        const isAndroidPlatform = await isAndroid();
+        let state = await getUnifiedState(isAndroidPlatform);
+        if (isAndroidPlatform) {
             await processIncomingTabsAndroid(state);
             // Show last sync time and debug info
             const container = document.querySelector('.container');
@@ -97,8 +97,6 @@ async function loadState() {
                 utils.setLastSyncTime(container, Date.now());
                 utils.showDebugInfo(container, state);
             });
-        } else {
-            state = await browser.runtime.sendMessage({ action: 'getState' });
         }
         currentState = state;
         if (!currentState || currentState.error) {
@@ -439,12 +437,8 @@ async function handleSubscribe(event) {
     showLoading(true);
     clearMessage();
     try {
-        let response;
-        if (await isAndroid()) {
-            response = await subscribeToGroupDirect(groupName);
-        } else {
-            response = await browser.runtime.sendMessage({ action: 'subscribeToGroup', groupName: groupName });
-        }
+        const isAndroidPlatform = await isAndroid();
+        let response = await subscribeToGroupUnified(groupName, isAndroidPlatform);
         if (response.success) {
             if (!currentState.subscriptions.includes(response.subscribedGroup)) {
                 currentState.subscriptions.push(response.subscribedGroup);
@@ -467,12 +461,8 @@ async function handleUnsubscribe(event) {
     showLoading(true);
     clearMessage();
     try {
-        let response;
-        if (await isAndroid()) {
-            response = await unsubscribeFromGroupDirect(groupName);
-        } else {
-            response = await browser.runtime.sendMessage({ action: 'unsubscribeFromGroup', groupName: groupName });
-        }
+        const isAndroidPlatform = await isAndroid();
+        let response = await unsubscribeFromGroupUnified(groupName, isAndroidPlatform);
         if (response.success) {
             currentState.subscriptions = currentState.subscriptions.filter(g => g !== response.unsubscribedGroup);
             renderDefinedGroups();

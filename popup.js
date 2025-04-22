@@ -1,5 +1,5 @@
 import { STRINGS } from './constants.js';
-import { renderDeviceName, renderDeviceList, isAndroid, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, sendTabToGroupDirect, processIncomingTabs } from './utils.js';
+import { renderDeviceName, renderDeviceList, isAndroid, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, sendTabToGroupDirect, processIncomingTabs, getUnifiedState } from './utils.js';
 import { injectSharedUI } from './shared-ui.js';
 import { applyThemeFromStorage } from './theme.js';
 
@@ -70,9 +70,9 @@ async function loadStatus() {
     showLoading(true);
     errorMessageDiv.classList.add('hidden');
     try {
-        let state;
-        if (await isAndroid()) {
-            state = await getStateDirectly();
+        const isAndroidPlatform = await isAndroid();
+        let state = await getUnifiedState(isAndroidPlatform);
+        if (isAndroidPlatform) {
             await processIncomingTabsAndroid(state);
             // Show last sync time
             const container = document.querySelector('.container');
@@ -85,9 +85,6 @@ async function loadStatus() {
                     message: 'Sync complete.'
                 });
             }
-        } else {
-            await browser.runtime.sendMessage({ action: 'heartbeat' });
-            state = await browser.runtime.sendMessage({ action: 'getState' });
         }
         if (state && state.error) throw new Error(state.error);
         if (!state) throw new Error(STRINGS.error);
