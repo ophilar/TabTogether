@@ -1,5 +1,5 @@
 import { STRINGS } from './constants.js';
-import { renderDeviceName, renderDeviceList, isAndroid, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, sendTabToGroupDirect, processIncomingTabs, getUnifiedState, showAndroidBanner, setLastSyncTime } from './utils.js';
+import { renderDeviceName, renderDeviceList, isAndroid, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, sendTabToGroupDirect, processIncomingTabs, getUnifiedState, showAndroidBanner, setLastSyncTime, getFromStorage, setInStorage } from './utils.js';
 import { injectSharedUI } from './shared-ui.js';
 import { applyThemeFromStorage } from './theme.js';
 
@@ -72,7 +72,6 @@ async function loadStatus() {
         let state = await getUnifiedState(isAndroidPlatform);
         if (isAndroidPlatform) {
             await processIncomingTabsAndroid(state);
-            // Show last sync time
             const container = document.querySelector('.container');
             setLastSyncTime(container, Date.now());
             if (typeof browser.notifications !== 'undefined') {
@@ -95,7 +94,7 @@ async function loadStatus() {
         if (await isAndroid()) {
             errorMessageDiv.textContent = "This extension may have limited functionality on Firefox for Android. Try reopening the popup or restarting the browser if you see this error.";
         } else {
-            errorMessageDiv.textContent = `Error: ${error.message}`;
+            errorMessageDiv.textContent = STRINGS.loadingSettingsError(error.message);
         }
         errorMessageDiv.classList.remove('hidden');
         deviceNameSpan.textContent = STRINGS.error;
@@ -113,7 +112,7 @@ async function processIncomingTabsAndroid(state) {
     await processIncomingTabs(
         state,
         async (url) => { await browser.tabs.create({ url, active: false }); },
-        async (updated) => { await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.PROCESSED_TASKS]: updated }); }
+        async (updated) => { await setInStorage(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, updated); }
     );
 }
 
@@ -153,10 +152,10 @@ function renderSendTabGroups(groups) {
         label.textContent = groupName;
         label.className = 'send-group-label';
         const btn = document.createElement('button');
-        btn.textContent = 'Send Tab to Group';
+        btn.textContent = STRINGS.sendTabToGroupBtn;
         btn.className = 'send-group-btn';
-        btn.title = `Send current tab to group '${groupName}'`;
-        btn.setAttribute('aria-label', `Send current tab to group ${groupName}`);
+        btn.title = STRINGS.sendTabToGroup(groupName);
+        btn.setAttribute('aria-label', STRINGS.sendTabToGroupAria(groupName));
         btn.tabIndex = 0;
         btn.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' || e.key === ' ') {
@@ -183,7 +182,7 @@ async function sendTabToGroup(groupName) {
         if (!tabs || tabs.length === 0) throw new Error('No active tab found.');
         const currentTab = tabs[0];
         if (!currentTab.url || currentTab.url.startsWith('about:') || currentTab.url.startsWith('moz-extension:')) {
-            showSendStatus('Cannot send this type of tab.', true);
+            showSendStatus(STRINGS.sendTabCannot, true);
             return;
         }
         if (await isAndroid()) {
@@ -198,10 +197,10 @@ async function sendTabToGroup(groupName) {
         if (response.success) {
             showSendStatus(`Sent to ${groupName}!`, false);
         } else {
-            showSendStatus(response.message || 'Send failed.', true);
+            showSendStatus(response.message || STRINGS.sendTabFailed, true);
         }
     } catch (error) {
-        showSendStatus('Error: ' + error.message, true);
+        showSendStatus(STRINGS.sendTabError(error.message), true);
     }
 }
 

@@ -28,15 +28,51 @@ export async function isAndroid() {
     }
 }
 
+// --- Type Safety and Validation Helpers ---
+function ensureObject(val, fallback = {}) {
+    return (val && typeof val === 'object' && !Array.isArray(val)) ? val : fallback;
+}
+function ensureArray(val, fallback = []) {
+    return Array.isArray(val) ? val : fallback;
+}
+function ensureString(val, fallback = '') {
+    return typeof val === 'string' ? val : fallback;
+}
+
 // --- Storage Access Helpers ---
-export async function getStorage(area, key, defaultValue = null) {
+export async function getFromStorage(area, key, defaultValue = null) {
     try {
         const result = await area.get(key);
-        return result?.[key] ?? defaultValue;
-    } catch (error) {
-        console.error(`Error getting ${key} from ${area === browser.storage.sync ? 'sync' : 'local'} storage:`, error);
+        let value = result?.[key] ?? defaultValue;
+        // Type validation for known keys
+        if (key === LOCAL_STORAGE_KEYS.GROUP_BITS || key === SYNC_STORAGE_KEYS.GROUP_STATE || key === SYNC_STORAGE_KEYS.DEVICE_REGISTRY) {
+            value = ensureObject(value, defaultValue ?? {});
+        } else if (key === LOCAL_STORAGE_KEYS.SUBSCRIPTIONS || key === SYNC_STORAGE_KEYS.DEFINED_GROUPS) {
+            value = ensureArray(value, defaultValue ?? []);
+        } else if (key === LOCAL_STORAGE_KEYS.INSTANCE_ID || key === LOCAL_STORAGE_KEYS.INSTANCE_NAME) {
+            value = ensureString(value, defaultValue ?? '');
+        }
+        return value;
+    } catch (e) {
+        console.error(`Error getting ${key}:`, e);
         return defaultValue;
     }
+}
+
+export async function setInStorage(area, key, value) {
+    try {
+        await area.set({ [key]: value });
+        return true;
+    } catch (e) {
+        console.error(`Error setting ${key}:`, e);
+        return false;
+    }
+}
+
+// Update all usages below to use getFromStorage/setInStorage
+export async function getStorage(area, key, defaultValue = null) {
+    // Deprecated: use getFromStorage
+    return getFromStorage(area, key, defaultValue);
 }
 
 // Safely merges updates into potentially large objects in storage.sync
@@ -92,26 +128,23 @@ export function isObject(item) {
 // --- Instance ID/Name ---
 // Store device name and ID in both local and sync storage for persistence
 export async function getInstanceId(cryptoDep = crypto) {
-    let id = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID);
+    let id = await getFromStorage(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID);
     if (!id) {
-        // Try to restore from sync
-        id = await getStorage(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_ID);
+        id = await getFromStorage(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_ID);
         if (!id) {
             id = cryptoDep.randomUUID();
-            await browser.storage.sync.set({ [LOCAL_STORAGE_KEYS.INSTANCE_ID]: id });
+            await setInStorage(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_ID, id);
         }
-        await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.INSTANCE_ID]: id });
+        await setInStorage(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID, id);
     }
-    // Always keep sync up to date
-    await browser.storage.sync.set({ [LOCAL_STORAGE_KEYS.INSTANCE_ID]: id });
+    await setInStorage(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_ID, id);
     return id;
 }
 
 export async function getInstanceName() {
-    let name = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_NAME);
+    let name = await getFromStorage(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_NAME);
     if (!name) {
-        // Try to restore from sync
-        name = await getStorage(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_NAME);
+        name = await getFromStorage(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_NAME);
         if (!name) {
             try {
                 const platformInfo = await browser.runtime.getPlatformInfo();
@@ -122,12 +155,11 @@ export async function getInstanceName() {
             } catch (e) {
                 name = "My Device";
             }
-            await browser.storage.sync.set({ [LOCAL_STORAGE_KEYS.INSTANCE_NAME]: name });
+            await setInStorage(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_NAME, name);
         }
-        await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.INSTANCE_NAME]: name });
+        await setInStorage(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_NAME, name);
     }
-    // Always keep sync up to date
-    await browser.storage.sync.set({ [LOCAL_STORAGE_KEYS.INSTANCE_NAME]: name });
+    await setInStorage(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_NAME, name);
     return name;
 }
 
@@ -143,6 +175,7 @@ export function getNextAvailableBitPosition(mask) {
 
 // utils.js - shared rendering and storage helpers for TabTogether
 
+// Refactor renderDeviceList to use the html template utility
 export function renderDeviceList(container, devices, highlightId = null) {
     if (!devices || Object.keys(devices).length === 0) {
         container.textContent = STRINGS.noDevices;
@@ -153,27 +186,26 @@ export function renderDeviceList(container, devices, highlightId = null) {
     const entries = Object.entries(devices)
         .sort((a, b) => (a[1]?.name || '').localeCompare(b[1]?.name || ''));
     for (const [id, device] of entries) {
-        const li = document.createElement('li');
-        li.setAttribute('role', 'listitem');
-        if (id === highlightId) li.classList.add('this-device');
-        const nameSpan = document.createElement('span');
-        nameSpan.textContent = device.name || 'Unnamed Device';
-        li.appendChild(nameSpan);
-        if (device.lastSeen) {
-            const lastSeen = new Date(device.lastSeen);
-            const lastSeenSpan = document.createElement('span');
-            lastSeenSpan.className = 'small-text';
-            lastSeenSpan.style.marginLeft = '10px';
-            lastSeenSpan.style.fontSize = '0.95em';
-            lastSeenSpan.textContent = `Last seen: ${lastSeen.toLocaleString()}`;
-            li.appendChild(lastSeenSpan);
-        }
-        ul.appendChild(li);
+        const li = html`
+            <li role="listitem" class="${id === highlightId ? 'this-device' : ''}">
+                <span>${device.name || 'Unnamed Device'}</span>
+                ${device.lastSeen ? `<span class="small-text" style="margin-left:10px;font-size:0.95em;">Last seen: ${new Date(device.lastSeen).toLocaleString()}</span>` : ''}
+            </li>
+        `;
+        ul.appendChild(li.querySelector('li'));
     }
     container.innerHTML = '';
     container.appendChild(ul);
 }
 
+// --- Simple HTML template utility for rendering repeated DOM blocks ---
+function html(strings, ...values) {
+    const template = document.createElement('template');
+    template.innerHTML = strings.reduce((acc, str, i) => acc + str + (values[i] ?? ''), '');
+    return template.content.cloneNode(true);
+}
+
+// --- Refactor renderGroupList to use the html template utility ---
 export function renderGroupList(container, groups, subscriptions, onSubscribe, onUnsubscribe, onDelete, onRename) {
     if (!groups || groups.length === 0) {
         const p = document.createElement('p');
@@ -185,17 +217,20 @@ export function renderGroupList(container, groups, subscriptions, onSubscribe, o
     const ul = document.createElement('ul');
     ul.setAttribute('role', 'list');
     groups.sort().forEach(groupName => {
-        const li = document.createElement('li');
-        li.setAttribute('role', 'listitem');
         const isSubscribed = subscriptions && subscriptions.includes(groupName);
-        const nameSpan = document.createElement('span');
-        nameSpan.textContent = groupName;
-        nameSpan.className = 'group-name-label';
-        nameSpan.title = 'Click to rename';
-        nameSpan.style.cursor = 'pointer';
-        nameSpan.tabIndex = 0;
-        nameSpan.setAttribute('role', 'button');
-        nameSpan.setAttribute('aria-label', `Rename group ${groupName}`);
+        // Use html template for group item
+        const li = html`
+            <li role="listitem">
+                <span class="group-name-label" title="Click to rename" style="cursor:pointer;" tabindex="0" role="button" aria-label="Rename group ${groupName}">${groupName}</span>
+                <div class="group-actions">
+                    <button class="${isSubscribed ? 'unsubscribe-btn' : 'subscribe-btn'}" data-group="${groupName}" aria-label="${isSubscribed ? 'Unsubscribe from' : 'Subscribe to'} group ${groupName}">${isSubscribed ? 'Unsubscribe' : 'Subscribe'}</button>
+                    <button class="delete-btn" data-group="${groupName}" title="Delete group for all devices" aria-label="Delete group ${groupName}">Delete</button>
+                </div>
+            </li>
+        `;
+        // Attach event listeners
+        const liElem = li.querySelector('li');
+        const nameSpan = liElem.querySelector('.group-name-label');
         if (onRename) {
             nameSpan.onclick = () => onRename(groupName, nameSpan);
             nameSpan.onkeydown = (e) => {
@@ -205,26 +240,11 @@ export function renderGroupList(container, groups, subscriptions, onSubscribe, o
                 }
             };
         }
-        li.appendChild(nameSpan);
-        const actionsDiv = document.createElement('div');
-        actionsDiv.className = 'group-actions';
-        const subButton = document.createElement('button');
-        subButton.textContent = isSubscribed ? 'Unsubscribe' : 'Subscribe';
-        subButton.dataset.group = groupName;
-        subButton.className = isSubscribed ? 'unsubscribe-btn' : 'subscribe-btn';
-        subButton.setAttribute('aria-label', `${isSubscribed ? 'Unsubscribe from' : 'Subscribe to'} group ${groupName}`);
+        const subButton = liElem.querySelector('button[data-group][class$="subscribe-btn"], button[data-group][class$="unsubscribe-btn"]');
         subButton.addEventListener('click', isSubscribed ? onUnsubscribe : onSubscribe);
-        actionsDiv.appendChild(subButton);
-        const deleteButton = document.createElement('button');
-        deleteButton.textContent = 'Delete';
-        deleteButton.className = 'delete-btn';
-        deleteButton.dataset.group = groupName;
-        deleteButton.title = 'Delete group for all devices';
-        deleteButton.setAttribute('aria-label', `Delete group ${groupName}`);
+        const deleteButton = liElem.querySelector('.delete-btn');
         deleteButton.addEventListener('click', onDelete);
-        actionsDiv.appendChild(deleteButton);
-        li.appendChild(actionsDiv);
-        ul.appendChild(li);
+        ul.appendChild(liElem);
     });
     container.innerHTML = '';
     container.appendChild(ul);
@@ -319,78 +339,76 @@ export function showDebugInfo(container, state) {
 
 // Export direct storage helpers for tests and Android logic
 export async function createGroupDirect(groupName) {
-    const definedGroups = await browser.storage.sync.get('definedGroups').then(r => r['definedGroups'] || []);
-    if (definedGroups.includes(groupName)) return { success: false, message: 'Group already exists.' };
-    const updatedGroups = [...definedGroups, groupName].sort();
-    await browser.storage.sync.set({ definedGroups: updatedGroups });
-    const groupState = await browser.storage.sync.get('groupState').then(r => r['groupState'] || {});
-    groupState[groupName] = { assignedMask: 0 };
-    await browser.storage.sync.set({ groupState });
+    const updatedGroups = await updateListInStorage(
+        browser.storage.sync,
+        'definedGroups',
+        (groups) => {
+            if (groups.includes(groupName)) return groups;
+            return [...groups, groupName].sort();
+        }
+    );
+    const groupState = await getFromStorage(browser.storage.sync, 'groupState', {});
+    if (!groupState[groupName]) {
+        groupState[groupName] = { assignedMask: 0 };
+        await setInStorage(browser.storage.sync, 'groupState', groupState);
+    }
     return { success: true, newGroup: groupName };
 }
 
 export async function subscribeToGroupDirect(groupName) {
-    let subscriptions = await browser.storage.local.get('mySubscriptions').then(r => r['mySubscriptions'] || []);
-    let groupBits = await browser.storage.local.get('myGroupBits').then(r => r['myGroupBits'] || {});
+    let subscriptions = await getFromStorage(browser.storage.local, 'mySubscriptions', []);
+    let groupBits = await getFromStorage(browser.storage.local, 'myGroupBits', {});
     if (subscriptions.includes(groupName)) return { success: false, message: 'Already subscribed.' };
-    const groupState = await browser.storage.sync.get('groupState').then(r => r['groupState'] || {});
+    const groupState = await getFromStorage(browser.storage.sync, 'groupState', {});
     const state = groupState[groupName] || { assignedMask: 0, assignedCount: 0 };
-    
-    // Find the next available bit position by scanning the mask
-
     const bitPosition = getNextAvailableBitPosition(state.assignedMask);
-
-    // Check if the group is full based on available bits
-    if (bitPosition === -1) { // getNextAvailableBitPosition returns -1 if no bits 0-14 are free
+    if (bitPosition === -1) {
         return { success: false, message: 'Group is full (15 devices max).' };
     }
-
-    // Calculate the bit value for the found position
     const myBit = 1 << bitPosition;
-
     state.assignedMask |= myBit;
     groupState[groupName] = state;
-    await browser.storage.sync.set({ groupState });
+    await setInStorage(browser.storage.sync, 'groupState', groupState);
     subscriptions.push(groupName);
     subscriptions.sort();
     groupBits[groupName] = myBit;
-    await browser.storage.local.set({ mySubscriptions: subscriptions });
-    await browser.storage.local.set({ myGroupBits: groupBits });
-    const instanceId = await browser.storage.local.get('myInstanceId').then(r => r['myInstanceId']);
-    const deviceRegistry = await browser.storage.sync.get('deviceRegistry').then(r => r['deviceRegistry'] || {});
+    await setInStorage(browser.storage.local, 'mySubscriptions', subscriptions);
+    await setInStorage(browser.storage.local, 'myGroupBits', groupBits);
+    const instanceId = await getFromStorage(browser.storage.local, 'myInstanceId');
+    const deviceRegistry = await getFromStorage(browser.storage.sync, 'deviceRegistry', {});
     if (!deviceRegistry[instanceId]) deviceRegistry[instanceId] = { name: '', lastSeen: Date.now(), groupBits: {} };
     deviceRegistry[instanceId].groupBits[groupName] = myBit;
     deviceRegistry[instanceId].lastSeen = Date.now();
-    await browser.storage.sync.set({ deviceRegistry });
+    await setInStorage(browser.storage.sync, 'deviceRegistry', deviceRegistry);
     return { success: true, subscribedGroup: groupName, assignedBit: myBit };
 }
 
 export async function unsubscribeFromGroupDirect(groupName) {
-    let subscriptions = await browser.storage.local.get('mySubscriptions').then(r => r['mySubscriptions'] || []);
-    let groupBits = await browser.storage.local.get('myGroupBits').then(r => r['myGroupBits'] || {});
+    let subscriptions = await getFromStorage(browser.storage.local, 'mySubscriptions', []);
+    let groupBits = await getFromStorage(browser.storage.local, 'myGroupBits', {});
     if (!subscriptions.includes(groupName)) return { success: false, message: 'Not subscribed.' };
     const removedBit = groupBits[groupName];
     subscriptions = subscriptions.filter(g => g !== groupName);
     delete groupBits[groupName];
-    await browser.storage.local.set({ mySubscriptions: subscriptions });
-    await browser.storage.local.set({ myGroupBits: groupBits });
-    const groupState = await browser.storage.sync.get('groupState').then(r => r['groupState'] || {});
+    await setInStorage(browser.storage.local, 'mySubscriptions', subscriptions);
+    await setInStorage(browser.storage.local, 'myGroupBits', groupBits);
+    const groupState = await getFromStorage(browser.storage.sync, 'groupState', {});
     if (groupState[groupName]) {
         groupState[groupName].assignedMask &= ~removedBit;
-        await browser.storage.sync.set({ groupState });
+        await setInStorage(browser.storage.sync, 'groupState', groupState);
     }
-    const instanceId = await browser.storage.local.get('myInstanceId').then(r => r['myInstanceId']);
-    const deviceRegistry = await browser.storage.sync.get('deviceRegistry').then(r => r['deviceRegistry'] || {});
+    const instanceId = await getFromStorage(browser.storage.local, 'myInstanceId');
+    const deviceRegistry = await getFromStorage(browser.storage.sync, 'deviceRegistry', {});
     if (deviceRegistry[instanceId] && deviceRegistry[instanceId].groupBits) {
         delete deviceRegistry[instanceId].groupBits[groupName];
-        await browser.storage.sync.set({ deviceRegistry });
+        await setInStorage(browser.storage.sync, 'deviceRegistry', deviceRegistry);
     }
     return { success: true, unsubscribedGroup: groupName };
 }
 
 export async function createAndStoreGroupTask(groupName, tabData, senderBit) {
     const taskId = (globalThis.crypto && globalThis.crypto.randomUUID) ? globalThis.crypto.randomUUID() : 'mock-task-id';
-    const groupTasks = await browser.storage.sync.get('groupTasks').then(r => r['groupTasks'] || {});
+    const groupTasks = await getFromStorage(browser.storage.sync, 'groupTasks', {});
     if (!groupTasks[groupName]) groupTasks[groupName] = {};
     groupTasks[groupName][taskId] = {
         url: tabData.url,
@@ -398,119 +416,140 @@ export async function createAndStoreGroupTask(groupName, tabData, senderBit) {
         processedMask: senderBit,
         creationTimestamp: Date.now()
     };
-    await browser.storage.sync.set({ groupTasks });
+    await setInStorage(browser.storage.sync, 'groupTasks', groupTasks);
     return { success: true };
 }
 
 export async function sendTabToGroupDirect(groupName, tabData) {
-    const groupBits = await browser.storage.local.get('myGroupBits').then(r => r['myGroupBits'] || {});
+    const groupBits = await getFromStorage(browser.storage.local, 'myGroupBits', {});
     const senderBit = groupBits[groupName] || 0;
     return await createAndStoreGroupTask(groupName, tabData, senderBit);
 }
 
 export async function deleteGroupDirect(groupName) {
-    const definedGroups = await browser.storage.sync.get('definedGroups').then(r => r['definedGroups'] || []);
-    if (!definedGroups.includes(groupName)) return { success: false, message: 'Group does not exist.' };
-    const updatedGroups = definedGroups.filter(g => g !== groupName);
-    await browser.storage.sync.set({ definedGroups: updatedGroups });
-    const groupState = await browser.storage.sync.get('groupState').then(r => r['groupState'] || {});
-    if (groupState[groupName]) {
-        delete groupState[groupName];
-        await browser.storage.sync.set({ groupState });
-    }
-    const groupTasks = await browser.storage.sync.get('groupTasks').then(r => r['groupTasks'] || {});
-    if (groupTasks[groupName]) {
-        delete groupTasks[groupName];
-        await browser.storage.sync.set({ groupTasks });
-    }
-    const deviceRegistry = await browser.storage.sync.get('deviceRegistry').then(r => r['deviceRegistry'] || {});
-    let registryChanged = false;
-    for (const deviceId in deviceRegistry) {
-        if (deviceRegistry[deviceId]?.groupBits?.[groupName] !== undefined) {
-            delete deviceRegistry[deviceId].groupBits[groupName];
-            registryChanged = true;
+    await updateListInStorage(
+        browser.storage.sync,
+        'definedGroups',
+        (groups) => groups.filter(g => g !== groupName)
+    );
+    await updateObjectInStorage(
+        browser.storage.sync,
+        'groupState',
+        (state) => { delete state[groupName]; return state; }
+    );
+    await updateObjectInStorage(
+        browser.storage.sync,
+        'groupTasks',
+        (tasks) => { delete tasks[groupName]; return tasks; }
+    );
+    await updateObjectInStorage(
+        browser.storage.sync,
+        'deviceRegistry',
+        (registry) => {
+            for (const deviceId in registry) {
+                if (registry[deviceId]?.groupBits?.[groupName] !== undefined) {
+                    delete registry[deviceId].groupBits[groupName];
+                }
+            }
+            return registry;
         }
-    }
-    if (registryChanged) {
-        await browser.storage.sync.set({ deviceRegistry });
-    }
-    let subscriptions = await browser.storage.local.get('mySubscriptions').then(r => r['mySubscriptions'] || []);
-    if (subscriptions.includes(groupName)) {
-        subscriptions = subscriptions.filter(g => g !== groupName);
-        await browser.storage.local.set({ mySubscriptions: subscriptions });
-    }
-    let groupBits = await browser.storage.local.get('myGroupBits').then(r => r['myGroupBits'] || {});
-    if (groupBits[groupName] !== undefined) {
-        delete groupBits[groupName];
-        await browser.storage.local.set({ myGroupBits: groupBits });
-    }
+    );
+    await updateListInStorage(
+        browser.storage.local,
+        'mySubscriptions',
+        (subs) => subs.filter(g => g !== groupName)
+    );
+    await updateObjectInStorage(
+        browser.storage.local,
+        'myGroupBits',
+        (bits) => { delete bits[groupName]; return bits; }
+    );
     return { success: true, deletedGroup: groupName };
 }
 
 export async function renameGroupDirect(oldName, newName) {
-    const definedGroups = await browser.storage.sync.get('definedGroups').then(r => r['definedGroups'] || []);
+    const definedGroups = await getFromStorage(browser.storage.sync, 'definedGroups', []);
     if (!definedGroups.includes(oldName)) return { success: false, message: 'Group does not exist.' };
     if (definedGroups.includes(newName)) return { success: false, message: 'A group with that name already exists.' };
-    const updatedGroups = definedGroups.map(g => g === oldName ? newName : g);
-    await browser.storage.sync.set({ definedGroups: updatedGroups });
-    const groupState = await browser.storage.sync.get('groupState').then(r => r['groupState'] || {});
-    if (groupState[oldName]) {
-        groupState[newName] = groupState[oldName];
-        delete groupState[oldName];
-        await browser.storage.sync.set({ groupState });
-    }
-    const groupTasks = await browser.storage.sync.get('groupTasks').then(r => r['groupTasks'] || {});
-    if (groupTasks[oldName]) {
-        groupTasks[newName] = groupTasks[oldName];
-        delete groupTasks[oldName];
-        await browser.storage.sync.set({ groupTasks });
-    }
-    const deviceRegistry = await browser.storage.sync.get('deviceRegistry').then(r => r['deviceRegistry'] || {});
-    let registryChanged = false;
-    for (const deviceId in deviceRegistry) {
-        if (deviceRegistry[deviceId]?.groupBits?.[oldName] !== undefined) {
-            const bit = deviceRegistry[deviceId].groupBits[oldName];
-            delete deviceRegistry[deviceId].groupBits[oldName];
-            deviceRegistry[deviceId].groupBits[newName] = bit;
-            registryChanged = true;
+    await updateListInStorage(
+        browser.storage.sync,
+        'definedGroups',
+        (groups) => groups.map(g => g === oldName ? newName : g)
+    );
+    await updateObjectInStorage(
+        browser.storage.sync,
+        'groupState',
+        (state) => {
+            if (state[oldName]) {
+                state[newName] = state[oldName];
+                delete state[oldName];
+            }
+            return state;
         }
-    }
-    if (registryChanged) {
-        await browser.storage.sync.set({ deviceRegistry });
-    }
-    let groupBits = await browser.storage.local.get('myGroupBits').then(r => r['myGroupBits'] || {});
-    if (groupBits[oldName] !== undefined) {
-        groupBits[newName] = groupBits[oldName];
-        delete groupBits[oldName];
-        await browser.storage.local.set({ myGroupBits: groupBits });
-    }
-    let subscriptions = await browser.storage.local.get('mySubscriptions').then(r => r['mySubscriptions'] || []);
-    if (subscriptions.includes(oldName)) {
-        subscriptions = subscriptions.map(g => g === oldName ? newName : g);
-        await browser.storage.local.set({ mySubscriptions: subscriptions });
-    }
+    );
+    await updateObjectInStorage(
+        browser.storage.sync,
+        'groupTasks',
+        (tasks) => {
+            if (tasks[oldName]) {
+                tasks[newName] = tasks[oldName];
+                delete tasks[oldName];
+            }
+            return tasks;
+        }
+    );
+    await updateObjectInStorage(
+        browser.storage.sync,
+        'deviceRegistry',
+        (registry) => {
+            for (const deviceId in registry) {
+                if (registry[deviceId]?.groupBits?.[oldName] !== undefined) {
+                    const bit = registry[deviceId].groupBits[oldName];
+                    delete registry[deviceId].groupBits[oldName];
+                    registry[deviceId].groupBits[newName] = bit;
+                }
+            }
+            return registry;
+        }
+    );
+    await updateObjectInStorage(
+        browser.storage.local,
+        'myGroupBits',
+        (bits) => {
+            if (bits[oldName] !== undefined) {
+                bits[newName] = bits[oldName];
+                delete bits[oldName];
+            }
+            return bits;
+        }
+    );
+    await updateListInStorage(
+        browser.storage.local,
+        'mySubscriptions',
+        (subs) => subs.map(g => g === oldName ? newName : g)
+    );
     return { success: true };
 }
 
 export async function renameDeviceDirect(deviceId, newName) {
-    const deviceRegistry = await browser.storage.sync.get('deviceRegistry').then(r => r['deviceRegistry'] || {});
+    const deviceRegistry = await getFromStorage(browser.storage.sync, 'deviceRegistry', {});
     if (!deviceRegistry[deviceId]) return { success: false, message: 'Device not found.' };
     deviceRegistry[deviceId].name = newName.trim();
-    await browser.storage.sync.set({ deviceRegistry });
-    const instanceId = await browser.storage.local.get('myInstanceId').then(r => r['myInstanceId']);
+    await setInStorage(browser.storage.sync, 'deviceRegistry', deviceRegistry);
+    const instanceId = await getFromStorage(browser.storage.local, 'myInstanceId');
     if (deviceId === instanceId) {
-        await browser.storage.local.set({ myInstanceName: newName.trim() });
+        await setInStorage(browser.storage.local, 'myInstanceName', newName.trim());
     }
     return { success: true };
 }
 
 export async function deleteDeviceDirect(deviceId) {
-    const deviceRegistry = await browser.storage.sync.get('deviceRegistry').then(r => r['deviceRegistry'] || {});
+    const deviceRegistry = await getFromStorage(browser.storage.sync, 'deviceRegistry', {});
     if (!deviceRegistry[deviceId]) return { success: false, message: 'Device not found.' };
     const groupBits = deviceRegistry[deviceId].groupBits || {};
     delete deviceRegistry[deviceId];
-    await browser.storage.sync.set({ deviceRegistry });
-    const groupState = await browser.storage.sync.get('groupState').then(r => r['groupState'] || {});
+    await setInStorage(browser.storage.sync, 'deviceRegistry', deviceRegistry);
+    const groupState = await getFromStorage(browser.storage.sync, 'groupState', {});
     let groupStateChanged = false;
     for (const groupName in groupBits) {
         const bit = groupBits[groupName];
@@ -524,7 +563,7 @@ export async function deleteDeviceDirect(deviceId) {
         }
     }
     if (groupStateChanged) {
-        await browser.storage.sync.set({ groupState });
+        await setInStorage(browser.storage.sync, 'groupState', groupState);
     }
     return { success: true };
 }
@@ -579,6 +618,8 @@ export async function unsubscribeFromGroupUnified(groupName, isAndroidPlatform) 
     }
 }
 
+// --- Modernize Async Patterns: Use Promise.all for parallel async operations ---
+// getUnifiedState: already uses Promise.all for Android, but not for non-Android
 export async function getUnifiedState(isAndroidPlatform) {
     if (isAndroidPlatform) {
         const [instanceId, instanceName, subscriptions, groupBits, definedGroups, groupState, deviceRegistry] = await Promise.all([
@@ -600,7 +641,33 @@ export async function getUnifiedState(isAndroidPlatform) {
             deviceRegistry
         };
     } else {
-        return await browser.runtime.sendMessage({ action: 'getState' });
+        // Parallelize state fetch for non-Android
+        const [
+            instanceId,
+            instanceName,
+            subscriptions,
+            groupBits,
+            definedGroups,
+            groupState,
+            deviceRegistry
+        ] = await Promise.all([
+            getFromStorage(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID),
+            getFromStorage(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_NAME),
+            getFromStorage(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []),
+            getFromStorage(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {}),
+            getFromStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []),
+            getFromStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {}),
+            getFromStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {})
+        ]);
+        return {
+            instanceId,
+            instanceName,
+            subscriptions,
+            groupBits,
+            definedGroups,
+            groupState,
+            deviceRegistry
+        };
     }
 }
 
@@ -610,6 +677,21 @@ export async function renameDeviceUnified(deviceId, newName, isAndroidPlatform) 
     } else {
         return await browser.runtime.sendMessage({ action: 'renameDevice', deviceId, newName });
     }
+}
+
+// --- Generic Storage List/Object Updaters ---
+export async function updateListInStorage(area, key, updater, defaultValue = []) {
+    const list = await getFromStorage(area, key, defaultValue);
+    const updated = updater(Array.isArray(list) ? list : defaultValue);
+    await setInStorage(area, key, updated);
+    return updated;
+}
+
+export async function updateObjectInStorage(area, key, updater, defaultValue = {}) {
+    const obj = await getFromStorage(area, key, defaultValue);
+    const updated = updater(obj && typeof obj === 'object' ? obj : defaultValue);
+    await setInStorage(area, key, updated);
+    return updated;
 }
 
 // Apply batched sync updates for processed tasks
