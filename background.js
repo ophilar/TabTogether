@@ -22,9 +22,7 @@ async function initializeExtension() {
         // Fetch local data first
         let localInstanceId = await getInstanceId();
         let localInstanceName = await getInstanceName();
-        // let localSubscriptions = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
         let localGroupBits = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {});
-        // let localProcessedTasks = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, {});
 
         // Only read from sync storage, do not write defaults
         let cachedDefinedGroups = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, undefined);
