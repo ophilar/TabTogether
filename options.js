@@ -1,7 +1,7 @@
 // options.js
 
 import { STRINGS } from './constants.js';
-import { renderDeviceName, renderGroupList, isAndroid, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, createGroupDirect, deleteGroupDirect, renameGroupDirect, renameDeviceDirect, deleteDeviceDirect, processIncomingTabs, getUnifiedState, subscribeToGroupUnified, unsubscribeFromGroupUnified, showAndroidBanner, setLastSyncTime } from './utils.js';
+import { renderDeviceName, renderGroupList, isAndroid, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, createGroupDirect, deleteGroupDirect, renameGroupDirect, renameDeviceDirect, deleteDeviceDirect, processIncomingTabs, getUnifiedState, subscribeToGroupUnified, unsubscribeFromGroupUnified, showAndroidBanner, setLastSyncTime, getFromStorage, setInStorage } from './utils.js';
 import { injectSharedUI } from './shared-ui.js';
 import { applyThemeFromStorage, setupThemeDropdown } from './theme.js';
 
@@ -62,13 +62,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function getStateDirectly() {
     const [instanceId, instanceName, subscriptions, groupBits, definedGroups, groupState, deviceRegistry] = await Promise.all([
-        browser.storage.local.get(LOCAL_STORAGE_KEYS.INSTANCE_ID).then(r => r[LOCAL_STORAGE_KEYS.INSTANCE_ID]),
-        browser.storage.local.get(LOCAL_STORAGE_KEYS.INSTANCE_NAME).then(r => r[LOCAL_STORAGE_KEYS.INSTANCE_NAME]),
-        browser.storage.local.get(LOCAL_STORAGE_KEYS.SUBSCRIPTIONS).then(r => r[LOCAL_STORAGE_KEYS.SUBSCRIPTIONS] || []),
-        browser.storage.local.get(LOCAL_STORAGE_KEYS.GROUP_BITS).then(r => r[LOCAL_STORAGE_KEYS.GROUP_BITS] || {}),
-        browser.storage.sync.get(SYNC_STORAGE_KEYS.DEFINED_GROUPS).then(r => r[SYNC_STORAGE_KEYS.DEFINED_GROUPS] || []),
-        browser.storage.sync.get(SYNC_STORAGE_KEYS.GROUP_STATE).then(r => r[SYNC_STORAGE_KEYS.GROUP_STATE] || {}),
-        browser.storage.sync.get(SYNC_STORAGE_KEYS.DEVICE_REGISTRY).then(r => r[SYNC_STORAGE_KEYS.DEVICE_REGISTRY] || {})
+        getFromStorage(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID),
+        getFromStorage(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_NAME),
+        getFromStorage(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS) || [],
+        getFromStorage(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS) || {},
+        getFromStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS) || [],
+        getFromStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE) || {},
+        getFromStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY) || {}
     ]);
     return {
         instanceId,
@@ -102,10 +102,10 @@ async function loadState() {
         }
         renderAll();
     } catch (error) {
-        showMessage(`Error loading settings: ${error.message}`, true);
-        deviceNameDisplay.textContent = 'Error';
-        definedGroupsListDiv.innerHTML = '<p>Error loading groups.</p>';
-        deviceRegistryListDiv.innerHTML = '<p>Error loading registry.</p>';
+        showMessage(STRINGS.loadingSettingsError(error.message), true);
+        deviceNameDisplay.textContent = STRINGS.error;
+        definedGroupsListDiv.innerHTML = `<p>${STRINGS.loadingGroups}</p>`;
+        deviceRegistryListDiv.innerHTML = `<p>${STRINGS.loadingRegistry}</p>`;
         if (typeof console !== 'undefined') {
             console.error('TabTogether options.js loadState error:', error);
             if (error && error.stack) {
@@ -121,7 +121,7 @@ async function processIncomingTabsAndroid(state) {
     await processIncomingTabs(
         state,
         async (url) => { await browser.tabs.create({ url, active: false }); },
-        async (updated) => { await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.PROCESSED_TASKS]: updated }); }
+        async (updated) => { await setInStorage(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, updated); }
     );
 }
 
@@ -234,7 +234,7 @@ async function finishRenameGroup(oldName, newName, nameSpan) {
         nameSpan.parentNode.querySelector('input.rename-group-input').replaceWith(nameSpan);
         return;
     }
-    if (!confirm(`Rename group "${oldName}" to "${newName}"?`)) {
+    if (!confirm(STRINGS.confirmRenameGroup(oldName, newName))) {
         nameSpan.style.display = '';
         nameSpan.parentNode.querySelector('input.rename-group-input').replaceWith(nameSpan);
         return;
@@ -248,13 +248,13 @@ async function finishRenameGroup(oldName, newName, nameSpan) {
             response = await browser.runtime.sendMessage({ action: 'renameGroup', oldName, newName });
         }
         if (response.success) {
-            showMessage(`Group renamed to "${newName}".`, false);
+            showMessage(STRINGS.groupRenameSuccess(newName), false);
             await loadState();
         } else {
-            showMessage(response.message || 'Rename failed.', true);
+            showMessage(response.message || STRINGS.groupRenameFailed, true);
         }
     } catch (e) {
-        showMessage('Rename failed: ' + e.message, true);
+        showMessage(STRINGS.groupRenameFailed + ': ' + e.message, true);
     } finally {
         showLoading(false);
     }
@@ -292,7 +292,7 @@ async function finishRenameDevice(deviceId, newName, li, nameSpan) {
         li.querySelector('input.rename-group-input').remove();
         return;
     }
-    if (!confirm(`Rename device to "${newName}"?`)) {
+    if (!confirm(STRINGS.confirmRenameDevice(newName))) {
         nameSpan.style.display = '';
         li.querySelector('input.rename-group-input').remove();
         return;
@@ -302,20 +302,20 @@ async function finishRenameDevice(deviceId, newName, li, nameSpan) {
         const isAndroidPlatform = await isAndroid();
         let response = await renameDeviceUnified(deviceId, newName, isAndroidPlatform);
         if (response.success) {
-            showMessage(`Device renamed to "${newName}".`, false);
+            showMessage(STRINGS.deviceRenameSuccess(newName), false);
             await loadState();
         } else {
-            showMessage(response.message || 'Rename failed.', true);
+            showMessage(response.message || STRINGS.deviceRenameFailed, true);
         }
     } catch (e) {
-        showMessage('Rename failed: ' + e.message, true);
+        showMessage(STRINGS.deviceRenameFailed + ': ' + e.message, true);
     } finally {
         showLoading(false);
     }
 }
 
 async function handleDeleteDevice(deviceId, deviceName) {
-    if (!confirm(`Are you sure you want to delete device "${deviceName}"? This cannot be undone and will affect all groups.`)) {
+    if (!confirm(STRINGS.confirmDeleteDevice(deviceName))) {
         return;
     }
     showLoading(true);
@@ -327,13 +327,13 @@ async function handleDeleteDevice(deviceId, deviceName) {
             response = await browser.runtime.sendMessage({ action: 'deleteDevice', deviceId });
         }
         if (response.success) {
-            showMessage(`Device "${deviceName}" deleted successfully.`, false);
+            showMessage(STRINGS.deviceDeleteSuccess(deviceName), false);
             await loadState();
         } else {
-            showMessage(response.message || 'Delete failed.', true);
+            showMessage(response.message || STRINGS.deviceDeleteFailed, true);
         }
     } catch (e) {
-        showMessage('Delete failed: ' + e.message, true);
+        showMessage(STRINGS.deviceDeleteFailed + ': ' + e.message, true);
     } finally {
         showLoading(false);
     }
@@ -377,15 +377,15 @@ saveNameBtn.addEventListener('click', async () => {
             // --- Optimization: Update local cache and re-render ---
             currentState.instanceName = response.newName; // Update cache
             renderDeviceNameUI(); // Re-render device name section
-            showMessage("Device name saved successfully.", false);
+            showMessage(STRINGS.saveNameSuccess, false);
             // --- End Optimization ---
             // Hide edit UI
             cancelNameBtn.click(); // Simulate cancel click to hide input
         } else {
-            showMessage(response.message || "Failed to save name.", true);
+            showMessage(response.message || STRINGS.saveNameFailed, true);
         }
     } catch (error) {
-        showMessage(`Error saving name: ${error.message}`, true);
+        showMessage(STRINGS.saveNameFailed + ': ' + error.message, true);
     } finally {
         showLoading(false);
     }
@@ -413,14 +413,14 @@ createGroupBtn.addEventListener('click', async () => {
                 currentState.definedGroups.sort();
             }
             renderDefinedGroups();
-            showMessage(`Group "${response.newGroup}" created successfully.`, false);
+            showMessage(STRINGS.groupCreateSuccess(response.newGroup), false);
             newGroupNameInput.value = '';
             createGroupBtn.disabled = true;
         } else {
-            showMessage(response.message || "Failed to create group.", true);
+            showMessage(response.message || STRINGS.groupCreateFailed, true);
         }
     } catch (error) {
-        showMessage(`Error creating group: ${error.message}`, true);
+        showMessage(STRINGS.groupCreateFailed + ': ' + error.message, true);
     } finally {
         showLoading(false);
     }
@@ -473,7 +473,7 @@ async function handleUnsubscribe(event) {
 
 async function handleDeleteGroup(event) {
     const groupName = event.target.dataset.group;
-    if (!confirm(`Are you sure you want to delete the group "${groupName}"? This cannot be undone and will affect all devices.`)) {
+    if (!confirm(STRINGS.confirmDeleteGroup(groupName))) {
         return;
     }
     showLoading(true);
@@ -489,12 +489,12 @@ async function handleDeleteGroup(event) {
             currentState.definedGroups = currentState.definedGroups.filter(g => g !== response.deletedGroup);
             currentState.subscriptions = currentState.subscriptions.filter(g => g !== response.deletedGroup);
             renderDefinedGroups();
-            showMessage(`Group "${response.deletedGroup}" deleted successfully.`, false);
+            showMessage(STRINGS.groupDeleteSuccess(response.deletedGroup), false);
         } else {
-            showMessage(response.message || "Failed to delete group.", true);
+            showMessage(response.message || STRINGS.groupDeleteFailed, true);
         }
     } catch (error) {
-        showMessage(`Error deleting group: ${error.message}`, true);
+        showMessage(STRINGS.groupDeleteFailed + ': ' + error.message, true);
     } finally {
         showLoading(false);
     }
@@ -505,9 +505,9 @@ document.getElementById('testNotificationBtn').addEventListener('click', async (
     showLoading(true);
     try {
         await browser.runtime.sendMessage({ action: 'testNotification' });
-        showMessage('Test notification sent!', false);
+        showMessage(STRINGS.testNotificationSent, false);
     } catch (e) {
-        showMessage('Failed to send notification: ' + e.message, true);
+        showMessage(STRINGS.testNotificationFailed(e.message), true);
     } finally {
         showLoading(false);
     }
