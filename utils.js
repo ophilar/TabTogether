@@ -340,10 +340,22 @@ export async function subscribeToGroupDirect(groupName) {
     if (subscriptions.includes(groupName)) return { success: false, message: 'Already subscribed.' };
     const groupState = await browser.storage.sync.get('groupState').then(r => r['groupState'] || {});
     const state = groupState[groupName] || { assignedMask: 0, assignedCount: 0 };
-    if (state.assignedCount >= 15) return { success: false, message: 'Group is full.' };
-    const myBit = 1 << state.assignedCount;
+    // if (state.assignedCount >= 15) return { success: false, message: 'Group is full.' };
+    // const myBit = 1 << state.assignedCount;
+
+    // Find the next available bit position by scanning the mask
+    const bitPosition = getNextAvailableBitPosition(state.assignedMask);
+
+    // Check if the group is full based on available bits
+    if (bitPosition === -1) { // getNextAvailableBitPosition returns -1 if no bits 0-14 are free
+        return { success: false, message: 'Group is full (15 devices max).' };
+    }
+
+    // Calculate the bit value for the found position
+    const myBit = 1 << bitPosition;
+
     state.assignedMask |= myBit;
-    state.assignedCount++;
+    // state.assignedCount++;
     groupState[groupName] = state;
     await browser.storage.sync.set({ groupState });
     subscriptions.push(groupName);
