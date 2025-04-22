@@ -1,5 +1,3 @@
-global.crypto = { randomUUID: () => 'mock-uuid-1234' };
-
 import { jest } from '@jest/globals';
 import * as utils from '../utils.js';
 
