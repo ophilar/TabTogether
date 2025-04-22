@@ -91,13 +91,13 @@ export function isObject(item) {
 
 // --- Instance ID/Name ---
 // Store device name and ID in both local and sync storage for persistence
-export async function getInstanceId() {
+export async function getInstanceId(cryptoDep = crypto) {
     let id = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID);
     if (!id) {
         // Try to restore from sync
         id = await getStorage(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_ID);
         if (!id) {
-            id = crypto.randomUUID();
+            id = cryptoDep.randomUUID();
             await browser.storage.sync.set({ [LOCAL_STORAGE_KEYS.INSTANCE_ID]: id });
         }
         await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.INSTANCE_ID]: id });

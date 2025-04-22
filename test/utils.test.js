@@ -60,7 +60,7 @@ describe('utils', () => {
 
   test('getInstanceId generates and persists uuid', async () => {
     await mockStorage.clear();
-    const id = await utils.getInstanceId();
+    const id = await utils.getInstanceId({ randomUUID: () => 'mock-uuid-1234' });
     expect(id).toBe('mock-uuid-1234');
     expect((await mockStorage.get('myInstanceId')).myInstanceId).toBe('mock-uuid-1234');
   });
