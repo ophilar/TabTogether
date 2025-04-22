@@ -391,10 +391,8 @@ export async function unsubscribeFromGroupDirect(groupName) {
     return { success: true, unsubscribedGroup: groupName };
 }
 
-export async function sendTabToGroupDirect(groupName, tabData) {
-    const groupBits = await browser.storage.local.get('myGroupBits').then(r => r['myGroupBits'] || {});
-    const senderBit = groupBits[groupName] || 0;
-    const taskId = (global.crypto && global.crypto.randomUUID) ? global.crypto.randomUUID() : 'mock-task-id';
+export async function createAndStoreGroupTask(groupName, tabData, senderBit) {
+    const taskId = (globalThis.crypto && globalThis.crypto.randomUUID) ? globalThis.crypto.randomUUID() : 'mock-task-id';
     const groupTasks = await browser.storage.sync.get('groupTasks').then(r => r['groupTasks'] || {});
     if (!groupTasks[groupName]) groupTasks[groupName] = {};
     groupTasks[groupName][taskId] = {
@@ -405,6 +403,12 @@ export async function sendTabToGroupDirect(groupName, tabData) {
     };
     await browser.storage.sync.set({ groupTasks });
     return { success: true };
+}
+
+export async function sendTabToGroupDirect(groupName, tabData) {
+    const groupBits = await browser.storage.local.get('myGroupBits').then(r => r['myGroupBits'] || {});
+    const senderBit = groupBits[groupName] || 0;
+    return await createAndStoreGroupTask(groupName, tabData, senderBit);
 }
 
 export async function deleteGroupDirect(groupName) {

@@ -184,24 +184,16 @@ async function sendTabToGroup(groupName) {
     showSendStatus('Sending...', false);
     try {
         let response;
+        const tabs = await browser.tabs.query({ active: true, currentWindow: true });
+        if (!tabs || tabs.length === 0) throw new Error('No active tab found.');
+        const currentTab = tabs[0];
+        if (!currentTab.url || currentTab.url.startsWith('about:') || currentTab.url.startsWith('moz-extension:')) {
+            showSendStatus('Cannot send this type of tab.', true);
+            return;
+        }
         if (await isAndroid()) {
-            const tabs = await browser.tabs.query({ active: true, currentWindow: true });
-            if (!tabs || tabs.length === 0) throw new Error('No active tab found.');
-            const currentTab = tabs[0];
-            if (!currentTab.url || currentTab.url.startsWith('about:') || currentTab.url.startsWith('moz-extension:')) {
-                showSendStatus('Cannot send this type of tab.', true);
-                return;
-            }
             response = await sendTabToGroupDirect(groupName, { url: currentTab.url, title: currentTab.title });
         } else {
-            await browser.runtime.sendMessage({ action: 'heartbeat' });
-            const tabs = await browser.tabs.query({ active: true, currentWindow: true });
-            if (!tabs || tabs.length === 0) throw new Error('No active tab found.');
-            const currentTab = tabs[0];
-            if (!currentTab.url || currentTab.url.startsWith('about:') || currentTab.url.startsWith('moz-extension:')) {
-                showSendStatus('Cannot send this type of tab.', true);
-                return;
-            }
             response = await browser.runtime.sendMessage({
                 action: 'sendTabFromPopup',
                 groupName,

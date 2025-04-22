@@ -581,25 +581,9 @@ browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
 
         case "sendTabFromPopup": {
             const { groupName, tabData } = request;
-            const taskId = crypto.randomUUID();
-            // Move declaration outside to avoid TDZ error
             let localGroupBits = await getStorage(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {});
             const senderBit = localGroupBits[groupName] || 0;
-            const newTask = {
-                [taskId]: {
-                    url: tabData.url,
-                    title: tabData.title || tabData.url,
-                    processedMask: senderBit,
-                    creationTimestamp: Date.now()
-                }
-            };
-            const update = { [groupName]: newTask };
-            const success = await mergeSyncStorage(SYNC_STORAGE_KEYS.GROUP_TASKS, update);
-            if (success) {
-                return { success: true };
-            } else {
-                return { success: false, message: "Failed to save task to sync storage." };
-            }
+            return await createAndStoreGroupTask(groupName, tabData, senderBit);
         }
 
         case "heartbeat":
