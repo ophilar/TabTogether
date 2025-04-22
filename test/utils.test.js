@@ -1,3 +1,4 @@
+global.crypto = { randomUUID: () => 'mock-uuid-1234' };
 import crypto from 'crypto';
 globalThis.crypto = crypto;
 
