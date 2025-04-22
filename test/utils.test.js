@@ -1,3 +1,5 @@
+// Patch global.crypto before importing anything else
+import './setup.js';
 import { jest } from '@jest/globals';
 import * as utils from '../utils.js';
 import '../test/setup.js';
