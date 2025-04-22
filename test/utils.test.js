@@ -1,5 +1,6 @@
 import { jest } from '@jest/globals';
 import * as utils from '../utils.js';
+import '../test/setup.js';
 
 // Persistent in-memory mock for browser.storage
 const memoryStore = {};
