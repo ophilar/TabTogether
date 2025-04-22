@@ -605,6 +605,6 @@ export async function getUnifiedState(isAndroidPlatform) {
 }
 
 // Apply batched sync updates for processed tasks
-if (Object.keys(groupTasksUpdates).length > 0) {
-    await mergeSyncStorage(SYNC_STORAGE_KEYS.GROUP_TASKS, groupTasksUpdates);
-}
+// if (Object.keys(groupTasksUpdates).length > 0) {
+//     await mergeSyncStorage(SYNC_STORAGE_KEYS.GROUP_TASKS, groupTasksUpdates);
+// }
