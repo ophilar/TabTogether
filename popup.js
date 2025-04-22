@@ -1,5 +1,5 @@
 import { STRINGS } from './constants.js';
-import { renderDeviceName, renderDeviceList, isAndroid, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from './utils.js';
+import { renderDeviceName, renderDeviceList, isAndroid, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, sendTabToGroupDirect } from './utils.js';
 import { injectSharedUI } from './shared-ui.js';
 import { applyThemeFromStorage } from './theme.js';
 
@@ -61,27 +61,6 @@ refreshLink.addEventListener('click', (e) => {
 });
 
 // --- Load and Render Status ---
-async function getStateDirectly() {
-    const [instanceId, instanceName, subscriptions, groupBits, definedGroups, groupState, deviceRegistry] = await Promise.all([
-        browser.storage.local.get(LOCAL_STORAGE_KEYS.INSTANCE_ID).then(r => r[LOCAL_STORAGE_KEYS.INSTANCE_ID]),
-        browser.storage.local.get(LOCAL_STORAGE_KEYS.INSTANCE_NAME).then(r => r[LOCAL_STORAGE_KEYS.INSTANCE_NAME]),
-        browser.storage.local.get(LOCAL_STORAGE_KEYS.SUBSCRIPTIONS).then(r => r[LOCAL_STORAGE_KEYS.SUBSCRIPTIONS] || []),
-        browser.storage.local.get(LOCAL_STORAGE_KEYS.GROUP_BITS).then(r => r[LOCAL_STORAGE_KEYS.GROUP_BITS] || {}),
-        browser.storage.sync.get(SYNC_STORAGE_KEYS.DEFINED_GROUPS).then(r => r[SYNC_STORAGE_KEYS.DEFINED_GROUPS] || []),
-        browser.storage.sync.get(SYNC_STORAGE_KEYS.GROUP_STATE).then(r => r[SYNC_STORAGE_KEYS.GROUP_STATE] || {}),
-        browser.storage.sync.get(SYNC_STORAGE_KEYS.DEVICE_REGISTRY).then(r => r[SYNC_STORAGE_KEYS.DEVICE_REGISTRY] || {})
-    ]);
-    return {
-        instanceId,
-        instanceName,
-        subscriptions,
-        groupBits,
-        definedGroups,
-        groupState,
-        deviceRegistry
-    };
-}
-
 let syncing = false;
 async function loadStatus() {
     if (await isAndroid()) {
@@ -266,23 +245,6 @@ async function sendTabToGroup(groupName) {
     } catch (error) {
         showSendStatus('Error: ' + error.message, true);
     }
-}
-
-// Android: direct send tab logic
-async function sendTabToGroupDirect(groupName, tabData) {
-    const groupBits = await browser.storage.local.get(LOCAL_STORAGE_KEYS.GROUP_BITS).then(r => r[LOCAL_STORAGE_KEYS.GROUP_BITS] || {});
-    const senderBit = groupBits[groupName] || 0;
-    const taskId = crypto.randomUUID();
-    const groupTasks = await browser.storage.sync.get(SYNC_STORAGE_KEYS.GROUP_TASKS).then(r => r[SYNC_STORAGE_KEYS.GROUP_TASKS] || {});
-    if (!groupTasks[groupName]) groupTasks[groupName] = {};
-    groupTasks[groupName][taskId] = {
-        url: tabData.url,
-        title: tabData.title || tabData.url,
-        processedMask: senderBit,
-        creationTimestamp: Date.now()
-    };
-    await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.GROUP_TASKS]: groupTasks });
-    return { success: true };
 }
 
 function showSendStatus(message, isError) {
