@@ -449,74 +449,35 @@ browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
             await performHeartbeat(localInstanceId, localInstanceName, localGroupBits, cachedDeviceRegistry); // Updates registry and potentially cache
             return { success: true, newName: localInstanceName }; // Return new name for UI update
 
-        case "createGroup":
-            // ... (logic remains the same, storage listener updates cache) ...
-             if (!request.groupName || typeof request.groupName !== 'string' || request.groupName.trim().length === 0) {
+        case "createGroup": {
+            if (!request.groupName || typeof request.groupName !== 'string' || request.groupName.trim().length === 0) {
                 return { success: false, message: "Invalid group name provided." };
             }
-            const groupNameToCreate = request.groupName.trim();
-            // Use cache for check, fetch for update
-            const currentGroups = cachedDefinedGroups ?? await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []);
-            if (!currentGroups.includes(groupNameToCreate)) {
-                const updatedGroups = [...currentGroups, groupNameToCreate].sort();
-                await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.DEFINED_GROUPS]: updatedGroups });
-                await mergeSyncStorage(SYNC_STORAGE_KEYS.GROUP_STATE, { [groupNameToCreate]: { assignedMask: 0, assignedCount: 0 } });
-                // Cache will be updated by storage listener
-                return { success: true, newGroup: groupNameToCreate }; // Return new group for UI update
+            return await createGroupDirect(request.groupName.trim());
+        }
+        case "deleteGroup": {
+            if (!request.groupName) return { success: false, message: "No group name provided." };
+            return await deleteGroupDirect(request.groupName);
+        }
+        case "renameGroup": {
+            const { oldName, newName } = request;
+            if (!oldName || !newName || typeof newName !== 'string' || newName.trim().length === 0) {
+                return { success: false, message: "Invalid group name." };
             }
-            return { success: false, message: "Group already exists." };
-
-        case "deleteGroup":
-            // ... (logic remains the same, storage listener updates cache) ...
-            const groupNameToDelete = request.groupName;
-            if (!groupNameToDelete) return { success: false, message: "No group name provided." };
-            console.log(`Attempting to delete group: ${groupNameToDelete}`);
-            try {
-                // Use cache for check, fetch for update
-                const currentGroups = cachedDefinedGroups ?? await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []);
-                const updatedGroups = currentGroups.filter(g => g !== groupNameToDelete);
-                if (updatedGroups.length !== currentGroups.length) {
-                    await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.DEFINED_GROUPS]: updatedGroups });
-                }
-                await mergeSyncStorage(SYNC_STORAGE_KEYS.GROUP_STATE, { [groupNameToDelete]: null });
-                await mergeSyncStorage(SYNC_STORAGE_KEYS.GROUP_TASKS, { [groupNameToDelete]: null });
-
-                const registry = cachedDeviceRegistry ?? await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
-                const registryUpdates = {};
-                let needsRegistryUpdate = false;
-                for (const deviceId in registry) {
-                    if (registry[deviceId]?.groupBits?.[groupNameToDelete] !== undefined) {
-                        if (!registryUpdates[deviceId]) registryUpdates[deviceId] = { groupBits: {} };
-                        registryUpdates[deviceId].groupBits[groupNameToDelete] = null;
-                        needsRegistryUpdate = true;
-                    }
-                }
-                if (needsRegistryUpdate) {
-                    await mergeSyncStorage(SYNC_STORAGE_KEYS.DEVICE_REGISTRY, registryUpdates);
-                }
-
-                let localStateChanged = false;
-                if (localSubscriptions.includes(groupNameToDelete)) {
-                    localSubscriptions = localSubscriptions.filter(g => g !== groupNameToDelete);
-                    await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.SUBSCRIPTIONS]: localSubscriptions });
-                    localStateChanged = true;
-                }
-                if (localGroupBits[groupNameToDelete] !== undefined) {
-                    delete localGroupBits[groupNameToDelete];
-                    await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.GROUP_BITS]: localGroupBits });
-                     localStateChanged = true;
-                }
-                if(localStateChanged) console.log(`Cleaned up local state for ${groupNameToDelete}.`);
-
-                // Cache will be updated by storage listener, but update context menu now
-                await updateContextMenu();
-                return { success: true, deletedGroup: groupNameToDelete }; // Return deleted group for UI update
-
-            } catch (error) {
-                console.error(`Error deleting group ${groupNameToDelete}:`, error);
-                return { success: false, message: `Error deleting group: ${error.message}` };
+            return await renameGroupDirect(oldName, newName);
+        }
+        case "renameDevice": {
+            const { deviceId, newName } = request;
+            if (!deviceId || !newName || typeof newName !== 'string' || newName.trim().length === 0) {
+                return { success: false, message: "Invalid device or name." };
             }
-
+            return await renameDeviceDirect(deviceId, newName);
+        }
+        case "deleteDevice": {
+            const { deviceId } = request;
+            if (!deviceId) return { success: false, message: "No device ID provided." };
+            return await deleteDeviceDirect(deviceId);
+        }
         case "subscribeToGroup":
             // ... (logic remains the same, performHeartbeat updates cache) ...
             const groupToSubscribe = request.groupName;
@@ -595,51 +556,6 @@ browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
             await performHeartbeat(localInstanceId, localInstanceName, localGroupBits, cachedDeviceRegistry);
             return { success: true };
 
-        case "renameGroup": {
-            const { oldName, newName } = request;
-            if (!oldName || !newName || typeof newName !== 'string' || newName.trim().length === 0) {
-                return { success: false, message: "Invalid group name." };
-            }
-            const groups = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []);
-            if (!groups.includes(oldName)) {
-                return { success: false, message: "Group does not exist." };
-            }
-            if (groups.includes(newName)) {
-                return { success: false, message: "A group with that name already exists." };
-            }
-            // Rename in definedGroups
-            const updatedGroups = groups.map(g => g === oldName ? newName : g);
-            await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.DEFINED_GROUPS]: updatedGroups });
-            // Rename in groupState
-            const groupState = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {});
-            if (groupState[oldName]) {
-                groupState[newName] = groupState[oldName];
-                delete groupState[oldName];
-                await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.GROUP_STATE]: groupState });
-            }
-            // Rename in groupTasks
-            const groupTasks = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, {});
-            if (groupTasks[oldName]) {
-                groupTasks[newName] = groupTasks[oldName];
-                delete groupTasks[oldName];
-                await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.GROUP_TASKS]: groupTasks });
-            }
-            // Update deviceRegistry groupBits
-            const deviceRegistry = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
-            let registryChanged = false;
-            for (const deviceId in deviceRegistry) {
-                if (deviceRegistry[deviceId]?.groupBits?.[oldName] !== undefined) {
-                    const bit = deviceRegistry[deviceId].groupBits[oldName];
-                    delete deviceRegistry[deviceId].groupBits[oldName];
-                    deviceRegistry[deviceId].groupBits[newName] = bit;
-                    registryChanged = true;
-                }
-            }
-            if (registryChanged) {
-                await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: deviceRegistry });
-            }
-            return { success: true };
-        }
         case "testNotification": {
             await browser.notifications.create({
                 type: "basic",
@@ -647,53 +563,6 @@ browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
                 title: "TabTogether Test",
                 message: "This is a test notification."
             });
-            return { success: true };
-        }
-        case "renameDevice": {
-            const { deviceId, newName } = request;
-            if (!deviceId || !newName || typeof newName !== 'string' || newName.trim().length === 0) {
-                return { success: false, message: "Invalid device or name." };
-            }
-            const deviceRegistry = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
-            if (!deviceRegistry[deviceId]) {
-                return { success: false, message: "Device not found." };
-            }
-            deviceRegistry[deviceId].name = newName.trim();
-            await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: deviceRegistry });
-            // If renaming self, update local storage as well
-            let localInstanceId = await getInstanceId();
-            if (deviceId === localInstanceId) {
-                await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.INSTANCE_NAME]: newName.trim() });
-            }
-            return { success: true };
-        }
-        case "deleteDevice": {
-            const { deviceId } = request;
-            if (!deviceId) return { success: false, message: "No device ID provided." };
-            // Remove from deviceRegistry
-            const deviceRegistry = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
-            if (!deviceRegistry[deviceId]) return { success: false, message: "Device not found." };
-            const groupBits = deviceRegistry[deviceId].groupBits || {};
-            delete deviceRegistry[deviceId];
-            await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: deviceRegistry });
-            // Remove device's bits from groupState
-            const groupState = await getStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {});
-            let groupStateChanged = false;
-            for (const groupName in groupBits) {
-                const bit = groupBits[groupName];
-                if (groupState[groupName] && bit !== undefined) {
-                    const currentMask = groupState[groupName].assignedMask;
-                    const newMask = currentMask & ~bit;
-                    if (newMask !== currentMask) {
-                        groupState[groupName].assignedMask = newMask;
-                        groupStateChanged = true;
-                    }
-                }
-            }
-            if (groupStateChanged) {
-                await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.GROUP_STATE]: groupState });
-            }
-            // Optionally: Remove processed tasks for this device (not strictly necessary)
             return { success: true };
         }
         default:
