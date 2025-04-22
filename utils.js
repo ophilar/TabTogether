@@ -324,7 +324,7 @@ export async function createGroupDirect(groupName) {
     const updatedGroups = [...definedGroups, groupName].sort();
     await browser.storage.sync.set({ definedGroups: updatedGroups });
     const groupState = await browser.storage.sync.get('groupState').then(r => r['groupState'] || {});
-    groupState[groupName] = { assignedMask: 0, assignedCount: 0 };
+    groupState[groupName] = { assignedMask: 0 };
     await browser.storage.sync.set({ groupState });
     return { success: true, newGroup: groupName };
 }
@@ -339,6 +339,7 @@ export async function subscribeToGroupDirect(groupName) {
     // const myBit = 1 << state.assignedCount;
 
     // Find the next available bit position by scanning the mask
+
     const bitPosition = getNextAvailableBitPosition(state.assignedMask);
 
     // Check if the group is full based on available bits
