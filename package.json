@@ -7,7 +7,7 @@
   "type": "module",
   "scripts": {
     "minify:js": "uglifyjs background.js -o background.min.js && uglifyjs utils.js -o utils.min.js && uglifyjs popup.js -o popup.min.js && uglifyjs options.js -o options.min.js && uglifyjs shared-ui.js -o shared-ui.min.js && uglifyjs theme.js -o theme.min.js && uglifyjs constants.js -o constants.min.js",
-    "minify:css": "cleancss -o styles.min.css styles.css && cleancss -o popup.min.css popup.css && cleancss -o options.min.css options.css && cleancss -o popup-Storos.min.css popup-Storos.css",
+    "minify:css": "cleancss -o styles.min.css styles.css && cleancss -o popup.min.css popup.css && cleancss -o options.min.css && cleancss -o popup-Storos.min.css popup-Storos.css",
     "minify:html": "html-minifier --collapse-whitespace --remove-comments --minify-css true --minify-js true -o popup.min.html popup.html && html-minifier --collapse-whitespace --remove-comments --minify-css true --minify-js true -o options.min.html options.html",
     "minify": "npm run minify:js && npm run minify:css && npm run minify:html",
     "npmbuild": "npm run minify",
