@@ -1,5 +1,5 @@
 import { STRINGS } from './constants.js';
-import { renderDeviceName, renderDeviceList, isAndroid, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, sendTabToGroupDirect, processIncomingTabs, getUnifiedState } from './utils.js';
+import { renderDeviceName, renderDeviceList, isAndroid, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, sendTabToGroupDirect, processIncomingTabs, getUnifiedState, showAndroidBanner, setLastSyncTime } from './utils.js';
 import { injectSharedUI } from './shared-ui.js';
 import { applyThemeFromStorage } from './theme.js';
 
@@ -44,10 +44,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             container.insertBefore(syncNowBtn, container.firstChild);
         }
         // Show Android banner and last sync time
-        import('./utils.js').then(utils => {
-            utils.showAndroidBanner(container, 'Note: On Firefox for Android, background processing is not available. Open this popup and tap "Sync Now" to process new tabs or changes.');
-            utils.setLastSyncTime(container, Date.now());
-        });
+        showAndroidBanner(container, 'Note: On Firefox for Android, background processing is not available. Open this popup and tap "Sync Now" to process new tabs or changes.');
+        setLastSyncTime(container, Date.now());
     }
     loadStatus();
 });
@@ -76,7 +74,7 @@ async function loadStatus() {
             await processIncomingTabsAndroid(state);
             // Show last sync time
             const container = document.querySelector('.container');
-            import('./utils.js').then(utils => utils.setLastSyncTime(container, Date.now()));
+            setLastSyncTime(container, Date.now());
             if (typeof browser.notifications !== 'undefined') {
                 await browser.notifications.create({
                     type: 'basic',

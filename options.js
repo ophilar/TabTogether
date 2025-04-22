@@ -1,7 +1,7 @@
 // options.js
 
 import { STRINGS } from './constants.js';
-import { renderDeviceName, renderGroupList, isAndroid, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, createGroupDirect, deleteGroupDirect, renameGroupDirect, renameDeviceDirect, deleteDeviceDirect, processIncomingTabs, getUnifiedState, subscribeToGroupUnified, unsubscribeFromGroupUnified } from './utils.js';
+import { renderDeviceName, renderGroupList, isAndroid, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, createGroupDirect, deleteGroupDirect, renameGroupDirect, renameDeviceDirect, deleteDeviceDirect, processIncomingTabs, getUnifiedState, subscribeToGroupUnified, unsubscribeFromGroupUnified, showAndroidBanner, setLastSyncTime } from './utils.js';
 import { injectSharedUI } from './shared-ui.js';
 import { applyThemeFromStorage, setupThemeDropdown } from './theme.js';
 
@@ -51,11 +51,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         androidMsg.style.marginBottom = '10px';
         androidMsg.textContent = 'Note: On Firefox for Android, background processing is not available. Open this page and tap "Sync Now" to process new tabs or changes.';
         container.insertBefore(androidMsg, syncNowBtn.nextSibling);
-        import('./utils.js').then(utils => {
-            utils.showAndroidBanner(container, 'Note: On Firefox for Android, background processing is not available. Open this page and tap "Sync Now" to process new tabs or changes.');
-            utils.setLastSyncTime(container, Date.now());
-            utils.showDebugInfo(container, currentState);
-        });
+        showAndroidBanner(container, 'Note: On Firefox for Android, background processing is not available. Open this page and tap "Sync Now" to process new tabs or changes.');
+        setLastSyncTime(container, Date.now());
+        showDebugInfo(container, currentState);
     }
     loadState();
 });
@@ -301,12 +299,8 @@ async function finishRenameDevice(deviceId, newName, li, nameSpan) {
     }
     showLoading(true);
     try {
-        let response;
-        if (await isAndroid()) {
-            response = await renameDeviceDirect(deviceId, newName);
-        } else {
-            response = await browser.runtime.sendMessage({ action: 'renameDevice', deviceId, newName });
-        }
+        const isAndroidPlatform = await isAndroid();
+        let response = await renameDeviceUnified(deviceId, newName, isAndroidPlatform);
         if (response.success) {
             showMessage(`Device renamed to "${newName}".`, false);
             await loadState();
