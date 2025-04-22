@@ -1,5 +1,9 @@
-global.crypto = { randomUUID: () => 'mock-uuid-1234' };
 import { jest } from '@jest/globals';
+jest.mock('crypto', () => ({
+  randomUUID: () => 'mock-uuid-1234'
+}));
+
+global.crypto = { randomUUID: () => 'mock-uuid-1234' };
 import * as utils from '../utils.js';
 
 // Persistent in-memory mock for browser.storage

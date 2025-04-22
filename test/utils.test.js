@@ -1,11 +1,10 @@
-global.crypto = { randomUUID: () => 'mock-uuid-1234' };
-import crypto from 'crypto';
-globalThis.crypto = crypto;
-
-// Patch global.crypto before importing anything else
-import './setup.js';
 import { jest } from '@jest/globals';
+jest.unstable_mockModule('crypto', () => ({
+  default: { randomUUID: () => 'mock-uuid-1234' }
+}));
+
 import * as utils from '../utils.js';
+import './setup.js';
 import '../test/setup.js';
 
 // Persistent in-memory mock for browser.storage

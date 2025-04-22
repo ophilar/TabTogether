@@ -1,4 +1,4 @@
-import NodeEnvironment from 'jest-environment-jsdom/environment';
+const NodeEnvironment = require('jest-environment-jsdom');
 
 class CustomCryptoEnvironment extends NodeEnvironment {
   async setup() {
@@ -9,4 +9,4 @@ class CustomCryptoEnvironment extends NodeEnvironment {
   }
 }
 
-export default CustomCryptoEnvironment;
+module.exports = CustomCryptoEnvironment;
