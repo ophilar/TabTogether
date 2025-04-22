@@ -2,14 +2,14 @@
 
 import { STRINGS } from './constants.js';
 
-const SYNC_STORAGE_KEYS = {
+export const SYNC_STORAGE_KEYS = {
     DEFINED_GROUPS: 'definedGroups', // string[]
-    GROUP_STATE: 'groupState',       // { [groupName: string]: { assignedMask: number, assignedCount: number } }
+    GROUP_STATE: 'groupState',       // { [groupName: string]: { assignedMask: number } }
     GROUP_TASKS: 'groupTasks',       // { [groupName: string]: { [taskId: string]: { url: string, title: string, processedMask: number, creationTimestamp: number } } }
     DEVICE_REGISTRY: 'deviceRegistry' // { [deviceUUID: string]: { name: string, lastSeen: number, groupBits: { [groupName: string]: number } } }
 };
 
-const LOCAL_STORAGE_KEYS = {
+export const LOCAL_STORAGE_KEYS = {
     INSTANCE_ID: 'myInstanceId',         // string (UUID)
     INSTANCE_NAME: 'myInstanceName',     // string
     SUBSCRIPTIONS: 'mySubscriptions',    // string[]
@@ -17,7 +17,7 @@ const LOCAL_STORAGE_KEYS = {
     PROCESSED_TASKS: 'processedTaskIds' // { [taskId: string]: boolean }
 };
 
-const MAX_DEVICES_PER_GROUP = 15; // Using 16-bit integers safely (bit 0 to 15)
+export const MAX_DEVICES_PER_GROUP = 15; // Using 16-bit integers safely (bit 0 to 15)
 
 export async function isAndroid() {
     try {
@@ -335,9 +335,7 @@ export async function subscribeToGroupDirect(groupName) {
     if (subscriptions.includes(groupName)) return { success: false, message: 'Already subscribed.' };
     const groupState = await browser.storage.sync.get('groupState').then(r => r['groupState'] || {});
     const state = groupState[groupName] || { assignedMask: 0, assignedCount: 0 };
-    // if (state.assignedCount >= 15) return { success: false, message: 'Group is full.' };
-    // const myBit = 1 << state.assignedCount;
-
+    
     // Find the next available bit position by scanning the mask
 
     const bitPosition = getNextAvailableBitPosition(state.assignedMask);
@@ -351,7 +349,6 @@ export async function subscribeToGroupDirect(groupName) {
     const myBit = 1 << bitPosition;
 
     state.assignedMask |= myBit;
-    // state.assignedCount++;
     groupState[groupName] = state;
     await browser.storage.sync.set({ groupState });
     subscriptions.push(groupName);
@@ -607,4 +604,7 @@ export async function getUnifiedState(isAndroidPlatform) {
     }
 }
 
-export { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, MAX_DEVICES_PER_GROUP };
+// Apply batched sync updates for processed tasks
+if (Object.keys(groupTasksUpdates).length > 0) {
+    await mergeSyncStorage(SYNC_STORAGE_KEYS.GROUP_TASKS, groupTasksUpdates);
+}
