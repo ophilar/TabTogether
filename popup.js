@@ -1,5 +1,5 @@
 import { STRINGS } from './constants.js';
-import { renderDeviceName, renderDeviceList, isAndroid, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, sendTabToGroupDirect } from './utils.js';
+import { renderDeviceName, renderDeviceList, isAndroid, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, sendTabToGroupDirect, processIncomingTabs } from './utils.js';
 import { injectSharedUI } from './shared-ui.js';
 import { applyThemeFromStorage } from './theme.js';
 
@@ -115,40 +115,11 @@ async function loadStatus() {
 }
 
 async function processIncomingTabsAndroid(state) {
-    // This is a simplified version; you may want to deduplicate with background.js logic
-    if (!state || !state.definedGroups || !state.groupBits || !state.subscriptions) return;
-    const groupTasks = await browser.storage.sync.get(SYNC_STORAGE_KEYS.GROUP_TASKS).then(r => r[SYNC_STORAGE_KEYS.GROUP_TASKS] || {});
-    let localProcessedTasks = await browser.storage.local.get(LOCAL_STORAGE_KEYS.PROCESSED_TASKS).then(r => r[LOCAL_STORAGE_KEYS.PROCESSED_TASKS] || {});
-    let processedTasksUpdateBatch = {};
-    for (const groupName of state.subscriptions) {
-        const myBit = state.groupBits[groupName];
-        if (!myBit) continue;
-        if (!groupTasks[groupName]) continue;
-        for (const taskId in groupTasks[groupName]) {
-            const task = groupTasks[groupName][taskId];
-            if (!localProcessedTasks[taskId] && !((task.processedMask & myBit) === myBit)) {
-                try {
-                    await browser.tabs.create({ url: task.url, active: false });
-                } catch (e) {
-                    // Ignore tab open errors
-                }
-                processedTasksUpdateBatch[taskId] = true;
-                // Mark as processed in sync
-                const newProcessedMask = task.processedMask | myBit;
-                const taskUpdate = { [groupName]: { [taskId]: { processedMask: newProcessedMask } } };
-                await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.GROUP_TASKS]: {
-                    ...groupTasks,
-                    [groupName]: {
-                        ...groupTasks[groupName],
-                        [taskId]: { ...task, processedMask: newProcessedMask }
-                    }
-                }});
-            }
-        }
-    }
-    if (Object.keys(processedTasksUpdateBatch).length > 0) {
-        await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.PROCESSED_TASKS]: { ...localProcessedTasks, ...processedTasksUpdateBatch } });
-    }
+    await processIncomingTabs(
+        state,
+        async (url) => { await browser.tabs.create({ url, active: false }); },
+        async (updated) => { await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.PROCESSED_TASKS]: updated }); }
+    );
 }
 
 function renderDeviceNameUI(name) {
