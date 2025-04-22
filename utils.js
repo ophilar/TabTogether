@@ -528,4 +528,4 @@ export async function deleteDeviceDirect(deviceId) {
     return { success: true };
 }
 
-export { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, MAX_DEVICES_PER_GROUP };
+// export { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, MAX_DEVICES_PER_GROUP };
