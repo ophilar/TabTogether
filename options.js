@@ -1,7 +1,7 @@
 // options.js
 
 import { STRINGS } from './constants.js';
-import { renderDeviceName, renderGroupList, isAndroid, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, createGroupDirect, deleteGroupDirect, renameGroupDirect, renameDeviceDirect, deleteDeviceDirect, processIncomingTabs, getUnifiedState, subscribeToGroupUnified, unsubscribeFromGroupUnified, showAndroidBanner, setLastSyncTime, getFromStorage, setInStorage, debounce } from './utils.js';
+import { renderDeviceName, renderGroupList, isAndroid, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, createGroupDirect, deleteGroupDirect, renameGroupDirect, renameDeviceDirect, deleteDeviceDirect, processIncomingTabs, getUnifiedState, subscribeToGroupUnified, unsubscribeFromGroupUnified, showAndroidBanner, setLastSyncTime, getFromStorage, setInStorage, debounce, showError } from './utils.js';
 import { injectSharedUI } from './shared-ui.js';
 import { applyThemeFromStorage, setupThemeDropdown } from './theme.js';
 
@@ -32,7 +32,7 @@ const syncNowBtn = document.createElement('button');
 syncNowBtn.textContent = 'Sync Now';
 syncNowBtn.className = 'send-group-btn';
 syncNowBtn.style.marginBottom = '10px';
-syncNowBtn.style.width = '100%';
+syncNowBtn.style.width = '100%'; // Ensure unit is present
 syncNowBtn.addEventListener('click', async () => {
     await loadState();
 });
@@ -482,58 +482,50 @@ dom.editNameBtn.addEventListener('click', () => {
     dom.editNameInputDiv.style.display = 'flex';
     dom.newInstanceNameInput.focus();
     dom.newInstanceNameInput.select();
-    // Enable save button only if name changes
     dom.saveNameBtn.disabled = true;
 });
 
 dom.cancelNameBtn.addEventListener('click', () => {
     dom.deviceNameDisplay.style.display = 'inline';
-    dom.editNameBtn.style.display = 'inline-block'; // Or 'inline'
+    dom.editNameBtn.style.display = 'inline-block';
     dom.editNameInputDiv.style.display = 'none';
-    dom.newInstanceNameInput.value = currentState.instanceName || ''; // Reset input
-    dom.saveNameBtn.disabled = true; // Reset save button state
+    dom.newInstanceNameInput.value = currentState.instanceName || '';
+    dom.saveNameBtn.disabled = true;
 });
 
 dom.newInstanceNameInput.addEventListener('input', () => {
-    // Enable save button only if the name is different from the current one and not empty
     const newName = dom.newInstanceNameInput.value.trim();
     dom.saveNameBtn.disabled = (newName === currentState.instanceName || newName === '');
 });
 
 dom.saveNameBtn.addEventListener('click', async () => {
     const newName = dom.newInstanceNameInput.value.trim();
-    if (newName === '' || newName === currentState.instanceName) return; // Should be disabled, but double-check
-
+    if (newName === '' || newName === currentState.instanceName) return;
     showLoading(true);
     clearMessage();
     try {
         const response = await browser.runtime.sendMessage({ action: 'setInstanceName', name: newName });
         if (response.success) {
-            // --- Optimization: Update local cache and re-render ---
-            currentState.instanceName = response.newName; // Update cache
-            renderDeviceNameUI(); // Re-render device name section
+            currentState.instanceName = response.newName;
+            renderDeviceNameUI();
             showMessage(STRINGS.saveNameSuccess, false);
-            // --- End Optimization ---
-            // Hide edit UI
-            dom.cancelNameBtn.click(); // Simulate cancel click to hide input
+            dom.cancelNameBtn.click(); // Always reset UI after save
         } else {
             showError(response.message || STRINGS.saveNameFailed, dom.messageArea);
+            // Reset UI even on error
+            dom.cancelNameBtn.click();
         }
     } catch (error) {
         showError(STRINGS.saveNameFailed + ': ' + error.message, dom.messageArea);
+        dom.cancelNameBtn.click();
     } finally {
         showLoading(false);
     }
 });
 
 dom.newGroupNameInput.addEventListener('input', debounce(function (e) {
-    // Example: live-validate group name and update UI
     const value = e.target.value.trim();
-    const createBtn = document.getElementById('createGroupBtn');
-    if (createBtn) {
-        createBtn.disabled = value.length === 0;
-    }
-    // Optionally, show validation feedback here
+    dom.createGroupBtn.disabled = value.length === 0;
 }, 250));
 
 dom.createGroupBtn.addEventListener('click', async () => {
@@ -549,11 +541,7 @@ dom.createGroupBtn.addEventListener('click', async () => {
             response = await browser.runtime.sendMessage({ action: 'createGroup', groupName: groupName });
         }
         if (response.success) {
-            if (!currentState.definedGroups.includes(response.newGroup)) {
-                currentState.definedGroups.push(response.newGroup);
-                currentState.definedGroups.sort();
-            }
-            renderDefinedGroups();
+            await loadState(); // Always reload state after group creation
             showMessage(STRINGS.groupCreateSuccess(response.newGroup), false);
             dom.newGroupNameInput.value = '';
             dom.createGroupBtn.disabled = true;
