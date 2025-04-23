@@ -458,6 +458,46 @@ browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
     }
 });
 
+// Handle device removal from all groups and registry
+browser.runtime.onMessage.addListener(async (msg, sender, sendResponse) => {
+    if (msg.action === 'deleteDevice') {
+        try {
+            const deviceId = msg.deviceId;
+            const deviceRegistry = await getFromStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
+            if (!deviceRegistry[deviceId]) return sendResponse({ success: false, message: 'Device not found.' });
+            const groupBits = deviceRegistry[deviceId].groupBits || {};
+            delete deviceRegistry[deviceId];
+            await setInStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, deviceRegistry);
+            // Remove device's bit from all groupState.assignedMask
+            const groupState = await getFromStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {});
+            let groupStateChanged = false;
+            for (const groupName in groupBits) {
+                const bit = groupBits[groupName];
+                if (groupState[groupName] && bit !== undefined) {
+                    const currentMask = groupState[groupName].assignedMask;
+                    const newMask = currentMask & ~bit;
+                    if (newMask !== currentMask) {
+                        groupState[groupName].assignedMask = newMask;
+                        groupStateChanged = true;
+                    }
+                }
+            }
+            if (groupStateChanged) {
+                await setInStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, groupState);
+            }
+            // Remove local data if this is the current device
+            const localId = await getFromStorage(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID);
+            if (deviceId === localId) {
+                await setInStorage(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
+                await setInStorage(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {});
+            }
+            sendResponse({ success: true });
+        } catch (e) {
+            sendResponse({ success: false, message: e.message });
+        }
+        return true;
+    }
+});
 
 // --- Helper for Bit Assignment (Refactored for bit reuse, no assignedCount) ---
 async function assignBitForGroup(groupName, localInstanceId, localGroupBits, cachedGroupState, cachedDeviceRegistry) {
