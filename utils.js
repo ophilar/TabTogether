@@ -329,19 +329,13 @@ export function showDebugInfo(container, state) {
 }
 
 // Export direct storage helpers for tests and Android logic
+// Refactor createGroupDirect to use addToList
 export async function createGroupDirect(groupName) {
-    const updatedGroups = await updateListInStorage(
-        browser.storage.sync,
-        'definedGroups',
-        (groups) => {
-            if (groups.includes(groupName)) return groups;
-            return [...groups, groupName].sort();
-        }
-    );
-    const groupState = await getFromStorage(browser.storage.sync, 'groupState', {});
+    await addToList(browser.storage.sync, 'definedGroups', groupName);
+    const groupState = await storage.get(browser.storage.sync, 'groupState', {});
     if (!groupState[groupName]) {
         groupState[groupName] = { assignedMask: 0 };
-        await setInStorage(browser.storage.sync, 'groupState', groupState);
+        await storage.set(browser.storage.sync, 'groupState', groupState);
     }
     return { success: true, newGroup: groupName };
 }
@@ -417,108 +411,44 @@ export async function sendTabToGroupDirect(groupName, tabData) {
     return await createAndStoreGroupTask(groupName, tabData, senderBit);
 }
 
+// Refactor deleteGroupDirect to use removeFromList and removeObjectKey
 export async function deleteGroupDirect(groupName) {
-    await updateListInStorage(
-        browser.storage.sync,
-        'definedGroups',
-        (groups) => groups.filter(g => g !== groupName)
-    );
-    await updateObjectInStorage(
-        browser.storage.sync,
-        'groupState',
-        (state) => { delete state[groupName]; return state; }
-    );
-    await updateObjectInStorage(
-        browser.storage.sync,
-        'groupTasks',
-        (tasks) => { delete tasks[groupName]; return tasks; }
-    );
-    await updateObjectInStorage(
-        browser.storage.sync,
-        'deviceRegistry',
-        (registry) => {
-            for (const deviceId in registry) {
-                if (registry[deviceId]?.groupBits?.[groupName] !== undefined) {
-                    delete registry[deviceId].groupBits[groupName];
-                }
-            }
-            return registry;
+    await removeFromList(browser.storage.sync, 'definedGroups', groupName);
+    await removeObjectKey(browser.storage.sync, 'groupState', groupName);
+    await removeObjectKey(browser.storage.sync, 'groupTasks', groupName);
+    // Remove groupBits from all devices in registry
+    const registry = await storage.get(browser.storage.sync, 'deviceRegistry', {});
+    for (const deviceId in registry) {
+        if (registry[deviceId]?.groupBits?.[groupName] !== undefined) {
+            delete registry[deviceId].groupBits[groupName];
         }
-    );
-    await updateListInStorage(
-        browser.storage.local,
-        'mySubscriptions',
-        (subs) => subs.filter(g => g !== groupName)
-    );
-    await updateObjectInStorage(
-        browser.storage.local,
-        'myGroupBits',
-        (bits) => { delete bits[groupName]; return bits; }
-    );
+    }
+    await storage.set(browser.storage.sync, 'deviceRegistry', registry);
+    await removeFromList(browser.storage.local, 'mySubscriptions', groupName);
+    await removeObjectKey(browser.storage.local, 'myGroupBits', groupName);
     return { success: true, deletedGroup: groupName };
 }
 
+// Refactor renameGroupDirect to use renameInList and updateObjectKey
 export async function renameGroupDirect(oldName, newName) {
-    const definedGroups = await getFromStorage(browser.storage.sync, 'definedGroups', []);
+    const definedGroups = await storage.get(browser.storage.sync, 'definedGroups', []);
     if (!definedGroups.includes(oldName)) return { success: false, message: 'Group does not exist.' };
     if (definedGroups.includes(newName)) return { success: false, message: 'A group with that name already exists.' };
-    await updateListInStorage(
-        browser.storage.sync,
-        'definedGroups',
-        (groups) => groups.map(g => g === oldName ? newName : g)
-    );
-    await updateObjectInStorage(
-        browser.storage.sync,
-        'groupState',
-        (state) => {
-            if (state[oldName]) {
-                state[newName] = state[oldName];
-                delete state[oldName];
-            }
-            return state;
+    await renameInList(browser.storage.sync, 'definedGroups', oldName, newName);
+    await updateObjectKey(browser.storage.sync, 'groupState', oldName, newName);
+    await updateObjectKey(browser.storage.sync, 'groupTasks', oldName, newName);
+    // Update groupBits in all devices in registry
+    const registry = await storage.get(browser.storage.sync, 'deviceRegistry', {});
+    for (const deviceId in registry) {
+        if (registry[deviceId]?.groupBits?.[oldName] !== undefined) {
+            const bit = registry[deviceId].groupBits[oldName];
+            delete registry[deviceId].groupBits[oldName];
+            registry[deviceId].groupBits[newName] = bit;
         }
-    );
-    await updateObjectInStorage(
-        browser.storage.sync,
-        'groupTasks',
-        (tasks) => {
-            if (tasks[oldName]) {
-                tasks[newName] = tasks[oldName];
-                delete tasks[oldName];
-            }
-            return tasks;
-        }
-    );
-    await updateObjectInStorage(
-        browser.storage.sync,
-        'deviceRegistry',
-        (registry) => {
-            for (const deviceId in registry) {
-                if (registry[deviceId]?.groupBits?.[oldName] !== undefined) {
-                    const bit = registry[deviceId].groupBits[oldName];
-                    delete registry[deviceId].groupBits[oldName];
-                    registry[deviceId].groupBits[newName] = bit;
-                }
-            }
-            return registry;
-        }
-    );
-    await updateObjectInStorage(
-        browser.storage.local,
-        'myGroupBits',
-        (bits) => {
-            if (bits[oldName] !== undefined) {
-                bits[newName] = bits[oldName];
-                delete bits[oldName];
-            }
-            return bits;
-        }
-    );
-    await updateListInStorage(
-        browser.storage.local,
-        'mySubscriptions',
-        (subs) => subs.map(g => g === oldName ? newName : g)
-    );
+    }
+    await storage.set(browser.storage.sync, 'deviceRegistry', registry);
+    await updateObjectKey(browser.storage.local, 'myGroupBits', oldName, newName);
+    await renameInList(browser.storage.local, 'mySubscriptions', oldName, newName);
     return { success: true };
 }
 
@@ -806,3 +736,105 @@ export async function performTimeBasedTaskCleanup(localProcessedTasks) {
     }
     console.log("Time-based task cleanup complete.");
 }
+
+// --- Unified Storage Utility ---
+export const storage = {
+    async get(area, key, defaultValue = null) {
+        try {
+            const { [key]: valueRaw } = await area.get(key);
+            let value = valueRaw ?? defaultValue;
+            // Type validation for known keys
+            if (key === LOCAL_STORAGE_KEYS.GROUP_BITS || key === SYNC_STORAGE_KEYS.GROUP_STATE || key === SYNC_STORAGE_KEYS.DEVICE_REGISTRY) {
+                value = ensureObject(value, defaultValue ?? {});
+            } else if (key === LOCAL_STORAGE_KEYS.SUBSCRIPTIONS || key === SYNC_STORAGE_KEYS.DEFINED_GROUPS) {
+                value = ensureArray(value, defaultValue ?? []);
+            } else if (key === LOCAL_STORAGE_KEYS.INSTANCE_ID || key === LOCAL_STORAGE_KEYS.INSTANCE_NAME) {
+                value = ensureString(value, defaultValue ?? '');
+            }
+            return value;
+        } catch (e) {
+            console.error(`Error getting ${key}:`, e);
+            return defaultValue;
+        }
+    },
+    async set(area, key, value) {
+        try {
+            await area.set({ [key]: value });
+            return true;
+        } catch (e) {
+            console.error(`Error setting ${key}:`, e);
+            return false;
+        }
+    },
+    async merge(area, key, updates) {
+        try {
+            const currentData = await this.get(area, key, {});
+            const mergedData = deepMerge(currentData, updates);
+            await area.set({ [key]: mergedData });
+            return true;
+        } catch (error) {
+            console.error(`Error merging ${key}:`, error, 'Updates:', updates);
+            return false;
+        }
+    }
+};
+
+// --- Generic Group/Device Logic Helpers ---
+export async function addToList(area, key, value) {
+    const list = await storage.get(area, key, []);
+    if (!list.includes(value)) {
+        list.push(value);
+        list.sort();
+        await storage.set(area, key, list);
+    }
+    return list;
+}
+
+export async function removeFromList(area, key, value) {
+    const list = await storage.get(area, key, []);
+    const updated = list.filter(item => item !== value);
+    await storage.set(area, key, updated);
+    return updated;
+}
+
+export async function renameInList(area, key, oldValue, newValue) {
+    const list = await storage.get(area, key, []);
+    const updated = list.map(item => item === oldValue ? newValue : item);
+    await storage.set(area, key, updated);
+    return updated;
+}
+
+export async function updateObjectKey(area, key, oldProp, newProp) {
+    const obj = await storage.get(area, key, {});
+    if (obj[oldProp]) {
+        obj[newProp] = obj[oldProp];
+        delete obj[oldProp];
+        await storage.set(area, key, obj);
+    }
+    return obj;
+}
+
+export async function removeObjectKey(area, key, prop) {
+    const obj = await storage.get(area, key, {});
+    if (obj[prop]) {
+        delete obj[prop];
+        await storage.set(area, key, obj);
+    }
+    return obj;
+}
+
+// --- Minimal State Management ---
+export const globalState = {
+    state: {},
+    listeners: [],
+    setState(partial) {
+        this.state = { ...this.state, ...partial };
+        this.listeners.forEach(fn => fn(this.state));
+    },
+    subscribe(fn) {
+        this.listeners.push(fn);
+        return () => {
+            this.listeners = this.listeners.filter(l => l !== fn);
+        };
+    }
+};
