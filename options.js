@@ -142,6 +142,57 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
+// Onboarding steps content
+const onboardingSteps = [
+  {
+    title: 'Welcome to TabTogether!',
+    content: '<p>TabTogether lets you send tabs to groups of devices instantly. This onboarding will guide you through the main features.</p>'
+  },
+  {
+    title: 'Device Settings',
+    content: '<p>Set your device name and icon. This helps you identify your devices in groups and the registry.</p>'
+  },
+  {
+    title: 'Groups',
+    content: '<p>Create, rename, and delete groups. Subscribe your devices to groups to send tabs between them.</p>'
+  },
+  {
+    title: 'Notifications & Sync',
+    content: '<p>Customize notification sound and duration. Use manual or auto-sync to keep your devices up to date.</p>'
+  },
+  {
+    title: 'Help & About',
+    content: '<p>Find more help in the Help/About section or on the project page. You can always reopen this onboarding from the link at the bottom of the settings page.</p>'
+  }
+];
+
+let onboardingStep = 0;
+const onboardingModal = document.getElementById('onboardingModal');
+const onboardingStepContent = document.getElementById('onboardingStepContent');
+const onboardingPrevBtn = document.getElementById('onboardingPrevBtn');
+const onboardingNextBtn = document.getElementById('onboardingNextBtn');
+const onboardingCloseBtn = document.getElementById('onboardingCloseBtn');
+const openOnboardingLink = document.getElementById('openOnboardingLink');
+
+function showOnboardingStep(idx) {
+  onboardingStep = idx;
+  const step = onboardingSteps[onboardingStep];
+  onboardingStepContent.innerHTML = `<h2 style='margin-top:0;'>${step.title}</h2>${step.content}`;
+  onboardingPrevBtn.disabled = onboardingStep === 0;
+  onboardingNextBtn.disabled = onboardingStep === onboardingSteps.length - 1;
+}
+
+if (openOnboardingLink) {
+  openOnboardingLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    onboardingModal.classList.remove('hidden');
+    showOnboardingStep(0);
+  });
+}
+if (onboardingPrevBtn) onboardingPrevBtn.onclick = () => showOnboardingStep(Math.max(0, onboardingStep - 1));
+if (onboardingNextBtn) onboardingNextBtn.onclick = () => showOnboardingStep(Math.min(onboardingSteps.length - 1, onboardingStep + 1));
+if (onboardingCloseBtn) onboardingCloseBtn.onclick = () => onboardingModal.classList.add('hidden');
+
 // --- State Loading and Rendering ---
 
 async function getStateDirectly() {

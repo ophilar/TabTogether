@@ -61,6 +61,17 @@ dom.refreshLink.addEventListener('click', (e) => {
     loadStatus();
 });
 
+// Minimalist details toggle logic
+const toggleDetailsBtn = document.getElementById('toggleDetailsBtn');
+const popupDetails = document.getElementById('popupDetails');
+if (toggleDetailsBtn && popupDetails) {
+  toggleDetailsBtn.addEventListener('click', () => {
+    popupDetails.classList.toggle('hidden');
+    toggleDetailsBtn.setAttribute('aria-label', popupDetails.classList.contains('hidden') ? 'Show details' : 'Hide details');
+    toggleDetailsBtn.setAttribute('title', popupDetails.classList.contains('hidden') ? 'Show device info' : 'Hide device info');
+  });
+}
+
 // --- Load and Render Status ---
 let syncing = false;
 async function loadStatus() {
