@@ -3,15 +3,18 @@ import { renderDeviceName, renderDeviceList, isAndroid, SYNC_STORAGE_KEYS, LOCAL
 import { injectSharedUI } from './shared-ui.js';
 import { applyThemeFromStorage } from './theme.js';
 
-const deviceNameSpan = document.getElementById('deviceName');
-const sendTabGroupsList = document.getElementById('sendTabGroupsList');
-const sendTabStatus = document.getElementById('sendTabStatus');
-// const mySubscriptionsList = document.getElementById('mySubscriptionsList');
-const deviceRegistryList = document.getElementById('deviceRegistryList');
-const openOptionsLink = document.getElementById('openOptionsLink');
-const refreshLink = document.getElementById('refreshLink');
-const loadingIndicator = document.getElementById('loadingIndicator');
-const errorMessageDiv = document.getElementById('errorMessage');
+// Cache DOM elements at the top for repeated use
+const dom = {
+    deviceNameSpan: document.getElementById('deviceName'),
+    sendTabGroupsList: document.getElementById('sendTabGroupsList'),
+    sendTabStatus: document.getElementById('sendTabStatus'),
+    deviceRegistryList: document.getElementById('deviceRegistryList'),
+    openOptionsLink: document.getElementById('openOptionsLink'),
+    refreshLink: document.getElementById('refreshLink'),
+    loadingIndicator: document.getElementById('loadingIndicator'),
+    errorMessageDiv: document.getElementById('errorMessage'),
+    subscriptionsUl: document.getElementById('subscriptionsUl')
+};
 
 let localInstanceId = null;
 
@@ -49,11 +52,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     loadStatus();
 });
-openOptionsLink.addEventListener('click', (e) => {
+dom.openOptionsLink.addEventListener('click', (e) => {
     e.preventDefault();
     browser.runtime.openOptionsPage();
 });
-refreshLink.addEventListener('click', (e) => {
+dom.refreshLink.addEventListener('click', (e) => {
     e.preventDefault();
     loadStatus();
 });
@@ -66,7 +69,7 @@ async function loadStatus() {
         syncing = true;
     }
     showLoading(true);
-    errorMessageDiv.classList.add('hidden');
+    dom.errorMessageDiv.classList.add('hidden');
     try {
         const isAndroidPlatform = await isAndroid();
         let state = await getUnifiedState(isAndroidPlatform);
@@ -92,13 +95,12 @@ async function loadStatus() {
         showLoading(false);
     } catch (error) {
         if (await isAndroid()) {
-            errorMessageDiv.textContent = "This extension may have limited functionality on Firefox for Android. Try reopening the popup or restarting the browser if you see this error.";
+            showError("This extension may have limited functionality on Firefox for Android. Try reopening the popup or restarting the browser if you see this error.", dom.errorMessageDiv);
         } else {
-            errorMessageDiv.textContent = STRINGS.loadingSettingsError(error.message);
+            showError(STRINGS.loadingSettingsError(error.message), dom.errorMessageDiv);
         }
-        errorMessageDiv.classList.remove('hidden');
-        deviceNameSpan.textContent = STRINGS.error;
-        sendTabGroupsList.textContent = error.message;
+        dom.deviceNameSpan.textContent = STRINGS.error;
+        dom.sendTabGroupsList.textContent = error.message;
         showLoading(false);
     } finally {
         if (await isAndroid()) {
@@ -117,11 +119,11 @@ async function processIncomingTabsAndroid(state) {
 }
 
 function renderDeviceNameUI(name) {
-    renderDeviceName(deviceNameSpan, name);
+    renderDeviceName(dom.deviceNameSpan, name);
 }
 
 function renderSubscriptionsUI(subscriptions) {
-    const ul = document.getElementById('subscriptionsUl');
+    const ul = dom.subscriptionsUl;
     ul.innerHTML = '';
     if (!subscriptions || subscriptions.length === 0) {
         const li = document.createElement('li');
@@ -137,12 +139,12 @@ function renderSubscriptionsUI(subscriptions) {
 }
 
 function renderSendTabGroups(groups) {
-    sendTabGroupsList.innerHTML = '';
+    dom.sendTabGroupsList.innerHTML = '';
     if (!groups || groups.length === 0) {
         const div = document.createElement('div');
         div.className = 'small-text';
         div.textContent = STRINGS.noGroups;
-        sendTabGroupsList.appendChild(div);
+        dom.sendTabGroupsList.appendChild(div);
         return;
     }
     groups.sort().forEach(groupName => {
@@ -166,12 +168,12 @@ function renderSendTabGroups(groups) {
         btn.addEventListener('click', () => sendTabToGroup(groupName));
         groupDiv.appendChild(label);
         groupDiv.appendChild(btn);
-        sendTabGroupsList.appendChild(groupDiv);
+        dom.sendTabGroupsList.appendChild(groupDiv);
     });
 }
 
 function renderRegistry(deviceRegistry) {
-    renderDeviceList(deviceRegistryList, deviceRegistry, localInstanceId);
+    renderDeviceList(dom.deviceRegistryList, deviceRegistry, localInstanceId);
 }
 
 async function sendTabToGroup(groupName) {
@@ -205,17 +207,22 @@ async function sendTabToGroup(groupName) {
 }
 
 function showSendStatus(message, isError) {
-    sendTabStatus.textContent = message;
-    sendTabStatus.classList.remove('hidden');
-    sendTabStatus.classList.toggle('error-message', isError);
-    sendTabStatus.classList.toggle('success-message', !isError);
-    setTimeout(() => { sendTabStatus.classList.add('hidden'); }, 3000);
+    dom.sendTabStatus.textContent = message;
+    dom.sendTabStatus.classList.remove('hidden');
+    dom.sendTabStatus.classList.toggle('error-message', isError);
+    dom.sendTabStatus.classList.toggle('success-message', !isError);
+    setTimeout(() => { dom.sendTabStatus.classList.add('hidden'); }, 3000);
 }
 
 function showLoading(isLoading) {
     if (isLoading) {
-        loadingIndicator.classList.remove('hidden');
+        dom.loadingIndicator.classList.remove('hidden');
     } else {
-        loadingIndicator.classList.add('hidden');
+        dom.loadingIndicator.classList.add('hidden');
     }
+}
+
+function showError(message, errorMessageDiv) {
+    errorMessageDiv.textContent = message;
+    errorMessageDiv.classList.remove('hidden');
 }

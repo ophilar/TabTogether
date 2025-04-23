@@ -29,22 +29,15 @@ export async function isAndroid() {
 }
 
 // --- Type Safety and Validation Helpers ---
-function ensureObject(val, fallback = {}) {
-    return (val && typeof val === 'object' && !Array.isArray(val)) ? val : fallback;
-}
-function ensureArray(val, fallback = []) {
-    return Array.isArray(val) ? val : fallback;
-}
-function ensureString(val, fallback = '') {
-    return typeof val === 'string' ? val : fallback;
-}
+const ensureObject = (val, fallback = {}) => (val && typeof val === 'object' && !Array.isArray(val)) ? val : fallback;
+const ensureArray = (val, fallback = []) => Array.isArray(val) ? val : fallback;
+const ensureString = (val, fallback = '') => typeof val === 'string' ? val : fallback;
 
 // --- Storage Access Helpers ---
 export async function getFromStorage(area, key, defaultValue = null) {
     try {
-        const result = await area.get(key);
-        let value = result?.[key] ?? defaultValue;
-        // Type validation for known keys
+        const { [key]: valueRaw } = await area.get(key);
+        let value = valueRaw ?? defaultValue;
         if (key === LOCAL_STORAGE_KEYS.GROUP_BITS || key === SYNC_STORAGE_KEYS.GROUP_STATE || key === SYNC_STORAGE_KEYS.DEVICE_REGISTRY) {
             value = ensureObject(value, defaultValue ?? {});
         } else if (key === LOCAL_STORAGE_KEYS.SUBSCRIPTIONS || key === SYNC_STORAGE_KEYS.DEFINED_GROUPS) {
@@ -92,7 +85,7 @@ export async function mergeSyncStorage(key, updates) {
 }
 
 // Simple deep merge utility (adjust if complex array merging is needed)
-export function deepMerge(target, source) {
+export const deepMerge = (target, source) => {
     const output = { ...target };
     if (isObject(target) && isObject(source)) {
         Object.keys(source).forEach(key => {
@@ -121,9 +114,7 @@ export function deepMerge(target, source) {
     return output;
 }
 
-export function isObject(item) {
-    return !!item && typeof item === 'object' && !Array.isArray(item);
-}
+export const isObject = item => !!item && typeof item === 'object' && !Array.isArray(item);
 
 // --- Instance ID/Name ---
 // Store device name and ID in both local and sync storage for persistence
@@ -164,7 +155,7 @@ export async function getInstanceName() {
 }
 
 // --- Bitmask Helpers ---
-export function getNextAvailableBitPosition(mask) {
+export const getNextAvailableBitPosition = mask => {
     for (let i = 0; i < MAX_DEVICES_PER_GROUP; i++) {
         if (!((mask >> i) & 1)) { // Check if bit i is 0
             return i;
@@ -199,7 +190,7 @@ export function renderDeviceList(container, devices, highlightId = null) {
 }
 
 // --- Simple HTML template utility for rendering repeated DOM blocks ---
-function html(strings, ...values) {
+const html = (strings, ...values) => {
     const template = document.createElement('template');
     template.innerHTML = strings.reduce((acc, str, i) => acc + str + (values[i] ?? ''), '');
     return template.content.cloneNode(true);
@@ -250,11 +241,11 @@ export function renderGroupList(container, groups, subscriptions, onSubscribe, o
     container.appendChild(ul);
 }
 
-export function renderDeviceName(container, name) {
+export const renderDeviceName = (container, name) => {
     container.textContent = name || STRINGS.deviceNameNotSet;
 }
 
-export function renderSubscriptions(container, subscriptions) {
+export const renderSubscriptions = (container, subscriptions) => {
     if (!subscriptions || subscriptions.length === 0) {
         container.textContent = STRINGS.notSubscribed;
         return;
@@ -277,7 +268,7 @@ export async function isDesktop() {
 }
 
 // Utility: Show Android banner
-export function showAndroidBanner(container, msg) {
+export const showAndroidBanner = (container, msg) => {
     let banner = container.querySelector('.android-banner');
     if (!banner) {
         banner = document.createElement('div');
@@ -294,7 +285,7 @@ export function showAndroidBanner(container, msg) {
 }
 
 // Utility: Last sync time
-export function setLastSyncTime(container, date) {
+export const setLastSyncTime = (container, date) => {
     let syncDiv = container.querySelector('.last-sync-time');
     if (!syncDiv) {
         syncDiv = document.createElement('div');
@@ -323,13 +314,13 @@ export function showDebugInfo(container, state) {
     title.textContent = 'Debug Info';
     debugDiv.appendChild(title);
     debugDiv.appendChild(document.createElement('br'));
-    function addLine(label, value) {
+    const addLine = (label, value) => {
         const line = document.createElement('div');
-        line.textContent = `${label}: ${value}`;
+        line.textContent = `${label}: ${value ?? '-'}`;
         debugDiv.appendChild(line);
-    }
-    addLine('Instance ID', state?.instanceId || '-');
-    addLine('Instance Name', state?.instanceName || '-');
+    };
+    addLine('Instance ID', state?.instanceId ?? '-');
+    addLine('Instance Name', state?.instanceName ?? '-');
     addLine('Subscriptions', state?.subscriptions ? JSON.stringify(state.subscriptions) : '-');
     addLine('Group Bits', state?.groupBits ? JSON.stringify(state.groupBits) : '-');
     addLine('Defined Groups', state?.definedGroups ? JSON.stringify(state.definedGroups) : '-');
@@ -694,7 +685,124 @@ export async function updateObjectInStorage(area, key, updater, defaultValue = {
     return updated;
 }
 
+// --- Standardized Error Handling and User Feedback ---
+export const showError = (message, area = null) => {
+    if (area) {
+        area.textContent = message;
+        area.className = 'error';
+        area.classList.remove('hidden');
+    } else if (typeof browser !== 'undefined' && browser.notifications) {
+        browser.notifications.create({
+            type: 'basic',
+            iconUrl: browser.runtime.getURL('icons/icon-48.png'),
+            title: STRINGS.error,
+            message: message
+        });
+    } else {
+        alert(message);
+    }
+}
+
 // Apply batched sync updates for processed tasks
 // if (Object.keys(groupTasksUpdates).length > 0) {
 //     await mergeSyncStorage(SYNC_STORAGE_KEYS.GROUP_TASKS, groupTasksUpdates);
 // }
+
+// --- Background logic shared for background.js and tests ---
+export async function performHeartbeat(localInstanceId, localInstanceName, localGroupBits, cachedDeviceRegistry) {
+    if (!localInstanceId) {
+        console.warn("Heartbeat skipped: Instance ID not available yet.");
+        return;
+    }
+    console.log("Performing heartbeat...");
+    const update = {
+        [localInstanceId]: {
+            name: localInstanceName,
+            lastSeen: Date.now(),
+            groupBits: localGroupBits
+        }
+    };
+    const success = await mergeSyncStorage(SYNC_STORAGE_KEYS.DEVICE_REGISTRY, update);
+    if (success && cachedDeviceRegistry) {
+        cachedDeviceRegistry = deepMerge(cachedDeviceRegistry, update);
+    }
+    console.log("Heartbeat complete.");
+}
+
+export async function performStaleDeviceCheck(cachedDeviceRegistry, cachedGroupState) {
+    console.log("Performing stale device check...");
+    let registry = cachedDeviceRegistry ?? await getFromStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
+    let groupState = cachedGroupState ?? await getFromStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {});
+    const now = Date.now();
+    let registryUpdates = {};
+    let groupStateUpdates = {};
+    let needsRegistryUpdate = false;
+    let needsGroupStateUpdate = false;
+    for (const deviceId in registry) {
+        if (now - registry[deviceId].lastSeen > 1000 * 60 * 60 * 24 * 30) { // 30 days
+            console.log(`Device ${deviceId} (${registry[deviceId].name}) is stale. Pruning...`);
+            needsRegistryUpdate = true;
+            registryUpdates[deviceId] = null;
+            const staleDeviceBits = registry[deviceId].groupBits || {};
+            for (const groupName in staleDeviceBits) {
+                const staleBit = staleDeviceBits[groupName];
+                if (groupState[groupName] && staleBit !== undefined) {
+                    const currentAssignedMask = groupState[groupName].assignedMask;
+                    const newAssignedMask = currentAssignedMask & ~staleBit;
+                    if (newAssignedMask !== currentAssignedMask) {
+                        if (!groupStateUpdates[groupName]) groupStateUpdates[groupName] = {};
+                        groupStateUpdates[groupName].assignedMask = newAssignedMask;
+                        needsGroupStateUpdate = true;
+                        console.log(`Updated assignedMask for group ${groupName} (removed bit for stale device ${deviceId})`);
+                    }
+                }
+            }
+        }
+    }
+    let registryMergeSuccess = true;
+    let groupStateMergeSuccess = true;
+    if (needsRegistryUpdate) {
+        registryMergeSuccess = await mergeSyncStorage(SYNC_STORAGE_KEYS.DEVICE_REGISTRY, registryUpdates);
+        if (registryMergeSuccess && cachedDeviceRegistry) {
+            cachedDeviceRegistry = deepMerge(cachedDeviceRegistry, registryUpdates);
+        }
+    }
+    if (needsGroupStateUpdate) {
+        groupStateMergeSuccess = await mergeSyncStorage(SYNC_STORAGE_KEYS.GROUP_STATE, groupStateUpdates);
+        if (groupStateMergeSuccess && cachedGroupState) {
+            cachedGroupState = deepMerge(cachedGroupState, groupStateUpdates);
+        }
+    }
+    console.log("Stale device check complete.");
+}
+
+export async function performTimeBasedTaskCleanup(localProcessedTasks) {
+    console.log("Performing time-based task cleanup...");
+    const allGroupTasks = await getFromStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, {});
+    let groupTasksUpdates = {};
+    let needsUpdate = false;
+    const now = Date.now();
+    let processedTasksUpdates = { ...localProcessedTasks };
+    for (const groupName in allGroupTasks) {
+        for (const taskId in allGroupTasks[groupName]) {
+            const task = allGroupTasks[groupName][taskId];
+            if (now - task.creationTimestamp > 1000 * 60 * 60 * 24 * 14) { // 14 days
+                console.log(`Task ${taskId} in group ${groupName} expired. Deleting.`);
+                if (!groupTasksUpdates[groupName]) groupTasksUpdates[groupName] = {};
+                groupTasksUpdates[groupName][taskId] = null;
+                needsUpdate = true;
+                if (processedTasksUpdates[taskId]) {
+                    delete processedTasksUpdates[taskId];
+                }
+            }
+        }
+    }
+    if (needsUpdate) {
+        await mergeSyncStorage(SYNC_STORAGE_KEYS.GROUP_TASKS, groupTasksUpdates);
+        if (Object.keys(processedTasksUpdates).length !== Object.keys(localProcessedTasks).length) {
+            localProcessedTasks = processedTasksUpdates;
+            await setInStorage(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, localProcessedTasks);
+        }
+    }
+    console.log("Time-based task cleanup complete.");
+}
