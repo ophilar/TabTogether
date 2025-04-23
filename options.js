@@ -5,20 +5,22 @@ import { renderDeviceName, renderGroupList, isAndroid, SYNC_STORAGE_KEYS, LOCAL_
 import { injectSharedUI } from './shared-ui.js';
 import { applyThemeFromStorage, setupThemeDropdown } from './theme.js';
 
-const deviceNameDisplay = document.getElementById('deviceNameDisplay');
-const deviceRegistryListDiv = document.getElementById('deviceRegistryList');
-const editNameBtn = document.getElementById('editNameBtn');
-const editNameInputDiv = document.getElementById('editNameInput');
-const newInstanceNameInput = document.getElementById('newInstanceName');
-const saveNameBtn = document.getElementById('saveNameBtn');
-const cancelNameBtn = document.getElementById('cancelNameBtn');
-
-const definedGroupsListDiv = document.getElementById('definedGroupsList');
-const newGroupNameInput = document.getElementById('newGroupName');
-const createGroupBtn = document.getElementById('createGroupBtn');
-
-const loadingIndicator = document.getElementById('loadingIndicator');
-const messageArea = document.getElementById('messageArea'); // Combined message area
+// Cache DOM elements at the top for repeated use
+const dom = {
+    deviceNameDisplay: document.getElementById('deviceNameDisplay'),
+    deviceRegistryListDiv: document.getElementById('deviceRegistryList'),
+    editNameBtn: document.getElementById('editNameBtn'),
+    editNameInputDiv: document.getElementById('editNameInput'),
+    newInstanceNameInput: document.getElementById('newInstanceName'),
+    saveNameBtn: document.getElementById('saveNameBtn'),
+    cancelNameBtn: document.getElementById('cancelNameBtn'),
+    definedGroupsListDiv: document.getElementById('definedGroupsList'),
+    newGroupNameInput: document.getElementById('newGroupName'),
+    createGroupBtn: document.getElementById('createGroupBtn'),
+    loadingIndicator: document.getElementById('loadingIndicator'),
+    messageArea: document.getElementById('messageArea'),
+    testNotificationBtn: document.getElementById('testNotificationBtn')
+};
 
 let currentState = null; // Cache for state fetched from background
 
@@ -102,10 +104,10 @@ async function loadState() {
         }
         renderAll();
     } catch (error) {
-        showMessage(STRINGS.loadingSettingsError(error.message), true);
-        deviceNameDisplay.textContent = STRINGS.error;
-        definedGroupsListDiv.innerHTML = `<p>${STRINGS.loadingGroups}</p>`;
-        deviceRegistryListDiv.innerHTML = `<p>${STRINGS.loadingRegistry}</p>`;
+        showError(STRINGS.loadingSettingsError(error.message), dom.messageArea);
+        dom.deviceNameDisplay.textContent = STRINGS.error;
+        dom.definedGroupsListDiv.innerHTML = `<p>${STRINGS.loadingGroups}</p>`;
+        dom.deviceRegistryListDiv.innerHTML = `<p>${STRINGS.loadingRegistry}</p>`;
         if (typeof console !== 'undefined') {
             console.error('TabTogether options.js loadState error:', error);
             if (error && error.stack) {
@@ -133,15 +135,15 @@ function renderAll() {
 }
 
 function renderDeviceNameUI() {
-    renderDeviceName(deviceNameDisplay, currentState.instanceName);
-    newInstanceNameInput.value = currentState.instanceName || ''; // Pre-fill edit input
+    renderDeviceName(dom.deviceNameDisplay, currentState.instanceName);
+    dom.newInstanceNameInput.value = currentState.instanceName || ''; // Pre-fill edit input
 }
 
 function renderDeviceRegistry() {
     // Render device list with rename/delete buttons for each device
     const devices = currentState.deviceRegistry;
     if (!devices || Object.keys(devices).length === 0) {
-        deviceRegistryListDiv.textContent = STRINGS.noDevices;
+        dom.deviceRegistryListDiv.textContent = STRINGS.noDevices;
         return;
     }
     const localId = currentState.instanceId;
@@ -181,13 +183,13 @@ function renderDeviceRegistry() {
         li.appendChild(deleteBtn);
         ul.appendChild(li);
     });
-    deviceRegistryListDiv.innerHTML = '';
-    deviceRegistryListDiv.appendChild(ul);
+    dom.deviceRegistryListDiv.innerHTML = '';
+    dom.deviceRegistryListDiv.appendChild(ul);
 }
 
 function renderDefinedGroups() {
     renderGroupList(
-        definedGroupsListDiv,
+        dom.definedGroupsListDiv,
         currentState.definedGroups,
         currentState.subscriptions,
         handleSubscribe,
@@ -251,10 +253,10 @@ async function finishRenameGroup(oldName, newName, nameSpan) {
             showMessage(STRINGS.groupRenameSuccess(newName), false);
             await loadState();
         } else {
-            showMessage(response.message || STRINGS.groupRenameFailed, true);
+            showError(response.message || STRINGS.groupRenameFailed, dom.messageArea);
         }
     } catch (e) {
-        showMessage(STRINGS.groupRenameFailed + ': ' + e.message, true);
+        showError(STRINGS.groupRenameFailed + ': ' + e.message, dom.messageArea);
     } finally {
         showLoading(false);
     }
@@ -305,10 +307,10 @@ async function finishRenameDevice(deviceId, newName, li, nameSpan) {
             showMessage(STRINGS.deviceRenameSuccess(newName), false);
             await loadState();
         } else {
-            showMessage(response.message || STRINGS.deviceRenameFailed, true);
+            showError(response.message || STRINGS.deviceRenameFailed, dom.messageArea);
         }
     } catch (e) {
-        showMessage(STRINGS.deviceRenameFailed + ': ' + e.message, true);
+        showError(STRINGS.deviceRenameFailed + ': ' + e.message, dom.messageArea);
     } finally {
         showLoading(false);
     }
@@ -330,10 +332,10 @@ async function handleDeleteDevice(deviceId, deviceName) {
             showMessage(STRINGS.deviceDeleteSuccess(deviceName), false);
             await loadState();
         } else {
-            showMessage(response.message || STRINGS.deviceDeleteFailed, true);
+            showError(response.message || STRINGS.deviceDeleteFailed, dom.messageArea);
         }
     } catch (e) {
-        showMessage(STRINGS.deviceDeleteFailed + ': ' + e.message, true);
+        showError(STRINGS.deviceDeleteFailed + ': ' + e.message, dom.messageArea);
     } finally {
         showLoading(false);
     }
@@ -341,32 +343,32 @@ async function handleDeleteDevice(deviceId, deviceName) {
 
 // --- UI Interaction Handlers ---
 
-editNameBtn.addEventListener('click', () => {
-    deviceNameDisplay.style.display = 'none';
-    editNameBtn.style.display = 'none';
-    editNameInputDiv.style.display = 'flex';
-    newInstanceNameInput.focus();
-    newInstanceNameInput.select();
+dom.editNameBtn.addEventListener('click', () => {
+    dom.deviceNameDisplay.style.display = 'none';
+    dom.editNameBtn.style.display = 'none';
+    dom.editNameInputDiv.style.display = 'flex';
+    dom.newInstanceNameInput.focus();
+    dom.newInstanceNameInput.select();
     // Enable save button only if name changes
-    saveNameBtn.disabled = true;
+    dom.saveNameBtn.disabled = true;
 });
 
-cancelNameBtn.addEventListener('click', () => {
-    deviceNameDisplay.style.display = 'inline';
-    editNameBtn.style.display = 'inline-block'; // Or 'inline'
-    editNameInputDiv.style.display = 'none';
-    newInstanceNameInput.value = currentState.instanceName || ''; // Reset input
-    saveNameBtn.disabled = true; // Reset save button state
+dom.cancelNameBtn.addEventListener('click', () => {
+    dom.deviceNameDisplay.style.display = 'inline';
+    dom.editNameBtn.style.display = 'inline-block'; // Or 'inline'
+    dom.editNameInputDiv.style.display = 'none';
+    dom.newInstanceNameInput.value = currentState.instanceName || ''; // Reset input
+    dom.saveNameBtn.disabled = true; // Reset save button state
 });
 
-newInstanceNameInput.addEventListener('input', () => {
+dom.newInstanceNameInput.addEventListener('input', () => {
     // Enable save button only if the name is different from the current one and not empty
-    const newName = newInstanceNameInput.value.trim();
-    saveNameBtn.disabled = (newName === currentState.instanceName || newName === '');
+    const newName = dom.newInstanceNameInput.value.trim();
+    dom.saveNameBtn.disabled = (newName === currentState.instanceName || newName === '');
 });
 
-saveNameBtn.addEventListener('click', async () => {
-    const newName = newInstanceNameInput.value.trim();
+dom.saveNameBtn.addEventListener('click', async () => {
+    const newName = dom.newInstanceNameInput.value.trim();
     if (newName === '' || newName === currentState.instanceName) return; // Should be disabled, but double-check
 
     showLoading(true);
@@ -380,23 +382,23 @@ saveNameBtn.addEventListener('click', async () => {
             showMessage(STRINGS.saveNameSuccess, false);
             // --- End Optimization ---
             // Hide edit UI
-            cancelNameBtn.click(); // Simulate cancel click to hide input
+            dom.cancelNameBtn.click(); // Simulate cancel click to hide input
         } else {
-            showMessage(response.message || STRINGS.saveNameFailed, true);
+            showError(response.message || STRINGS.saveNameFailed, dom.messageArea);
         }
     } catch (error) {
-        showMessage(STRINGS.saveNameFailed + ': ' + error.message, true);
+        showError(STRINGS.saveNameFailed + ': ' + error.message, dom.messageArea);
     } finally {
         showLoading(false);
     }
 });
 
-newGroupNameInput.addEventListener('input', () => {
-    createGroupBtn.disabled = (newGroupNameInput.value.trim() === '');
+dom.newGroupNameInput.addEventListener('input', () => {
+    dom.createGroupBtn.disabled = (dom.newGroupNameInput.value.trim() === '');
 });
 
-createGroupBtn.addEventListener('click', async () => {
-    const groupName = newGroupNameInput.value.trim();
+dom.createGroupBtn.addEventListener('click', async () => {
+    const groupName = dom.newGroupNameInput.value.trim();
     if (groupName === '') return;
     showLoading(true);
     clearMessage();
@@ -414,13 +416,13 @@ createGroupBtn.addEventListener('click', async () => {
             }
             renderDefinedGroups();
             showMessage(STRINGS.groupCreateSuccess(response.newGroup), false);
-            newGroupNameInput.value = '';
-            createGroupBtn.disabled = true;
+            dom.newGroupNameInput.value = '';
+            dom.createGroupBtn.disabled = true;
         } else {
-            showMessage(response.message || STRINGS.groupCreateFailed, true);
+            showError(response.message || STRINGS.groupCreateFailed, dom.messageArea);
         }
     } catch (error) {
-        showMessage(STRINGS.groupCreateFailed + ': ' + error.message, true);
+        showError(STRINGS.groupCreateFailed + ': ' + error.message, dom.messageArea);
     } finally {
         showLoading(false);
     }
@@ -441,10 +443,10 @@ async function handleSubscribe(event) {
             renderDefinedGroups();
             showMessage(`Subscribed to "${response.subscribedGroup}".`, false);
         } else {
-            showMessage(response.message || "Failed to subscribe.", true);
+            showError(response.message || "Failed to subscribe.", dom.messageArea);
         }
     } catch (error) {
-        showMessage(`Error subscribing: ${error.message}`, true);
+        showError(`Error subscribing: ${error.message}`, dom.messageArea);
     } finally {
         showLoading(false);
     }
@@ -462,10 +464,10 @@ async function handleUnsubscribe(event) {
             renderDefinedGroups();
             showMessage(`Unsubscribed from "${response.unsubscribedGroup}".`, false);
         } else {
-            showMessage(response.message || "Failed to unsubscribe.", true);
+            showError(response.message || "Failed to unsubscribe.", dom.messageArea);
         }
     } catch (error) {
-        showMessage(`Error unsubscribing: ${error.message}`, true);
+        showError(`Error unsubscribing: ${error.message}`, dom.messageArea);
     } finally {
         showLoading(false);
     }
@@ -491,23 +493,23 @@ async function handleDeleteGroup(event) {
             renderDefinedGroups();
             showMessage(STRINGS.groupDeleteSuccess(response.deletedGroup), false);
         } else {
-            showMessage(response.message || STRINGS.groupDeleteFailed, true);
+            showError(response.message || STRINGS.groupDeleteFailed, dom.messageArea);
         }
     } catch (error) {
-        showMessage(STRINGS.groupDeleteFailed + ': ' + error.message, true);
+        showError(STRINGS.groupDeleteFailed + ': ' + error.message, dom.messageArea);
     } finally {
         showLoading(false);
     }
 }
 
 // --- Test Notification ---
-document.getElementById('testNotificationBtn').addEventListener('click', async () => {
+dom.testNotificationBtn.addEventListener('click', async () => {
     showLoading(true);
     try {
         await browser.runtime.sendMessage({ action: 'testNotification' });
         showMessage(STRINGS.testNotificationSent, false);
     } catch (e) {
-        showMessage(STRINGS.testNotificationFailed(e.message), true);
+        showError(STRINGS.testNotificationFailed(e.message), dom.messageArea);
     } finally {
         showLoading(false);
     }
@@ -517,22 +519,22 @@ document.getElementById('testNotificationBtn').addEventListener('click', async (
 
 function showLoading(isLoading) {
     if (isLoading) {
-        loadingIndicator.classList.remove('hidden');
-        loadingIndicator.innerHTML = '<span class="spinner"></span> Loading...';
+        dom.loadingIndicator.classList.remove('hidden');
+        dom.loadingIndicator.innerHTML = '<span class="spinner"></span> Loading...';
     } else {
-        loadingIndicator.classList.add('hidden');
-        loadingIndicator.innerHTML = '';
+        dom.loadingIndicator.classList.add('hidden');
+        dom.loadingIndicator.innerHTML = '';
     }
 }
 
 function showMessage(message, isError = false) {
-    messageArea.textContent = message;
-    messageArea.className = isError ? 'error' : 'success';
-    messageArea.classList.remove('hidden');
+    dom.messageArea.textContent = message;
+    dom.messageArea.className = isError ? 'error' : 'success';
+    dom.messageArea.classList.remove('hidden');
     if (!isError) setTimeout(clearMessage, 4000);
 }
 
 function clearMessage() {
-    messageArea.textContent = '';
-    messageArea.className = 'hidden';
+    dom.messageArea.textContent = '';
+    dom.messageArea.className = 'hidden';
 }

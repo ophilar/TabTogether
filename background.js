@@ -1,6 +1,6 @@
 // background.js
 
-import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, MAX_DEVICES_PER_GROUP, getStorage, mergeSyncStorage, getInstanceId, getInstanceName, deepMerge, getFromStorage, setInStorage } from './utils.js';
+import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, MAX_DEVICES_PER_GROUP, getStorage, mergeSyncStorage, getInstanceId, getInstanceName, deepMerge, getFromStorage, setInStorage, performHeartbeat, performStaleDeviceCheck, performTimeBasedTaskCleanup } from './utils.js';
 import { getNextAvailableBitPosition } from './utils.js';
 
 const ALARM_HEARTBEAT = 'deviceHeartbeat';
@@ -82,120 +82,6 @@ browser.alarms.onAlarm.addListener(async (alarm) => {
             break;
     }
 });
-
-// --- Core Logic Functions ---
-
-async function performHeartbeat(localInstanceId, localInstanceName, localGroupBits, cachedDeviceRegistry) {
-    if (!localInstanceId) {
-        console.warn("Heartbeat skipped: Instance ID not available yet.");
-        return;
-    }
-    console.log("Performing heartbeat...");
-    const update = {
-        [localInstanceId]: {
-            name: localInstanceName, // Update name if changed locally
-            lastSeen: Date.now(),
-            groupBits: localGroupBits // Ensure registry reflects current local subscriptions/bits
-        }
-    };
-    // Update sync storage
-    const success = await mergeSyncStorage(SYNC_STORAGE_KEYS.DEVICE_REGISTRY, update);
-    // Update local cache on success
-    if (success && cachedDeviceRegistry) {
-         cachedDeviceRegistry = deepMerge(cachedDeviceRegistry, update); // Keep cache consistent
-    }
-    console.log("Heartbeat complete.");
-}
-
-async function performStaleDeviceCheck(cachedDeviceRegistry, cachedGroupState) {
-    console.log("Performing stale device check...");
-    // Use cache first, fetch if needed (should be populated after init)
-    let registry = cachedDeviceRegistry ?? await getFromStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
-    let groupState = cachedGroupState ?? await getFromStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {});
-
-    const now = Date.now();
-    let registryUpdates = {};
-    let groupStateUpdates = {};
-    let needsRegistryUpdate = false;
-    let needsGroupStateUpdate = false;
-
-    for (const deviceId in registry) {
-        if (now - registry[deviceId].lastSeen > STALE_DEVICE_THRESHOLD_MS) {
-            console.log(`Device ${deviceId} (${registry[deviceId].name}) is stale. Pruning...`);
-            needsRegistryUpdate = true;
-            registryUpdates[deviceId] = null; // Mark for deletion via merge
-
-            const staleDeviceBits = registry[deviceId].groupBits || {};
-            for (const groupName in staleDeviceBits) {
-                const staleBit = staleDeviceBits[groupName];
-                if (groupState[groupName] && staleBit !== undefined) {
-                    const currentAssignedMask = groupState[groupName].assignedMask;
-                    const newAssignedMask = currentAssignedMask & ~staleBit; // Remove the bit
-
-                    if (newAssignedMask !== currentAssignedMask) {
-                        if (!groupStateUpdates[groupName]) groupStateUpdates[groupName] = {};
-                        groupStateUpdates[groupName].assignedMask = newAssignedMask;
-                        needsGroupStateUpdate = true;
-                        console.log(`Updated assignedMask for group ${groupName} (removed bit for stale device ${deviceId})`);
-                    }
-                }
-            }
-        }
-    }
-
-    let registryMergeSuccess = true;
-    let groupStateMergeSuccess = true;
-
-    if (needsRegistryUpdate) {
-        registryMergeSuccess = await mergeSyncStorage(SYNC_STORAGE_KEYS.DEVICE_REGISTRY, registryUpdates);
-        if (registryMergeSuccess && cachedDeviceRegistry) {
-            cachedDeviceRegistry = deepMerge(cachedDeviceRegistry, registryUpdates); // Update cache
-        }
-    }
-    if (needsGroupStateUpdate) {
-        groupStateMergeSuccess = await mergeSyncStorage(SYNC_STORAGE_KEYS.GROUP_STATE, groupStateUpdates);
-         if (groupStateMergeSuccess && cachedGroupState) {
-            cachedGroupState = deepMerge(cachedGroupState, groupStateUpdates); // Update cache
-        }
-    }
-    console.log("Stale device check complete.");
-}
-
-async function performTimeBasedTaskCleanup(localProcessedTasks) {
-    console.log("Performing time-based task cleanup...");
-    const allGroupTasks = await getFromStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, {}); // Fetch fresh tasks
-    let groupTasksUpdates = {};
-    let needsUpdate = false;
-    const now = Date.now();
-    let processedTasksUpdates = { ...localProcessedTasks }; // Copy local state to modify
-
-    for (const groupName in allGroupTasks) {
-        for (const taskId in allGroupTasks[groupName]) {
-            const task = allGroupTasks[groupName][taskId];
-            if (now - task.creationTimestamp > TASK_EXPIRY_MS) {
-                console.log(`Task ${taskId} in group ${groupName} expired. Deleting.`);
-                if (!groupTasksUpdates[groupName]) groupTasksUpdates[groupName] = {};
-                groupTasksUpdates[groupName][taskId] = null; // Mark for deletion via merge
-                needsUpdate = true;
-
-                // Also clean up local processed task ID
-                if (processedTasksUpdates[taskId]) {
-                    delete processedTasksUpdates[taskId];
-                }
-            }
-        }
-    }
-
-    if (needsUpdate) {
-        await mergeSyncStorage(SYNC_STORAGE_KEYS.GROUP_TASKS, groupTasksUpdates);
-        // Update local storage only once after the loop if changes were made
-        if (Object.keys(processedTasksUpdates).length !== Object.keys(localProcessedTasks).length) {
-             localProcessedTasks = processedTasksUpdates; // Update in-memory cache
-             await setInStorage(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, localProcessedTasks);
-        }
-    }
-    console.log("Time-based task cleanup complete.");
-}
 
 // --- Context Menu ---
 
