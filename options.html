@@ -15,12 +15,12 @@
             <div class="setting-item">
                 <strong>Name:</strong>
                 <span id="deviceNameDisplay" aria-label="Device Name">Loading...</span>
-                <button id="editNameBtn" class="inline-btn" aria-label="Edit Device Name" title="Edit device name">Edit</button>
-                <button id="removeDeviceBtn" class="danger" aria-label="Remove Device" title="Remove this device from all groups and registry">Remove</button>
+                <button id="editNameBtn" class="inline-btn" aria-label="Edit Device Name" title="Edit the name shown for this device in groups and the registry">Edit</button>
+                <button id="removeDeviceBtn" class="danger" aria-label="Remove Device" title="Remove this device from all groups and registry. This cannot be undone.">Remove</button>
             </div>
             <div class="setting-item">
                 <strong>Icon:</strong>
-                <select id="deviceIconSelect" aria-label="Device Icon">
+                <select id="deviceIconSelect" aria-label="Device Icon" title="Choose an icon to represent this device on all your devices">
                     <option value="💻">💻 Laptop</option>
                     <option value="🖥️">🖥️ Desktop</option>
                     <option value="📱">📱 Phone</option>
@@ -51,8 +51,8 @@
             <legend>Groups</legend>
             <div id="definedGroupsList">Loading groups...</div>
             <div class="input-group">
-                <input type="text" id="newGroupName" placeholder="New group name" aria-label="New Group Name">
-                <button id="createGroupBtn" disabled title="Create group">Create Group</button>
+                <input type="text" id="newGroupName" placeholder="New group name" aria-label="New Group Name" title="Enter a name for a new group">
+                <button id="createGroupBtn" disabled title="Create a new group with the entered name">Create Group</button>
             </div>
         </fieldset>
         <fieldset>
@@ -73,7 +73,7 @@
             <legend>Notifications</legend>
             <div class="setting-item">
                 <label for="notifSoundSelect"><strong>Sound:</strong></label>
-                <select id="notifSoundSelect" aria-label="Notification Sound">
+                <select id="notifSoundSelect" aria-label="Notification Sound" title="Choose a sound to play for notifications">
                     <option value="default">Default</option>
                     <option value="none">None</option>
                     <option value="chime">Chime</option>
@@ -82,17 +82,17 @@
             </div>
             <div class="setting-item">
                 <label for="notifDurationInput"><strong>Duration (seconds):</strong></label>
-                <input type="number" id="notifDurationInput" min="1" max="20" value="5" style="width:60px;">
+                <input type="number" id="notifDurationInput" min="1" max="20" value="5" style="width:60px;" title="How long notifications stay visible (in seconds)">
             </div>
         </fieldset>
         <fieldset>
             <legend>Sync</legend>
             <div class="setting-item">
-                <button id="manualSyncBtn" type="button">Manual Sync</button>
+                <button id="manualSyncBtn" type="button" title="Manually sync device info and groups now">Manual Sync</button>
             </div>
             <div class="setting-item">
                 <label for="syncIntervalInput"><strong>Auto-sync interval (minutes):</strong></label>
-                <input type="number" id="syncIntervalInput" min="1" max="120" value="5" style="width:60px;">
+                <input type="number" id="syncIntervalInput" min="1" max="120" value="5" style="width:60px;" title="How often to auto-sync device info (in minutes)">
             </div>
             <div class="setting-item">
                 <span id="syncStatus">Last sync: never</span>
@@ -113,6 +113,19 @@
                 <p>For more help, visit the <a href="https://github.com/ophilar/TabTogether" target="_blank">project page</a>.</p>
             </div>
         </fieldset>
+        <!-- Onboarding Modal -->
+        <div id="onboardingModal" class="hidden" style="position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.5);z-index:1000;display:flex;align-items:center;justify-content:center;">
+            <div style="background:#fff;padding:32px 24px 24px 24px;border-radius:12px;max-width:420px;width:90vw;box-shadow:0 2px 16px rgba(0,0,0,0.18);text-align:left;">
+                <div id="onboardingStepContent"></div>
+                <div style="margin-top:18px;text-align:right;">
+                    <button id="onboardingPrevBtn" style="margin-right:10px;">Back</button>
+                    <button id="onboardingNextBtn">Next</button>
+                    <button id="onboardingCloseBtn" style="margin-left:10px;">Close</button>
+                </div>
+            </div>
+        </div>
+        <!-- Help link -->
+        <p class="options-link"><a href="#" id="openOnboardingLink" title="Show help and onboarding for TabTogether">Show Help / Onboarding</a></p>
     </div>
     <script type="module" src="constants.js"></script>
     <script type="module" src="theme.js"></script>

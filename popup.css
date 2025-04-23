@@ -141,3 +141,107 @@ hr {
   /* Add other responsive adjustments as needed */
 }
 
+/* Minimalist and responsive popup styles */
+.container.minimalist {
+  padding: 12px 8px 10px 8px;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(180,200,230,0.10);
+  background: var(--main-card);
+  min-width: 180px;
+  max-width: 340px;
+  min-height: 80px;
+  margin: 8px auto 0 auto;
+  font-size: 0.98em;
+}
+.popup-title {
+  font-size: 1.08em;
+  font-weight: 600;
+  margin: 0 0 10px 0;
+  color: var(--main-text);
+  border: none;
+  padding: 0;
+  letter-spacing: 0.01em;
+  text-align: left;
+}
+.popup-groups {
+  margin-bottom: 8px;
+}
+.status-message {
+  font-size: 0.97em;
+  margin: 6px 0 0 0;
+  padding: 0;
+  color: var(--main-accent);
+  text-align: left;
+  animation: fadein var(--transition);
+}
+.details-toggle {
+  background: none;
+  border: none;
+  color: var(--main-accent);
+  font-size: 1.3em;
+  cursor: pointer;
+  margin: 0 0 0 auto;
+  display: block;
+  padding: 2px 0 2px 0;
+  transition: color 0.15s;
+}
+.details-toggle:hover,
+.details-toggle:focus {
+  color: var(--main-blue-dark);
+}
+.popup-details {
+  margin: 0 0 8px 0;
+  font-size: 0.95em;
+  color: var(--main-text);
+  background: none;
+  border: none;
+  padding: 0;
+}
+.popup-detail-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+.popup-detail-label {
+  color: var(--main-accent);
+  font-weight: 500;
+  min-width: 48px;
+}
+.popup-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 6px;
+}
+.popup-link {
+  color: var(--main-blue-dark);
+  font-size: 1.25em;
+  text-decoration: none;
+  padding: 2px 6px;
+  border-radius: 5px;
+  transition: background 0.15s, color 0.15s;
+}
+.popup-link:hover,
+.popup-link:focus {
+  background: var(--main-blue);
+  color: var(--main-card);
+}
+@media (max-width: 400px) {
+  .container.minimalist {
+    min-width: 120px;
+    max-width: 98vw;
+    padding: 6px 2vw 8px 2vw;
+  }
+  .popup-title {
+    font-size: 1em;
+  }
+}
+/* Hide scrollbars for a cleaner look */
+body, .container.minimalist {
+  scrollbar-width: none;
+}
+body::-webkit-scrollbar, .container.minimalist::-webkit-scrollbar {
+  display: none;
+}
+
