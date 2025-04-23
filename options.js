@@ -1,7 +1,7 @@
 // options.js
 
 import { STRINGS } from './constants.js';
-import { renderDeviceName, renderGroupList, isAndroid, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, createGroupDirect, deleteGroupDirect, renameGroupDirect, renameDeviceDirect, deleteDeviceDirect, processIncomingTabs, getUnifiedState, subscribeToGroupUnified, unsubscribeFromGroupUnified, showAndroidBanner, setLastSyncTime, getFromStorage, setInStorage } from './utils.js';
+import { renderDeviceName, renderGroupList, isAndroid, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, createGroupDirect, deleteGroupDirect, renameGroupDirect, renameDeviceDirect, deleteDeviceDirect, processIncomingTabs, getUnifiedState, subscribeToGroupUnified, unsubscribeFromGroupUnified, showAndroidBanner, setLastSyncTime, getFromStorage, setInStorage, debounce } from './utils.js';
 import { injectSharedUI } from './shared-ui.js';
 import { applyThemeFromStorage, setupThemeDropdown } from './theme.js';
 
@@ -393,9 +393,15 @@ dom.saveNameBtn.addEventListener('click', async () => {
     }
 });
 
-dom.newGroupNameInput.addEventListener('input', () => {
-    dom.createGroupBtn.disabled = (dom.newGroupNameInput.value.trim() === '');
-});
+dom.newGroupNameInput.addEventListener('input', debounce(function (e) {
+    // Example: live-validate group name and update UI
+    const value = e.target.value.trim();
+    const createBtn = document.getElementById('createGroupBtn');
+    if (createBtn) {
+        createBtn.disabled = value.length === 0;
+    }
+    // Optionally, show validation feedback here
+}, 250));
 
 dom.createGroupBtn.addEventListener('click', async () => {
     const groupName = dom.newGroupNameInput.value.trim();
