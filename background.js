@@ -452,6 +452,13 @@ browser.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
             });
             return { success: true };
         }
+        case "setSyncInterval": {
+            const minutes = Math.max(1, Math.min(120, parseInt(request.minutes, 10) || 5));
+            await browser.alarms.clear('deviceHeartbeat');
+            await browser.alarms.create('deviceHeartbeat', { periodInMinutes: minutes });
+            sendResponse && sendResponse({ success: true });
+            return true;
+        }
         default:
             console.warn("Unknown action received:", request.action);
             return Promise.reject(new Error(`Unknown action: ${request.action}`));
@@ -562,3 +569,37 @@ async function assignBitForGroup(groupName, localInstanceId, localGroupBits, cac
     console.error(`Failed to assign bit for ${groupName} after ${MAX_RETRIES} retries.`);
     return null;
 }
+
+// Utility: Play notification sound
+async function playNotificationSound(sound) {
+    if (sound === 'none') return;
+    let url = '';
+    if (sound === 'chime') url = 'https://cdn.jsdelivr.net/gh/ophilar/TabTogether-assets/chime.mp3';
+    if (sound === 'ding') url = 'https://cdn.jsdelivr.net/gh/ophilar/TabTogether-assets/ding.mp3';
+    if (sound === 'default') url = '';
+    if (url) {
+        const audio = new Audio(url);
+        audio.volume = 0.7;
+        audio.play();
+    }
+}
+
+// Enhanced notification for tab send/receive
+async function showTabNotification({ title, url, groupName, faviconUrl }) {
+    const sound = await getFromStorage(browser.storage.local, 'notifSound', 'default');
+    const duration = await getFromStorage(browser.storage.local, 'notifDuration', 5);
+    await playNotificationSound(sound);
+    const notifId = await browser.notifications.create({
+        type: 'basic',
+        iconUrl: faviconUrl || browser.runtime.getURL('icons/icon-48.png'),
+        title: `TabTogether: ${groupName ? 'Group ' + groupName : 'Tab Received'}`,
+        message: title || url || 'Tab received',
+        contextMessage: url || '',
+        requireInteraction: false
+    });
+    if (duration > 0) {
+        setTimeout(() => browser.notifications.clear(notifId), duration * 1000);
+    }
+}
+
+// Example usage: showTabNotification({ title, url, groupName, faviconUrl }) when sending/receiving tabs

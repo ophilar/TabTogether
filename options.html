@@ -18,6 +18,24 @@
                 <button id="editNameBtn" class="inline-btn" aria-label="Edit Device Name" title="Edit device name">Edit</button>
                 <button id="removeDeviceBtn" class="danger" aria-label="Remove Device" title="Remove this device from all groups and registry">Remove</button>
             </div>
+            <div class="setting-item">
+                <strong>Icon:</strong>
+                <select id="deviceIconSelect" aria-label="Device Icon">
+                    <option value="💻">💻 Laptop</option>
+                    <option value="🖥️">🖥️ Desktop</option>
+                    <option value="📱">📱 Phone</option>
+                    <option value="📲">📲 Smartphone</option>
+                    <option value="🧑‍💻">🧑‍💻 User</option>
+                    <option value="🕹️">🕹️ Gaming</option>
+                    <option value="🗄️">🗄️ Server</option>
+                    <option value="🔒">🔒 Secure</option>
+                    <option value="⭐">⭐ Star</option>
+                    <option value="� tablet">� Tablet</option>
+                    <option value="📺">📺 TV</option>
+                    <option value="🎮">🎮 Game Console</option>
+                </select>
+                <span id="deviceIconPreview" style="font-size:1.5em; margin-left:8px;">💻</span>
+            </div>
             <div id="editNameInput" class="input-group hidden">
                 <input type="text" id="newInstanceName" placeholder="Enter new device name" aria-label="New Device Name">
                 <button id="saveNameBtn" disabled aria-label="Save Device Name" title="Save device name">Save</button>
@@ -49,6 +67,35 @@
             </div>
             <div class="setting-item">
                 <button id="testNotificationBtn" type="button">Test Notification</button>
+            </div>
+        </fieldset>
+        <fieldset>
+            <legend>Notifications</legend>
+            <div class="setting-item">
+                <label for="notifSoundSelect"><strong>Sound:</strong></label>
+                <select id="notifSoundSelect" aria-label="Notification Sound">
+                    <option value="default">Default</option>
+                    <option value="none">None</option>
+                    <option value="chime">Chime</option>
+                    <option value="ding">Ding</option>
+                </select>
+            </div>
+            <div class="setting-item">
+                <label for="notifDurationInput"><strong>Duration (seconds):</strong></label>
+                <input type="number" id="notifDurationInput" min="1" max="20" value="5" style="width:60px;">
+            </div>
+        </fieldset>
+        <fieldset>
+            <legend>Sync</legend>
+            <div class="setting-item">
+                <button id="manualSyncBtn" type="button">Manual Sync</button>
+            </div>
+            <div class="setting-item">
+                <label for="syncIntervalInput"><strong>Auto-sync interval (minutes):</strong></label>
+                <input type="number" id="syncIntervalInput" min="1" max="120" value="5" style="width:60px;">
+            </div>
+            <div class="setting-item">
+                <span id="syncStatus">Last sync: never</span>
             </div>
         </fieldset>
         <fieldset>

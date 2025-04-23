@@ -22,6 +22,9 @@ const dom = {
     testNotificationBtn: document.getElementById('testNotificationBtn')
 };
 
+const deviceIconSelect = document.getElementById('deviceIconSelect');
+const deviceIconPreview = document.getElementById('deviceIconPreview');
+
 let currentState = null; // Cache for state fetched from background
 
 // Add a Sync Now button for Android users at the top of the options page
@@ -32,6 +35,44 @@ syncNowBtn.style.marginBottom = '10px';
 syncNowBtn.style.width = '100%';
 syncNowBtn.addEventListener('click', async () => {
     await loadState();
+});
+
+const manualSyncBtn = document.getElementById('manualSyncBtn');
+const syncIntervalInput = document.getElementById('syncIntervalInput');
+const syncStatus = document.getElementById('syncStatus');
+
+// Manual sync handler
+if (manualSyncBtn) {
+    manualSyncBtn.addEventListener('click', async () => {
+        showLoading(true);
+        try {
+            await browser.runtime.sendMessage({ action: 'heartbeat' });
+            const now = new Date();
+            syncStatus.textContent = 'Last sync: ' + now.toLocaleString();
+            await setInStorage(browser.storage.local, 'lastSync', now.getTime());
+        } finally {
+            showLoading(false);
+        }
+    });
+}
+// Auto-sync interval setting
+if (syncIntervalInput) {
+    syncIntervalInput.addEventListener('change', async (e) => {
+        let val = parseInt(e.target.value, 10);
+        if (isNaN(val) || val < 1) val = 1;
+        if (val > 120) val = 120;
+        syncIntervalInput.value = val;
+        await setInStorage(browser.storage.local, 'syncInterval', val);
+        await browser.runtime.sendMessage({ action: 'setSyncInterval', minutes: val });
+    });
+    // Load saved value
+    getFromStorage(browser.storage.local, 'syncInterval', 5).then(val => {
+        syncIntervalInput.value = val;
+    });
+}
+// Show last sync time
+getFromStorage(browser.storage.local, 'lastSync', null).then(ts => {
+    if (ts) syncStatus.textContent = 'Last sync: ' + new Date(ts).toLocaleString();
 });
 
 // --- Initialization ---
@@ -58,6 +99,47 @@ document.addEventListener('DOMContentLoaded', async () => {
         showDebugInfo(container, currentState);
     }
     loadState();
+    if (deviceIconSelect && deviceIconPreview) {
+        deviceIconSelect.addEventListener('change', async (e) => {
+            const icon = e.target.value;
+            deviceIconPreview.textContent = icon;
+            await setInStorage(browser.storage.local, 'myDeviceIcon', icon);
+            // Optionally, sync to registry for other devices to see
+            const instanceId = currentState?.instanceId;
+            if (instanceId) {
+                const deviceRegistry = await getFromStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
+                if (deviceRegistry[instanceId]) {
+                    deviceRegistry[instanceId].icon = icon;
+                    await setInStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, deviceRegistry);
+                }
+            }
+        });
+        loadDeviceIcon();
+    }
+    // Notification settings logic
+    const notifSoundSelect = document.getElementById('notifSoundSelect');
+    const notifDurationInput = document.getElementById('notifDurationInput');
+
+    async function loadNotificationSettings() {
+        const sound = await getFromStorage(browser.storage.local, 'notifSound', 'default');
+        const duration = await getFromStorage(browser.storage.local, 'notifDuration', 5);
+        notifSoundSelect.value = sound;
+        notifDurationInput.value = duration;
+    }
+
+    if (notifSoundSelect && notifDurationInput) {
+        notifSoundSelect.addEventListener('change', async (e) => {
+            await setInStorage(browser.storage.local, 'notifSound', e.target.value);
+        });
+        notifDurationInput.addEventListener('change', async (e) => {
+            let val = parseInt(e.target.value, 10);
+            if (isNaN(val) || val < 1) val = 1;
+            if (val > 20) val = 20;
+            notifDurationInput.value = val;
+            await setInStorage(browser.storage.local, 'notifDuration', val);
+        });
+        loadNotificationSettings();
+    }
 });
 
 // --- State Loading and Rendering ---
@@ -568,4 +650,10 @@ if (removeDeviceBtn) {
             showLoading(false);
         }
     });
+}
+
+async function loadDeviceIcon() {
+    const icon = await getFromStorage(browser.storage.local, 'myDeviceIcon', '💻');
+    deviceIconSelect.value = icon;
+    deviceIconPreview.textContent = icon;
 }
