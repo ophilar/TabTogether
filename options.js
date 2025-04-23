@@ -544,3 +544,28 @@ function clearMessage() {
     dom.messageArea.textContent = '';
     dom.messageArea.className = 'hidden';
 }
+
+const removeDeviceBtn = document.getElementById('removeDeviceBtn');
+if (removeDeviceBtn) {
+    removeDeviceBtn.addEventListener('click', async () => {
+        if (!confirm('Are you sure you want to remove this device from all groups and the registry? This cannot be undone.')) return;
+        showLoading(true);
+        clearMessage();
+        try {
+            const instanceId = currentState?.instanceId;
+            if (!instanceId) throw new Error('Device ID not found.');
+            // Remove from registry and all groups
+            const res = await browser.runtime.sendMessage({ action: 'deleteDevice', deviceId: instanceId });
+            if (res.success) {
+                showMessage('Device removed from all groups and registry.', false);
+                await loadState();
+            } else {
+                showError(res.message || 'Failed to remove device.', dom.messageArea);
+            }
+        } catch (e) {
+            showError('Error removing device: ' + e.message, dom.messageArea);
+        } finally {
+            showLoading(false);
+        }
+    });
+}
