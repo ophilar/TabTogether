@@ -453,6 +453,7 @@ export async function renameGroupDirect(oldName, newName) {
 }
 
 export async function renameDeviceDirect(deviceId, newName) {
+    try {
     const deviceRegistry = await getFromStorage(browser.storage.sync, 'deviceRegistry', {});
     if (!deviceRegistry[deviceId]) return { success: false, message: 'Device not found.' };
     deviceRegistry[deviceId].name = newName.trim();
@@ -461,7 +462,11 @@ export async function renameDeviceDirect(deviceId, newName) {
     if (deviceId === instanceId) {
         await setInStorage(browser.storage.local, 'myInstanceName', newName.trim());
     }
-    return { success: true };
+    return { success: true, newName: newName.trim() };
+} catch (error) {
+    console.error("Error in renameDeviceDirect:", error);
+    return { success: false, message: error.message || "Failed to rename device directly." };
+}
 }
 
 export async function deleteDeviceDirect(deviceId) {
