@@ -1,7 +1,7 @@
 // options.js
 
 import { STRINGS } from './constants.js';
-import { renderDeviceName, renderGroupList, isAndroid, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, createGroupDirect, deleteGroupDirect, renameGroupDirect, renameDeviceDirect, deleteDeviceDirect, processIncomingTabs, getUnifiedState, subscribeToGroupUnified, unsubscribeFromGroupUnified, showAndroidBanner, setLastSyncTime, getFromStorage, setInStorage, debounce, showError } from './utils.js';
+import { renderDeviceName, renderGroupList, isAndroid, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, createGroupDirect, deleteGroupDirect, renameGroupDirect, deleteDeviceDirect, processIncomingTabs, getUnifiedState, subscribeToGroupUnified, unsubscribeFromGroupUnified, showAndroidBanner, setLastSyncTime, getFromStorage, setInStorage, debounce, showError, renameDeviceUnified } from './utils.js';
 import { injectSharedUI } from './shared-ui.js';
 import { applyThemeFromStorage, setupThemeDropdown } from './theme.js';
 
@@ -479,7 +479,10 @@ async function handleDeleteDevice(deviceId, deviceName) {
 dom.editNameBtn.addEventListener('click', () => {
     dom.deviceNameDisplay.style.display = 'none';
     dom.editNameBtn.style.display = 'none';
+    dom.editNameInputDiv.classList.remove('hidden'); // *** CHANGE: Remove 'hidden' class to show ***
     dom.editNameInputDiv.style.display = 'flex';
+    // Ensure input has the current value when opened
+    dom.newInstanceNameInput.value = currentState.instanceName || '';
     dom.newInstanceNameInput.focus();
     dom.newInstanceNameInput.select();
     dom.saveNameBtn.disabled = true;
@@ -488,8 +491,9 @@ dom.editNameBtn.addEventListener('click', () => {
 dom.cancelNameBtn.addEventListener('click', () => {
     dom.deviceNameDisplay.style.display = 'inline';
     dom.editNameBtn.style.display = 'inline-block';
+    dom.editNameInputDiv.classList.add('hidden');   // *** CHANGE: Add 'hidden' class back to hide ***
     dom.editNameInputDiv.style.display = 'none';
-    dom.newInstanceNameInput.value = currentState.instanceName || '';
+    // dom.newInstanceNameInput.value = currentState.instanceName || '';
     dom.saveNameBtn.disabled = true;
 });
 
@@ -501,25 +505,41 @@ dom.newInstanceNameInput.addEventListener('input', () => {
 dom.saveNameBtn.addEventListener('click', async () => {
     const newName = dom.newInstanceNameInput.value.trim();
     if (newName === '' || newName === currentState.instanceName) return;
+
     showLoading(true);
     clearMessage();
+    let success = false; // To track if save was successful
+
     try {
-        const response = await browser.runtime.sendMessage({ action: 'setInstanceName', name: newName });
+        const isAndroidPlatform = await isAndroid(); // Check platform
+        const response = await renameDeviceUnified(currentState.instanceId, newName, isAndroidPlatform);
+
+        // const response = await browser.runtime.sendMessage({ action: 'setInstanceName', name: newName });
         if (response.success) {
-            currentState.instanceName = response.newName;
-            renderDeviceNameUI();
             showMessage(STRINGS.saveNameSuccess, false);
-            dom.cancelNameBtn.click(); // Always reset UI after save
+            success = true;
+            // currentState.instanceName = response.newName;
+            // renderDeviceNameUI();
+            // showMessage(STRINGS.saveNameSuccess, false);
+            // dom.cancelNameBtn.click(); // Always reset UI after save
+            await loadState();
+
         } else {
             showError(response.message || STRINGS.saveNameFailed, dom.messageArea);
             // Reset UI even on error
             dom.cancelNameBtn.click();
         }
     } catch (error) {
+        console.error("Error saving device name:", error);
         showError(STRINGS.saveNameFailed + ': ' + error.message, dom.messageArea);
         dom.cancelNameBtn.click();
     } finally {
-        showLoading(false);
+        // Reset the UI visibility *after* potential loadState() or error display
+        dom.deviceNameDisplay.style.display = 'inline';
+        dom.editNameBtn.style.display = 'inline-block';
+        dom.editNameInputDiv.classList.add('hidden'); // *** Use classList to hide ***
+        dom.saveNameBtn.disabled = true; // Ensure save is disabled
+        showLoading(false); // Hide loading indicator
     }
 });
 
