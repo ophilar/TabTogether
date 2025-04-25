@@ -1,5 +1,6 @@
 import { STRINGS } from './constants.js';
-import { renderDeviceName, renderDeviceList, isAndroid, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, sendTabToGroupDirect, processIncomingTabs, getUnifiedState, showAndroidBanner, setLastSyncTime, getFromStorage, setInStorage } from './utils.js';
+import { renderSubscriptions } from './utils.js';
+import { renderDeviceName, renderDeviceList, isAndroid, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, sendTabToGroupDirect, processIncomingTabs, getUnifiedState, showAndroidBanner, setLastSyncTime, getFromStorage, setInStorage, showError, storage } from './utils.js';
 import { injectSharedUI } from './shared-ui.js';
 import { applyThemeFromStorage } from './theme.js';
 
@@ -106,7 +107,7 @@ async function loadStatus() {
         showLoading(false);
     } catch (error) {
         if (await isAndroid()) {
-            showError("This extension may have limited functionality on Firefox for Android. Try reopening the popup or restarting the browser if you see this error.", dom.errorMessageDiv);
+            showError("This extension may have limited functionality on Firefox for Android. Try reopening the popup or restarting the browser if you see this error.", null);
         } else {
             showError(STRINGS.loadingSettingsError(error.message), dom.errorMessageDiv);
         }
@@ -124,10 +125,10 @@ async function loadStatus() {
 async function processIncomingTabsAndroid(state) {
     await processIncomingTabs(
         state,
-        async (url) => { await browser.tabs.create({ url, active: false }); },
-        async (updated) => { await setInStorage(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, updated); }
+        async (url, title) => { await browser.tabs.create({ url, title, active: false }); },
+        async (updated) => { await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, updated); }
     );
-}
+} 
 
 function renderDeviceNameUI(name) {
     renderDeviceName(dom.deviceNameSpan, name);
@@ -231,9 +232,4 @@ function showLoading(isLoading) {
     } else {
         dom.loadingIndicator.classList.add('hidden');
     }
-}
-
-function showError(message, errorMessageDiv) {
-    errorMessageDiv.textContent = message;
-    errorMessageDiv.classList.remove('hidden');
 }

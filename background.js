@@ -19,6 +19,26 @@ const TASK_EXPIRY_MS = 1000 * 60 * 60 * 24 * 14; // 14 days
 async function initializeExtension() {
     try {
         console.log("Initializing TabTogether (Advanced)...");
+        console.log("Initializing storage...");
+        // Ensure storage.sync has default values if empty
+        const syncKeys = Object.values(SYNC_STORAGE_KEYS);
+        const syncData = await browser.storage.sync.get(syncKeys);
+        const defaults = {
+            [SYNC_STORAGE_KEYS.DEFINED_GROUPS]: [],
+            [SYNC_STORAGE_KEYS.GROUP_STATE]: {},
+            [SYNC_STORAGE_KEYS.GROUP_TASKS]: {},
+            [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: {}
+        };
+        const updates = {};
+        for (const key of syncKeys) {
+            if (syncData[key] === undefined) {
+                updates[key] = defaults[key];
+            }
+        }
+        if (Object.keys(updates).length > 0) {
+            await browser.storage.sync.set(updates);
+            console.log("Storage initialized with defaults:", updates);
+        }
 
         // Save platform info to storage.local if not already present
         const platformInfo = await browser.runtime.getPlatformInfo();
