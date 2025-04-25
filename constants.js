@@ -1,6 +1,8 @@
 // constants.js
 // Shared UI strings and constants for TabTogether
 
+export const DEFAULT_DEVICE_ICON = '💻'; // Or '📱', '🖥️', etc.
+
 export const STRINGS = {
     deviceNameNotSet: '(Not Set)',
     noDevices: 'No devices registered.',

@@ -1,88 +1,142 @@
 /* styles.css - shared styles for TabTogether */
 :root {
+  /* Base Colors */
   --main-orange-light: #ff9400;
   --main-orange-dark: #c75c00;
-  --main-bg-light: #fcefe7;
-  --main-bg-dark: #181818;
-  --main-card-light: #fff;
-  --main-card-dark: #232323;
-  --main-border-light: #ffe0b2;
-  --main-border-dark: #333;
-  --main-text-light: #2a2a2a;
-  --main-text-dark: #f7f7f7;
-  --main-accent-light: #ff9400;
-  --main-accent-dark: #ffb84d;
-  --main-error-light: #ffb3a7;
-  --main-success: #b7e4c7;
   --main-blue-light: #eaf3fb;
   --main-blue-dark: #b3cbe6;
-  --main-orange-bg-light: #f7c59f;
   --main-blue-dark-hover: #9cb0c7;
-  --main-orange-bg-dark: #e6a96b;
+  --main-grey-light: #6c757d; /* For secondary actions */
+  --main-grey-dark: #495057;
+  --main-red-light: #dc3545; /* For danger actions */
+  --main-red-dark: #b71c1c;
+
+  /* Base Theme Variables (Defaults to Light) */
+  --main-bg: #fcefe7;
+  --main-card: #fff;
+  --main-border: #ffe0b2;
+  --main-text: #2a2a2a;
+  --main-accent: #ff9400; /* Primary accent/action color */
+  --main-blue: #eaf3fb; /* Often used for subtle backgrounds/borders */
+  --main-orange-bg: #f7c59f; /* Specific orange background */
+  --main-orange: #ff9400; /* Specific orange text/element color */
+
+  /* Button States */
+  --main-button-primary-bg: var(--main-orange);
+  --main-button-primary-hover-bg: var(--main-orange-dark);
+  --main-button-secondary-bg: var(--main-grey-light);
+  --main-button-secondary-hover-bg: var(--main-grey-dark);
+  --main-button-danger-bg: var(--main-red-light);
+  --main-button-danger-hover-bg: var(--main-red-dark);
+  --main-button-disabled-bg: #ffe0b2;
+  --main-button-text: #000000; /* Default text for primary button */
+  --main-button-secondary-text: #ffffff;
+  --main-button-danger-text: #ffffff;
+  --main-button-disabled-text: #a0a0a0;
+
+  /* Feedback States */
+  --main-error-bg: #fff3e0;
+  --main-error-border: #ffcdd2;
+  --main-error-text: #b71c1c;
+  --main-success-bg: #e6f7e6;
+  --main-success-border: #b7e4c7;
+  --main-success-text: #256029;
+  --main-loading-text: #b26a00; /* Specific loading color */
+
+  /* Shadows */
+  --main-shadow-popup: 0 2px 16px rgba(180, 200, 230, 0.10);
+  --main-shadow-button-small: 0 1px 2px rgba(180, 200, 230, 0.09);
+  --main-shadow-button-primary: 0 1px 2px rgba(255,148,0,0.09);
+  --main-shadow-container: 0 2px 16px rgba(255,148,0,0.09);
+
+  /* Transitions */
   --transition: 0.2s ease-in-out;
 }
+
 [data-theme="dark"] {
-  --main-bg: var(--main-bg-dark);
-  --main-card: var(--main-card-dark);
-  --main-border: var(--main-border-dark);
-  --main-text: var(--main-text-dark);
-  --main-accent: var(--main-accent-dark);
-  --main-blue: var(--main-blue-dark);
-  --main-orange-bg: var(--main-orange-bg-dark);
-  --main-orange: var(--main-orange-dark);
-  --main-button-disabled: #333;
-  --main-button-text: #fff;
+  --main-bg: #181818;
+  --main-card: #232323;
+  --main-border: #333;
+  --main-text: #f7f7f7;
+  --main-accent: #ffb84d;
+  --main-blue: #b3cbe6;
+  --main-orange-bg: #e6a96b;
+  --main-orange: #c75c00; /* Darker orange for dark theme */
+
+  /* Button States - Dark */
+  --main-button-primary-bg: var(--main-accent); /* Use accent for dark theme primary */
+  --main-button-primary-hover-bg: var(--main-orange-light);
+  --main-button-secondary-bg: var(--main-grey-dark);
+  --main-button-secondary-hover-bg: var(--main-grey-light);
+  --main-button-danger-bg: var(--main-red-dark);
+  --main-button-danger-hover-bg: var(--main-red-light);
+  --main-button-disabled-bg: #333;
+  --main-button-text: #ffffff; /* Default text for primary button */
+  --main-button-secondary-text: #ffffff;
+  --main-button-danger-text: #ffffff;
+  --main-button-disabled-text: #777;
+
+  /* Feedback States - Dark */
+  --main-error-bg: #4d2a2a;
+  --main-error-border: #7a3e3e;
+  --main-error-text: #ffb3a7;
+  --main-success-bg: #2a4d2a;
+  --main-success-border: #3e7a3e;
+  --main-success-text: #b7e4c7;
+  --main-loading-text: #e6a96b;
+
+  /* Shadows - Dark */
+  /* Adjust dark theme shadows as needed, e.g., less intense */
+  --main-shadow-popup: 0 2px 10px rgba(0, 0, 0, 0.2);
+  --main-shadow-button-small: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --main-shadow-button-primary: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --main-shadow-container: 0 2px 10px rgba(0, 0, 0, 0.2);
 }
-[data-theme="light"] {
-  --main-bg: var(--main-bg-light);
-  --main-card: var(--main-card-light);
-  --main-border: var(--main-border-light);
-  --main-text: var(--main-text-light);
-  --main-accent: var(--main-accent-light);
-  --main-blue: var(--main-blue-light);
-  --main-orange-bg: var(--main-orange-bg-light);
-  --main-orange: var(--main-orange-light);
-  --main-button-disabled: #ffe0b2;
-  --main-button-text: #000000;
-}
+
+/* Base Styles */
 body {
   font-family: 'Segoe UI', Arial, sans-serif;
   margin: 0;
-  background: var(--main-bg);
+  background-color: var(--main-bg);
   color: var(--main-text);
-  transition: background var(--transition), color var(--transition);
+  transition: background-color var(--transition), color var(--transition);
 }
-.container {
-  background: var(--main-card);
+
+.container { /* General page container */
+  background-color: var(--main-card);
   padding: 24px 22px 22px 22px;
   border-radius: 14px;
-  box-shadow: 0 2px 16px rgba(255,148,0,0.09);
+  box-shadow: var(--main-shadow-container); /* Use variable */
   max-width: 600px;
   margin: 24px auto 0 auto;
   border: 1.5px solid var(--main-border);
-  transition: background var(--transition), border-color var(--transition);
+  transition: background-color var(--transition), border-color var(--transition), box-shadow var(--transition);
 }
+
 h1, h2 {
-  color: var(--main-orange);
+  color: var(--main-orange); /* Headings use main orange */
   border-bottom: 1px solid var(--main-border);
   padding-bottom: 7px;
   margin-top: 0;
   margin-bottom: 18px;
   transition: color var(--transition), border-color var(--transition);
 }
+
 hr {
   border: 0;
   border-top: 1px solid var(--main-border);
   margin: 20px 0;
 }
+
 fieldset {
   border: 1.5px solid var(--main-border);
   border-radius: 7px;
   padding: 18px 14px 14px 14px;
   margin-bottom: 22px;
-  background: var(--main-bg);
-  transition: background var(--transition), border-color var(--transition);
+  background-color: var(--main-bg);
+  transition: background-color var(--transition), border-color var(--transition);
 }
+
 legend {
   font-weight: bold;
   color: var(--main-orange);
@@ -90,15 +144,19 @@ legend {
   font-size: 1.08em;
   transition: color var(--transition);
 }
+
+/* Forms & Inputs */
 .setting-item {
   margin-bottom: 12px;
 }
+
 .input-group {
   display: flex;
   gap: 7px;
   margin-top: 10px;
   margin-bottom: 10px;
 }
+
 input[type="text"] {
   color: var(--main-text);
   padding: 8px 10px;
@@ -106,59 +164,74 @@ input[type="text"] {
   border-radius: 5px;
   flex-grow: 1;
   font-size: 1em;
-  background: var(--main-bg);
-  transition: border var(--transition);
+  background-color: var(--main-bg);
+  transition: border-color var(--transition), background-color var(--transition), color var(--transition);
 }
 input[type="text"]:focus {
-  border: 1.5px solid var(--main-orange);
+  border-color: var(--main-accent); /* Use accent for focus */
   outline: none;
 }
+
+/* Buttons */
 button {
   padding: 8px 18px;
   border: none;
   border-radius: 5px;
-  background: var(--main-orange);
+  background-color: var(--main-button-primary-bg);
   color: var(--main-button-text);
   cursor: pointer;
   font-size: 1em;
-  transition: background var(--transition), box-shadow var(--transition), transform var(--transition);
-  box-shadow: 0 1px 2px rgba(255,148,0,0.09);
+  transition: background-color var(--transition), box-shadow var(--transition), transform var(--transition), color var(--transition);
+  box-shadow: var(--main-shadow-button-primary); /* Use variable */
   font-weight: 500;
 }
 button:hover:not(:disabled) {
-  background: var(--main-orange-dark);
+  background-color: var(--main-button-primary-hover-bg);
   transform: translateY(-2px) scale(1.04);
 }
 button:disabled {
-  background: var(--main-button-disabled);
-  color: var(--main-button-text);
+  background-color: var(--main-button-disabled-bg);
+  color: var(--main-button-disabled-text);
   cursor: not-allowed;
-  transform: none; /* Reset transform */
-  box-shadow: none; /* Reset shadow */
+  transform: none;
+  box-shadow: none;
 }
-button:disabled:hover {
-  background: var(--main-button-disabled);
+/* Removed button:disabled:hover */
+
+button.secondary, .unsubscribe-btn { /* Combine if styles are identical */
+  background-color: var(--main-button-secondary-bg);
+  color: var(--main-button-secondary-text);
+  /* Secondary buttons might not need a shadow, or define --main-shadow-button-secondary */
+  box-shadow: none;
 }
-button.secondary {
-  background: #6c757d;
+button.secondary:hover:not(:disabled),
+.unsubscribe-btn:hover:not(:disabled) {
+  background-color: var(--main-button-secondary-hover-bg);
 }
-button.secondary:hover:not(:disabled) {
-  background: #495057;
+
+button.danger, .delete-btn { /* Combine if styles are identical */
+  background-color: var(--main-button-danger-bg);
+  color: var(--main-button-danger-text);
+   /* Danger buttons might not need a shadow, or define --main-shadow-button-danger */
+  box-shadow: none;
 }
-button.danger {
-  background: #dc3545;
+button.danger:hover:not(:disabled),
+.delete-btn:hover:not(:disabled) {
+  background-color: var(--main-button-danger-hover-bg);
 }
-button.danger:hover:not(:disabled) {
-  background: #b71c1c;
-}
+
 button.inline-btn {
   padding: 4px 10px;
   margin-left: 10px;
   font-size: 0.97em;
+  box-shadow: none; /* Inline buttons typically don't have shadows */
 }
+
+/* Utility Classes */
 .hidden {
   display: none !important;
 }
+
 .spinner {
   display: inline-block;
   width: 1em;
@@ -173,31 +246,75 @@ button.inline-btn {
 @keyframes spinner-anim {
   to { transform: rotate(360deg); }
 }
+
+.loading {
+  text-align: center;
+  padding: 15px;
+  color: var(--main-loading-text); /* Use variable */
+  font-size: 1.07em;
+}
+
+.small-text {
+  font-size: 0.92em;
+  color: var(--main-loading-text); /* Re-using loading text color, adjust if needed */
+  margin-top: 5px;
+}
+
+/* Component-Specific Styles */
 .device-last-seen {
   margin-left: 10px;
   font-size: 0.95em;
   opacity: 0.8;
 }
+
 .this-device {
   font-weight: bold;
 }
+
 .group-name-label {
   cursor: pointer;
 }
+
 .rename-group-input {
   margin-right: 8px;
 }
-.status-message.error-message {
-  color: var(--main-error-text, red);
+
+/* Consolidated Message Area */
+.message-area { /* Use this class on the message container */
+  padding: 10px;
+  margin-bottom: 10px;
+  border-radius: 4px;
+  text-align: center;
+  border: 1px solid; /* Border color set by specific type */
+  transition: background-color var(--transition), color var(--transition), border-color var(--transition);
 }
-.status-message.success-message {
-  color: var(--main-success-text, green);
+.message-area.error {
+  background-color: var(--main-error-bg);
+  color: var(--main-error-text);
+  border-color: var(--main-error-border);
 }
-.subscribe-btn { /* Base button styles apply */ }
-.unsubscribe-btn { background-color: var(--color-button-secondary-bg, #6c757d); }
-.unsubscribe-btn:hover:not(:disabled) { background-color: var(--color-button-secondary-hover-bg, #495057); }
-.delete-btn { background-color: var(--color-button-danger-bg, #dc3545); }
-.delete-btn:hover:not(:disabled) { background-color: var(--color-button-danger-hover-bg, #b71c1c); }
+.message-area.success {
+  background-color: var(--main-success-bg);
+  color: var(--main-success-text);
+  border-color: var(--main-success-border);
+}
+
+/* Status messages (inline) */
+.status-message { /* Base class for inline status */
+   display: block; /* Or inline-block */
+   margin-top: 5px;
+   font-size: 0.95em;
+   transition: color var(--transition);
+}
+.status-message.error { /* Use .error class */
+  color: var(--main-error-text);
+}
+.status-message.success { /* Use .success class */
+  color: var(--main-success-text);
+}
+
+
+/* Defined Groups List */
 #definedGroupsList ul {
   list-style: none;
   padding: 0;
@@ -209,7 +326,7 @@ button.inline-btn {
   align-items: center;
   padding: 10px 0;
   border-bottom: 1px solid var(--main-border);
-  transition: background var(--transition);
+  transition: background-color var(--transition), border-color var(--transition);
 }
 #definedGroupsList li:last-child {
   border-bottom: none;
@@ -223,58 +340,20 @@ button.inline-btn {
   padding: 6px 13px;
   font-size: 0.97em;
 }
-.loading {
-  text-align: center;
-  padding: 15px;
-  color: #b26a00;
-  font-size: 1.07em;
-}
-#errorMessage, #messageArea.error {
-  background: #fff3e0;
-  color: #b71c1c;
-  border: 1px solid #ffcdd2;
-  padding: 10px;
-  margin-bottom: 10px;
-  border-radius: 4px;
-  text-align: center;
-}
-#messageArea.success {
-  background: #e6f7e6;
-  color: #256029;
-  border: 1px solid #b7e4c7;
-}
-#messageArea.success {
-  background-color: var(--main-success-bg, #e6f7e6);
-  color: var(--main-success-text, #256029);
-  border: 1px solid var(--main-success-border, #b7e4c7);
-  padding: 10px;
-  margin-bottom: 10px;
-  border-radius: 4px;
-  text-align: center;
-}
-#messageArea.error {
-  background-color: var(--main-error-bg, #fff3e0);
-  color: var(--main-error-text, #b71c1c);
-  border: 1px solid var(--main-error-border, #ffcdd2);
-  padding: 10px;
-  margin-bottom: 10px;
-  border-radius: 4px;
-  text-align: center;
-}
-.small-text {
-  font-size: 0.92em;
-  color: #b26a00;
-  margin-top: 5px;
-}
+
+/* Responsive */
 @media (max-width: 700px) {
   .container {
-    padding: 10px 2px 10px 2px;
-    max-width: 100%;
+    padding: 15px 10px; /* Adjusted padding */
+    max-width: 95%; /* Allow some margin */
+    margin-top: 15px;
   }
   h1, h2 {
     font-size: 1.1em;
+    margin-bottom: 15px;
   }
   fieldset {
-    padding: 10px 4px 10px 4px;
+    padding: 12px 8px;
   }
 }
+
