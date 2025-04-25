@@ -139,7 +139,7 @@ describe('utils', () => {
 // utils.test.js
 
 // Mock the constants dependency
-jest.mock('./constants.js', () => ({
+jest.mock('../constants.js', () => ({
   STRINGS: {
       deviceNameNotSet: '(Not Set)',
       noDevices: 'No devices registered.',
