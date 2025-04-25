@@ -159,11 +159,12 @@ hr {
   border-radius: 10px;
   /* Consider variable: box-shadow: 0 2px 10px var(--popup-shadow-color, rgba(180,200,230,0.10)); */
   box-shadow: 0 2px 10px rgba(180, 200, 230, 0.10);
-  background-color: var(--main-card);
+  background-color: var(--main-card); 
   min-width: 280px;
   min-height: 80px; /* Keep min-height for minimalist */
   margin: 8px auto 0 auto;
   font-size: 0.98em;
+
   /* Minimalist container does not need scrollbar hiding itself unless content overflows its specific max-height */
   /* overflow-y: auto; */ /* Add if minimalist can scroll independently */
   /* scrollbar-width: none; */
@@ -334,4 +335,3 @@ hr {
 
 /* NOTE: The !important block from the original file was removed. */
 /* Resets are now integrated into the .container.minimalist styles using specificity. */
-
