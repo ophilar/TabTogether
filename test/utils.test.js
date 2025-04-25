@@ -191,9 +191,6 @@ global.crypto = {
   randomUUID: jest.fn().mockReturnValue('mock-uuid-123'),
 };
 
-// Import the functions to test AFTER setting up mocks
-const utils = require('./utils.js');
-
 describe('Utils Module', () => {
 
   // Reset mocks and storage before each test
