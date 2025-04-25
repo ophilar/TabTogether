@@ -1,6 +1,6 @@
 // options.js
 
-import { STRINGS } from './constants.js';
+import { STRINGS, DEFAULT_DEVICE_ICON } from './constants.js';
 import { renderDeviceName, renderGroupList, isAndroid, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, createGroupDirect, deleteGroupDirect, renameGroupDirect, deleteDeviceDirect, processIncomingTabs, getUnifiedState, subscribeToGroupUnified, unsubscribeFromGroupUnified, showAndroidBanner, setLastSyncTime, getFromStorage, setInStorage, debounce, showError, renameDeviceUnified } from './utils.js';
 import { injectSharedUI } from './shared-ui.js';
 import { applyThemeFromStorage, setupThemeDropdown } from './theme.js';
@@ -101,7 +101,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadState();
     if (deviceIconSelect && deviceIconPreview) {
         deviceIconSelect.addEventListener('change', async (e) => {
-            const icon = e.target.value;
+            const icon = e.target.value || DEFAULT_DEVICE_ICON;
             deviceIconPreview.textContent = icon;
             await setInStorage(browser.storage.local, 'myDeviceIcon', icon);
             // Optionally, sync to registry for other devices to see
@@ -114,6 +114,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
         });
+        deviceIconSelect.value = DEFAULT_DEVICE_ICON;
         loadDeviceIcon();
     }
     // Notification settings logic
@@ -712,7 +713,7 @@ if (removeDeviceBtn) {
 }
 
 async function loadDeviceIcon() {
-    const icon = await getFromStorage(browser.storage.local, 'myDeviceIcon', '💻');
+    const icon = await getFromStorage(browser.storage.local, 'myDeviceIcon', DEFAULT_DEVICE_ICON);
     deviceIconSelect.value = icon;
     deviceIconPreview.textContent = icon;
 }
