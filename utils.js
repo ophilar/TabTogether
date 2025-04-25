@@ -19,13 +19,34 @@ export const LOCAL_STORAGE_KEYS = {
 
 export const MAX_DEVICES_PER_GROUP = 15; // Using 16-bit integers safely (bit 0 to 15)
 
+export async function getPlatformInfoCached() {
+    // Try to get from storage.local first
+    const { platformInfo } = await browser.storage.local.get('platformInfo');
+    if (platformInfo && platformInfo.os) {
+        return platformInfo;
+    }
+    // Fallback: fetch and cache
+    try {
+        const info = await browser.runtime.getPlatformInfo();
+        await browser.storage.local.set({ platformInfo: info });
+        return info;
+    } catch {
+        return { os: 'unknown' };
+    }
+}
+
 export async function isAndroid() {
     try {
-        const info = await getPlatformInfo();
+        const info = await getPlatformInfoCached();
         return info.os === "android";
     } catch {
         return false;
     }
+}
+
+export async function isDesktop() {
+    const info = await getPlatformInfoCached();
+    return info.os === "win" || info.os === "mac" || info.os === "linux";
 }
 
 // --- Type Safety and Validation Helpers ---
@@ -852,3 +873,20 @@ export function debounce(fn, delay) {
         timer = setTimeout(() => fn.apply(this, args), delay);
     };
 }
+
+// --- UI and Logic Exports for Tests and App ---
+export {
+    showAndroidBanner,
+    setLastSyncTime,
+    showDebugInfo,
+    createGroupDirect,
+    subscribeToGroupDirect,
+    unsubscribeFromGroupDirect,
+    createAndStoreGroupTask,
+    sendTabToGroupDirect,
+    deleteGroupDirect,
+    renameGroupDirect,
+    renameDeviceDirect,
+    deleteDeviceDirect,
+    processIncomingTabs
+};

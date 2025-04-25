@@ -20,6 +20,10 @@ async function initializeExtension() {
     try {
         console.log("Initializing TabTogether (Advanced)...");
 
+        // Save platform info to storage.local if not already present
+        const platformInfo = await browser.runtime.getPlatformInfo();
+        await browser.storage.local.set({ platformInfo });
+
         // Fetch local data first
         let localInstanceId = await getInstanceId();
         let localInstanceName = await getInstanceName();
