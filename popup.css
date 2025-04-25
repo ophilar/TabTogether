@@ -1,337 +1,281 @@
 /* popup.css */
-/* Styles unique to the popup UI, extending or overriding base styles. */
-
-/* Define popup-specific variables or use existing ones consistently */
-:root {
-  /* Consider adding variables if not defined in a base stylesheet */
-  /* --popup-shadow-color: rgba(180, 200, 230, 0.10); */
-  /* --popup-button-disabled-text: #a0a0a0; */
-  /* --popup-link-hover-color: var(--main-accent); */ /* Or a darker blue */
-  /* --popup-button-hover-bg: var(--main-accent); */ /* Or a darker blue */
-}
+/* Styles for the popup UI, aiming for functional consistency with styles.css */
 
 html {
-  box-sizing: border-box; /* Apply box-sizing globally */
+  box-sizing: border-box;
 }
-*, *:before, *:after {
+
+*,
+*:before,
+*:after {
   box-sizing: inherit;
 }
 
 body {
+  /* Use main card background for consistency */
   background-color: var(--main-card);
   margin: 0;
-  font-family: 'Roboto', sans-serif; /* Ensure this font is loaded */
-  font-size: 1em; /* Base font size */
-  color: var(--main-text); /* Use base text color */
-  line-height: 1.5; /* Improved readability */
-  min-width: 340px; /* Minimum width for the popup window itself */
-  overflow: hidden; /* Prevent body scrollbars */
-  
+  /* font-family is inherited from styles.css */
+  font-size: 1em;
+  color: var(--main-text);
+  line-height: 1.5;
+  min-width: 300px;
+  /* Slightly reduced min-width for flexibility */
+  overflow: hidden;
+  /* Prevent body scrollbars */
 }
 
 .container {
   background-color: var(--main-card);
-  border-radius: 12px;
-  /* Consider using a variable: box-shadow: 0 2px 16px var(--popup-shadow-color, rgba(180,200,230,0.10)); */
-  box-shadow: 0 2px 16px rgba(180, 200, 230, 0.10);
-  padding: 28px 20px 22px 20px;
-  margin: 18px auto 0 auto; /* Center if body allows */
+  /* Use standard border-radius if defined, or keep moderate rounding */
+  border-radius: 6px;
+  /* Reduced radius for a less stylized look */
+  /* Use standard container shadow if defined */
+  box-shadow: var(--main-shadow-container, 0 8px 8px rgba(0, 0, 0, 0.08));
+  /* Using fallback */
+  /* Adjust padding for a slightly more compact feel */
+  padding: 12px 12px 12px 12px;
+  margin: 2px auto 0 auto;
+  /* Reduced top margin */
+  border: none;
   box-sizing: border-box;
-
-  /* Sizing and scrolling */
-  min-width: 340px;
-  /* min-height: 340px; */ /* Min-height might be better handled by content */
-  overflow-y: auto; /* Allow vertical scrolling within container */
-
-  /* Hide scrollbars */
-  scrollbar-width: none; /* Firefox */
+  overflow-y: auto;
+  scrollbar-width: none;
+  /* Firefox */
 }
+
 .container::-webkit-scrollbar {
-  display: none; /* Chrome/Safari/Edge */
+  display: none;
+  /* Chrome/Safari/Edge */
 }
 
-h2 {
-  color: var(--main-text);
-  margin-top: 0;
-  margin-bottom: 14px;
-  padding-bottom: 4px;
-  border-bottom: 1px solid var(--main-blue);
-  font-size: 1.18em;
-  letter-spacing: 0.01em;
-  font-weight: 600;
-}
-
-hr {
-  border: 0;
-  border-top: 1px solid var(--main-blue);
-  margin: 18px 0;
-}
-
+/* List Styling (using semantic ul/li) */
 #subscriptionsUl {
   list-style: none;
   padding: 0;
   margin: 0;
 }
 
-.send-group-row {
+/* Style for individual list items */
+#subscriptionsUl li {
   display: flex;
   align-items: center;
-  margin-top: 10px;
   gap: 10px;
   padding: 10px 0;
-  border-bottom: 1px dashed var(--main-blue);
-  transition: background-color var(--transition); /* Be specific */
-}
-.send-group-row:last-child {
-  border-bottom: none;
+  /* Use main border color, dashed for separation */
+  transition: background-color var(--transition);
 }
 
-.send-group-label {
+/* Style for the label/name within a list item */
+#subscriptionsUl li .list-item-label {
   flex-grow: 1;
   font-weight: 500;
-  color: var(--main-text); /* Use base text color */
-  font-size: 1.04em;
+  /* Keep slightly bold for readability */
+  color: var(--main-text);
+  font-size: 1em;
+  /* Standard font size */
 }
 
-/* Specific button style for the popup */
-.send-group-btn {
-  padding: 7px 18px;
-  font-size: 1em;
-  border-radius: 5px;
+/* Highlight for the current device (Subtle) */
+#subscriptionsUl li.this-device {
+  /* font-weight: bold; is inherited from styles.css */
+  /* Optional: Add a very subtle background or rely solely on bold text */
+  background-color: var(--main-blue-light);
+  /* Removed distinct background */
+  padding-left: 7px;
+  /* Removed indent */
+  margin-left: -7px;
+  /* Removed indent */
+  border-radius: 4px;
+  /* Removed radius */
+}
+
+/* No dark theme override needed if background is removed */
+/* [data-theme="dark"] #subscriptionsUl li.this-device { ... } */
+/* Add styles for the toggle details button */
+#toggleDetailsBtn {
+  /* Override default button padding/font-size */
+  padding: 2px 6px;
+  /* Smaller padding */
+  font-size: 1.1em;
+  /* Adjust font size for the ellipsis */
+  line-height: 1;
+  /* Ensure tight line height */
+  /* Optionally override background/border if needed */
+  background: none;
   border: none;
-  background-color: var(--main-blue-dark);
-  color: var(--main-card); /* Text color on dark blue bg */
+  color: var(--main-text);
+  /* Use theme text color */
   cursor: pointer;
-  transition: background-color var(--transition), box-shadow var(--transition), transform var(--transition), color var(--transition);
-  /* Consider using a variable: box-shadow: 0 1px 2px var(--popup-shadow-color, rgba(180,200,230,0.09)); */
-  box-shadow: 0 1px 2px rgba(180, 200, 230, 0.09);
-  font-weight: 500;
-}
-.send-group-btn:disabled {
-  background-color: var(--main-blue); /* Light blue for disabled bg */
-  /* Consider variable: color: var(--popup-button-disabled-text, #a0a0a0); */
-  color: #a0a0a0;
-  cursor: not-allowed;
-  transform: none; /* Reset transform */
-  box-shadow: none; /* Reset shadow */
-}
-.send-group-btn:hover:not(:disabled) {
-  /* Using accent color for hover - ensure this contrast is intended */
-  /* Alternatively, use a darker blue: var(--main-blue-dark-hover) */
-  /* background-color: var(--popup-button-hover-bg, var(--main-accent)); */
-  background-color: var(--main-accent);
-  transform: translateY(-2px) scale(1.04);
+  /* Position it if necessary, e.g., absolute positioning */
+  position: absolute;
+  top: 10px;
+  /* Adjust as needed */
+  right: 10px;
+  /* Adjust as needed */
+  box-shadow: none;
+  /* Remove button shadow */
+  opacity: 0.7;
+  /* Make it slightly less prominent */
+  transition: opacity var(--transition);
 }
 
+#toggleDetailsBtn:hover {
+  opacity: 1;
+  background: none;
+  /* Ensure no background on hover */
+  transform: none;
+  /* Prevent base button hover transform */
+}
+
+/* Adjust container padding if toggle button is absolutely positioned */
+.container {
+  /* ... other container styles ... */
+  position: relative;
+  /* Needed for absolute positioning of children */
+  padding-right: 35px;
+  /* Add padding to prevent content overlap with button */
+  /* ... */
+}
+
+
+/* Action buttons within the popup (e.g., Send Group) */
+/* Use base button styles for consistency */
+.popup-action-btn {
+  /* Inherit most styles from base 'button' in styles.css */
+  /* Apply specific padding suitable for list items */
+  padding: 6px 16px;
+  font-size: 0.95em;
+  /* Slightly smaller if needed */
+  /* Ensure it uses primary button colors */
+  background-color: var(--main-button-primary-bg);
+  color: var(--main-button-text);
+  /* Inherits hover/disabled states from base button */
+  /* Ensure shadow matches base button shadow */
+  box-shadow: var(--main-shadow-button-primary, 0 1px 2px rgba(255, 148, 0, 0.09));
+  /* Using fallback */
+}
+
+/* No need for separate :disabled or :hover styles if they match the base button */
+
+/* Status Message Styling (Using base classes) */
 .status-message {
-  font-size: 1em;
+  font-size: 0.95em;
+  /* Consistent with other secondary text */
   margin-top: 10px;
   padding: 4px 0;
-  color: var(--main-accent); /* Using accent color - ensure intended */
   text-align: left;
   animation: fadein var(--transition);
+  display: block;
+  /* Color is determined by adding .success or .error class from styles.css */
 }
 
-.options-link, .refresh-link {
-  margin-top: 18px;
-  text-align: center;
+/* Links at the bottom (Options, Refresh) */
+/* .options-link,
+.refresh-link {
+  margin-top: 15px;
+  /* Consistent margin */
+/*  text-align: center;
+} */
+/* Style the links in the popup footer */
+.options-link .refresh-link { /* Target links specifically within the footer */
+  margin-top: 15px;
+  font-size: 2em;  /* Increase font size (adjust value as needed) */
+  padding: 5px;      /* Add some padding for easier clicking */
+  line-height: 1;    /* Adjust line height if necessary */
+  text-decoration: none; /* Ensure no underline */
+  color: var(--main-accent); /* Use accent color from theme */
+  opacity: 0.8;
+  transition: opacity var(--transition), color var(--transition);
 }
-.options-link a, .refresh-link a {
-  color: var(--main-blue-dark);
+
+.options-link .refresh-link:hover {
+  opacity: 1;
+  color: var(--main-orange-dark); /* Use darker accent for hover */
+  text-decoration: none; /* Ensure no underline on hover */
+}
+
+/* Ensure the footer itself has enough space
+.popup-footer {
+  display: flex; /* Use flexbox for alignment */
+ /* justify-content: center; /* Center icons horizontally */
+/*  gap: 15px; /* Add space between icons */
+/*  margin-top: 15px; /* Consistent margin */
+/*  padding-top: 10px; /* Add some space above the icons */
+/*  border-top: 1px solid var(--main-border); /* Optional: Add a subtle separator */
+/*} */
+
+/* General link style within the popup container
+.container a {
+  /* Use main accent color for links */
+  /* color: var(--main-accent);
   text-decoration: none;
   font-weight: 500;
   transition: color var(--transition);
 }
-.options-link a:hover, .refresh-link a:hover {
+
+.container a:hover {
   text-decoration: underline;
-  /* color: var(--popup-link-hover-color, var(--main-accent)); */ /* Using accent for hover */
-  color: var(--main-accent);
+  /* Use darker accent for hover */
+/*   color: var(--main-orange-dark);
+} */
+
+/* Adjust dark theme link hover if needed */
+[data-theme="dark"] .container a:hover {
+  color: var(--main-orange-light);
+  /* Lighter orange for dark theme hover */
 }
 
+
+/* Fade-in Animation */
 @keyframes fadein {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: none; }
-}
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
 
-/* --- Minimalist Styles --- */
-.container.minimalist {
-  padding: 12px 8px 10px 8px;
-  border-radius: 10px;
-  /* Consider variable: box-shadow: 0 2px 10px var(--popup-shadow-color, rgba(180,200,230,0.10)); */
-  box-shadow: 0 2px 10px rgba(180, 200, 230, 0.10);
-  background-color: var(--main-card); 
-  min-width: 280px;
-  min-height: 80px; /* Keep min-height for minimalist */
-  margin: 8px auto 0 auto;
-  font-size: 0.98em;
-
-  /* Minimalist container does not need scrollbar hiding itself unless content overflows its specific max-height */
-  /* overflow-y: auto; */ /* Add if minimalist can scroll independently */
-  /* scrollbar-width: none; */
-}
-/* .container.minimalist::-webkit-scrollbar { display: none; } */
-
-/* Apply resets specifically to elements *inside* .minimalist */
-.container.minimalist hr,
-.container.minimalist .popup-footer,
-.container.minimalist .popup-link,
-.container.minimalist .popup-title,
-.container.minimalist .popup-details,
-.container.minimalist .send-group-row,
-.container.minimalist .send-group-btn,
-.container.minimalist .status-message,
-.container.minimalist .details-toggle {
-  border: none;
-  box-shadow: none;
-  /* background: none; */ /* Be careful resetting background, might remove intended card bg */
-}
-/* Selectively reset background where needed */
-.container.minimalist hr,
-.container.minimalist .popup-footer,
-.container.minimalist .popup-link,
-.container.minimalist .popup-title,
-.container.minimalist .popup-details,
-.container.minimalist .details-toggle {
-    background: none;
-}
-/* Keep background for button, row might need it too depending on base styles */
-/* .container.minimalist .send-group-row { background: none; } */
-/* .container.minimalist .send-group-btn { background: none; } */ /* Button needs its background */
-/* .container.minimalist .status-message { background: none; } */
-
-
-.container.minimalist .popup-title {
-  font-size: 1.08em;
-  font-weight: 600;
-  margin: 0 0 10px 0;
-  color: var(--main-text);
-  padding: 0;
-  letter-spacing: 0.01em;
-  text-align: left;
-}
-.container.minimalist .popup-groups {
-  margin-bottom: 8px;
-}
-.container.minimalist .status-message {
-  font-size: 0.97em;
-  margin: 6px 0 0 0;
-  padding: 0;
-  color: var(--main-accent); /* Using accent color */
-  text-align: left;
-  animation: fadein var(--transition); /* Inherits animation */
-}
-.container.minimalist .details-toggle {
-  color: var(--main-accent); /* Using accent color */
-  font-size: 1.3em;
-  cursor: pointer;
-  margin: 0 0 0 auto;
-  display: block;
-  padding: 2px 0;
-  transition: color 0.15s;
-}
-.container.minimalist .details-toggle:hover,
-.container.minimalist .details-toggle:focus {
-  color: var(--main-blue-dark);
-}
-.container.minimalist .popup-details {
-  margin: 0 0 8px 0;
-  font-size: 0.95em;
-  color: var(--main-text);
-  padding: 0;
-}
-.container.minimalist .popup-detail-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 2px;
-}
-.container.minimalist .popup-detail-label {
-  color: var(--main-accent); /* Using accent color */
-  font-weight: 500;
-  min-width: 48px;
-}
-.container.minimalist .popup-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 6px;
-}
-.container.minimalist .popup-link {
-  color: var(--main-blue-dark);
-  font-size: 1.25em;
-  text-decoration: none;
-  padding: 2px 6px;
-  border-radius: 5px;
-  transition: background 0.15s, color 0.15s;
-}
-.container.minimalist .popup-link:hover,
-.container.minimalist .popup-link:focus {
-  background-color: var(--main-blue);
-  color: var(--main-card);
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* --- Responsive Adjustments --- */
 
-/* Styles for screens <= 600px */
-@media (max-width: 600px) {
-  body {
-     min-width: 280px; /* Adjust minimum window width */
-  }
-  .container {
-     /* Use viewport units for padding & width, ensuring minimums */
-     padding-left: max(12px, 3vw);
-     padding-right: max(12px, 3vw);
-     width: auto; /* Allow shrinking */
-     max-width: 96vw; /* Limit width relative to viewport */
-     margin-left: auto;
-     margin-right: auto;
-  }
-  .container.minimalist {
-     max-width: 96vw; /* Ensure minimalist also respects viewport */
-  }
-}
-
-/* Styles for screens <= 480px */
 @media (max-width: 480px) {
   body {
-      font-size: 0.98em; /* Slightly smaller base font */
+    font-size: 0.98em;
+    min-width: 280px;
+    /* Allow shrinking */
   }
+
   .container {
-    padding-top: 18px; /* Adjust padding */
-    padding-bottom: 18px;
-    margin-top: 10px;
+    padding: 15px 10px;
+    /* Adjust padding */
+    margin-top: 5px;
+    /* Reduce top margin further */
+    max-width: 98vw;
+    /* Allow near full width */
   }
+
   h2 {
-    font-size: 1.1em; /* Adjust heading size */
+    font-size: 1.05em;
+    /* Adjust heading */
+    margin-bottom: 12px;
   }
-  .container.minimalist {
-      padding: 10px max(8px, 2vw); /* Adjust minimalist padding */
-  }
-  .container.minimalist .popup-title {
-      font-size: 1.05em;
-  }
-}
 
-/* Styles for screens <= 400px */
-@media (max-width: 400px) {
-  body {
-    min-width: 280px; /* Allow shrinking further */
-    font-size: 0.96em;
-  }
-  .container {
-    padding: 15px max(10px, 2.5vw);
-  }
-  .container.minimalist {
-    min-width: 280px; /* Allow shrinking */
-    padding: 8px max(6px, 2vw);
-  }
-  .container.minimalist .popup-title {
+  .popup-action-btn {
+    /* Ensure touch target size */
+    padding: 7px 15px;
+    /* Slightly larger padding vertically */
     font-size: 1em;
+    /* Ensure readable text */
   }
-  .container.minimalist .popup-detail-label {
-    min-width: 40px; /* Allow label to shrink a bit */
+
+  #subscriptionsUl li {
+    padding: 10px 0;
+    /* Maintain vertical padding */
+    gap: 8px;
+    /* Slightly reduce gap */
   }
 }
-
-/* NOTE: The !important block from the original file was removed. */
-/* Resets are now integrated into the .container.minimalist styles using specificity. */

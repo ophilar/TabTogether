@@ -2,50 +2,64 @@
 // Shared dark mode logic for TabTogether
 // Apply dark mode based on user preference or system settings
 import { debounce, getFromStorage, setInStorage } from './utils.js';
+
 // Helper to determine the effective theme based on storage and system preference
 async function determineThemePreference() {
-    const saved = await getFromStorage(browser.storage.local, 'tt_dark_mode');
+    // Use 'auto' as the default if nothing is saved
+    const saved = await getFromStorage(browser.storage.local, 'tt_dark_mode', 'auto');
     if (saved === 'enabled') {
         return 'dark';
     }
     if (saved === 'disabled') {
         return 'light';
     }
-    // 'auto' or null/undefined - use system preference
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; // System preference
+    // 'auto' - use system preference
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
+// Applies the theme based on current preference. Called on page load.
 export async function applyThemeFromStorage() {
     setTheme(await determineThemePreference());
 }
 
+// Sets the data-theme attribute on the root element
 export function setTheme(theme) {
     document.documentElement.setAttribute('data-theme', theme);
 }
 
+// Sets up the theme selection dropdown interaction
 export async function setupThemeDropdown(dropdownId) {
     const select = document.getElementById(dropdownId);
     if (!select) return;
 
-    // Set initial value based on current preference
+    // Set initial value based on current preference ('auto' is the default)
     const currentSetting = await getFromStorage(browser.storage.local, 'tt_dark_mode', 'auto');
-
     select.value = currentSetting;
-    // Apply the theme initially (redundant if applyThemeFromStorage already ran, but safe)
-    setTheme(determineThemePreference());
-    
-    select.addEventListener('change', (e) => {
+
+    // Apply the theme initially (ensures correct theme even if applyThemeFromStorage hasn't run)
+    // This is slightly redundant if applyThemeFromStorage always runs first, but adds robustness.
+    setTheme(await determineThemePreference());
+
+    select.addEventListener('change', async (e) => {
         const value = e.target.value;
-        localStorage.setItem('tt_dark_mode', value); // Store the setting ('enabled', 'disabled', 'auto')
-        setInStorage(browser.storage.local, 'tt_dark_mode', value);
-        determineThemePreference().then(theme => setTheme(theme)); // Re-determine and apply
+        // Store the setting ('enabled', 'disabled', 'auto') only in browser.storage.local
+        await setInStorage(browser.storage.local, 'tt_dark_mode', value);
+        // Re-determine and apply the theme based on the new setting
+        setTheme(await determineThemePreference());
     });
 }
 
 // Debounced theme change listener for system preference changes
 const debouncedThemeChange = debounce(async () => {
-    const theme = await determineThemePreference();
-    setTheme(theme);
-}, 250);
+    // Only apply system theme change if the user preference is 'auto'
+    const currentSetting = await getFromStorage(browser.storage.local, 'tt_dark_mode', 'auto');
+    if (currentSetting === 'auto') {
+        // Determine theme based on the *new* system preference
+        const theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        setTheme(theme);
+    }
+}, 250); // Debounce to avoid rapid changes
 
+// Listen for system theme changes
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', debouncedThemeChange);
+
