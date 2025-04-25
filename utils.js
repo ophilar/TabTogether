@@ -274,19 +274,6 @@ export const renderSubscriptions = (container, subscriptions) => {
     container.textContent = STRINGS.subscribedGroups + subscriptions.join(', ');
 }
 
-// Utility: Platform info and feature support
-export async function getPlatformInfo() {
-    try {
-        return await browser.runtime.getPlatformInfo();
-    } catch {
-        return { os: 'unknown' };
-    }
-}
-
-export async function isDesktop() {
-    const info = await getPlatformInfo();
-    return info.os === "win" || info.os === "mac" || info.os === "linux";
-}
 
 // Utility: Show Android banner
 export const showAndroidBanner = (container, msg) => {
@@ -879,20 +866,3 @@ export function debounce(fn, delay) {
         timer = setTimeout(() => fn.apply(this, args), delay);
     };
 }
-
-// --- UI and Logic Exports for Tests and App ---
-export {
-    showAndroidBanner,
-    setLastSyncTime,
-    showDebugInfo,
-    createGroupDirect,
-    subscribeToGroupDirect,
-    unsubscribeFromGroupDirect,
-    createAndStoreGroupTask,
-    sendTabToGroupDirect,
-    deleteGroupDirect,
-    renameGroupDirect,
-    renameDeviceDirect,
-    deleteDeviceDirect,
-    processIncomingTabs
-};
