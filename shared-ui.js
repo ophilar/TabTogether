@@ -7,7 +7,7 @@ export function injectSharedUI(containerSelector = '.container') {
     // Only inject if not already present
     if (!container.querySelector('header')) {
         const header = document.createElement('header');
-        header.innerHTML = '<h1 id="mainTitle">TabTogether</h1>';
+        header.innerHTML = '<h1 id="mainTitle">TabTogether</h1><hr>';
         container.prepend(header);
     }
     if (!container.querySelector('#loadingIndicator')) {

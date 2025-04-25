@@ -17,6 +17,7 @@
   --main-blue-light: #eaf3fb;
   --main-blue-dark: #b3cbe6;
   --main-orange-bg-light: #f7c59f;
+  --main-blue-dark-hover: #9cb0c7;
   --main-orange-bg-dark: #e6a96b;
   --transition: 0.2s ease-in-out;
 }
@@ -132,6 +133,11 @@ button:disabled {
   background: var(--main-button-disabled);
   color: var(--main-button-text);
   cursor: not-allowed;
+  transform: none; /* Reset transform */
+  box-shadow: none; /* Reset shadow */
+}
+button:disabled:hover {
+  background: var(--main-button-disabled);
 }
 button.secondary {
   background: #6c757d;
