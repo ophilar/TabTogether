@@ -492,10 +492,10 @@ export async function renameDeviceDirect(deviceId, newName) {
 
 export async function deleteDeviceDirect(deviceId) {
     const deviceRegistry = await getFromStorage(browser.storage.sync, 'deviceRegistry', {});
-    if (!deviceRegistry[deviceId]) return { success: false, message: 'Device not found.' };
+    if (!deviceRegistry[deviceId]) return { success: false, message: 'Device not found.' }; // Early exit if device not found
     const groupBits = deviceRegistry[deviceId].groupBits || {};
     delete deviceRegistry[deviceId];
-    await setInStorage(browser.storage.sync, 'deviceRegistry', deviceRegistry);
+    await setInStorage(browser.storage.sync, 'deviceRegistry', deviceRegistry); // Update registry
     const groupState = await getFromStorage(browser.storage.sync, 'groupState', {});
     let groupStateChanged = false;
     for (const groupName in groupBits) {
@@ -511,6 +511,12 @@ export async function deleteDeviceDirect(deviceId) {
     }
     if (groupStateChanged) {
         await setInStorage(browser.storage.sync, 'groupState', groupState);
+    }
+    // Remove local data if this is the current device
+    const localId = await getFromStorage(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID);
+    if (deviceId === localId) {
+        await setInStorage(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
+        await setInStorage(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {});
     }
     return { success: true };
 }
