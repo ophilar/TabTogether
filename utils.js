@@ -54,50 +54,19 @@ export const ensureObject = (val, fallback = {}) => (val && typeof val === 'obje
 export const ensureArray = (val, fallback = []) => Array.isArray(val) ? val : fallback;
 export const ensureString = (val, fallback = '') => typeof val === 'string' ? val : fallback;
 
-// --- Storage Access Helpers ---
-export async function getFromStorage(area, key, defaultValue = null) {
-    try {
-        const { [key]: valueRaw } = await area.get(key);
-        let value = valueRaw ?? defaultValue;
-        if (key === LOCAL_STORAGE_KEYS.GROUP_BITS || key === SYNC_STORAGE_KEYS.GROUP_STATE || key === SYNC_STORAGE_KEYS.DEVICE_REGISTRY) {
-            value = ensureObject(value, defaultValue ?? {});
-        } else if (key === LOCAL_STORAGE_KEYS.SUBSCRIPTIONS || key === SYNC_STORAGE_KEYS.DEFINED_GROUPS) {
-            value = ensureArray(value, defaultValue ?? []);
-        } else if (key === LOCAL_STORAGE_KEYS.INSTANCE_ID || key === LOCAL_STORAGE_KEYS.INSTANCE_NAME) {
-            value = ensureString(value, defaultValue ?? '');
-        }
-        return value;
-    } catch (e) {
-        console.error(`Error getting ${key}:`, e);
-        return defaultValue;
-    }
-}
-
-export async function setInStorage(area, key, value) {
-    try {
-        await area.set({ [key]: value });
-        return true;
-    } catch (e) {
-        console.error(`Error setting ${key}:`, e);
-        return false;
-    }
-}
-
-// Update all usages below to use getFromStorage/setInStorage
-export async function getStorage(area, key, defaultValue = null) {
-    // Deprecated: use getFromStorage
-    return getFromStorage(area, key, defaultValue);
-}
-
-// Safely merges updates into potentially large objects in storage.sync
 // Avoids race conditions where concurrent updates overwrite each other.
 export async function mergeSyncStorage(key, updates) {
     try {
-        const currentData = await getStorage(browser.storage.sync, key, {});
+        const currentData = await storage.get(browser.storage.sync, key, {});
         // Basic deep merge (can be improved for arrays if needed)
         const mergedData = deepMerge(currentData, updates);
-        await browser.storage.sync.set({ [key]: mergedData });
-        console.log(`Merged data for key "${key}"`, updates);
+        const success = await storage.set(browser.storage.sync, key, mergedData);
+        if (success) {
+            console.log(`Merged data for key "${key}"`, updates); // Log updates on success
+        } else {
+             console.error(`Failed to set merged data for key "${key}"`);
+             return false; // Return false if set failed
+        }
         return true;
     } catch (error) {
         console.error(`Error merging ${key} in sync storage:`, error, "Updates:", updates);
@@ -139,24 +108,24 @@ export const isObject = item => !!item && typeof item === 'object' && !Array.isA
 
 // --- Instance ID/Name ---
 // Store device name and ID in both local and sync storage for persistence
-export async function getInstanceId(cryptoDep = crypto) {
-    let id = await getFromStorage(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID);
+export async function getInstanceId() {
+    let id = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID);
     if (!id) {
-        id = await getFromStorage(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_ID);
+        id = await storage.get(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_ID);
         if (!id) {
-            id = cryptoDep.randomUUID();
-            await setInStorage(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_ID, id);
+            id = globalThis.crypto.randomUUID();
+            await utils.storage.set(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_ID, id);
         }
-        await setInStorage(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID, id);
+        await utils.storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID, id);
     }
-    await setInStorage(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_ID, id);
+    await utils.storage.set(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_ID, id);
     return id;
 }
 
 export async function getInstanceName() {
-    let name = await getFromStorage(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_NAME);
+    let name = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_NAME);
     if (!name) {
-        name = await getFromStorage(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_NAME);
+        name = await storage.get(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_NAME);
         if (!name) {
             try {
                 const platformInfo = await browser.runtime.getPlatformInfo();
@@ -167,11 +136,11 @@ export async function getInstanceName() {
             } catch (e) {
                 name = "My Device";
             }
-            await setInStorage(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_NAME, name);
+            await utils.storage.set(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_NAME, name);
         }
-        await setInStorage(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_NAME, name);
+        await utils.storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_NAME, name);
     }
-    await setInStorage(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_NAME, name);
+    await utils.storage.set(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_NAME, name);
     return name;
 }
 
@@ -349,10 +318,10 @@ export async function createGroupDirect(groupName) {
 }
 
 export async function subscribeToGroupDirect(groupName) {
-    let subscriptions = await getFromStorage(browser.storage.local, 'mySubscriptions', []);
-    let groupBits = await getFromStorage(browser.storage.local, 'myGroupBits', {});
+    let subscriptions = await storage.get(browser.storage.local, 'mySubscriptions', []);
+    let groupBits = await storage.get(browser.storage.local, 'myGroupBits', {});
     if (subscriptions.includes(groupName)) return { success: false, message: 'Already subscribed.' };
-    const groupState = await getFromStorage(browser.storage.sync, 'groupState', {});
+    const groupState = await storage.get(browser.storage.sync, 'groupState', {});
     const state = groupState[groupName] || { assignedMask: 0, assignedCount: 0 };
     const bitPosition = getNextAvailableBitPosition(state.assignedMask);
     if (bitPosition === -1) {
@@ -361,47 +330,47 @@ export async function subscribeToGroupDirect(groupName) {
     const myBit = 1 << bitPosition;
     state.assignedMask |= myBit;
     groupState[groupName] = state;
-    await setInStorage(browser.storage.sync, 'groupState', groupState);
+    await utils.storage.set(browser.storage.sync, 'groupState', groupState);
     subscriptions.push(groupName);
     subscriptions.sort();
     groupBits[groupName] = myBit;
-    await setInStorage(browser.storage.local, 'mySubscriptions', subscriptions);
-    await setInStorage(browser.storage.local, 'myGroupBits', groupBits);
-    const instanceId = await getFromStorage(browser.storage.local, 'myInstanceId');
-    const deviceRegistry = await getFromStorage(browser.storage.sync, 'deviceRegistry', {});
+    await utils.storage.set(browser.storage.local, 'mySubscriptions', subscriptions);
+    await utils.storage.set(browser.storage.local, 'myGroupBits', groupBits);
+    const instanceId = await storage.get(browser.storage.local, 'myInstanceId');
+    const deviceRegistry = await storage.get(browser.storage.sync, 'deviceRegistry', {});
     if (!deviceRegistry[instanceId]) deviceRegistry[instanceId] = { name: '', lastSeen: Date.now(), groupBits: {} };
     deviceRegistry[instanceId].groupBits[groupName] = myBit;
     deviceRegistry[instanceId].lastSeen = Date.now();
-    await setInStorage(browser.storage.sync, 'deviceRegistry', deviceRegistry);
+    await utils.storage.set(browser.storage.sync, 'deviceRegistry', deviceRegistry);
     return { success: true, subscribedGroup: groupName, assignedBit: myBit };
 }
 
 export async function unsubscribeFromGroupDirect(groupName) {
-    let subscriptions = await getFromStorage(browser.storage.local, 'mySubscriptions', []);
-    let groupBits = await getFromStorage(browser.storage.local, 'myGroupBits', {});
+    let subscriptions = await storage.get(browser.storage.local, 'mySubscriptions', []);
+    let groupBits = await storage.get(browser.storage.local, 'myGroupBits', {});
     if (!subscriptions.includes(groupName)) return { success: false, message: 'Not subscribed.' };
     const removedBit = groupBits[groupName];
     subscriptions = subscriptions.filter(g => g !== groupName);
     delete groupBits[groupName];
-    await setInStorage(browser.storage.local, 'mySubscriptions', subscriptions);
-    await setInStorage(browser.storage.local, 'myGroupBits', groupBits);
-    const groupState = await getFromStorage(browser.storage.sync, 'groupState', {});
+    await utils.storage.set(browser.storage.local, 'mySubscriptions', subscriptions);
+    await utils.storage.set(browser.storage.local, 'myGroupBits', groupBits);
+    const groupState = await storage.get(browser.storage.sync, 'groupState', {});
     if (groupState[groupName]) {
         groupState[groupName].assignedMask &= ~removedBit;
-        await setInStorage(browser.storage.sync, 'groupState', groupState);
+        await utils.storage.set(browser.storage.sync, 'groupState', groupState);
     }
-    const instanceId = await getFromStorage(browser.storage.local, 'myInstanceId');
-    const deviceRegistry = await getFromStorage(browser.storage.sync, 'deviceRegistry', {});
+    const instanceId = await storage.get(browser.storage.local, 'myInstanceId');
+    const deviceRegistry = await storage.get(browser.storage.sync, 'deviceRegistry', {});
     if (deviceRegistry[instanceId] && deviceRegistry[instanceId].groupBits) {
         delete deviceRegistry[instanceId].groupBits[groupName];
-        await setInStorage(browser.storage.sync, 'deviceRegistry', deviceRegistry);
+        await utils.storage.set(browser.storage.sync, 'deviceRegistry', deviceRegistry);
     }
     return { success: true, unsubscribedGroup: groupName };
 }
 
 export async function createAndStoreGroupTask(groupName, tabData, senderBit) {
     const taskId = (globalThis.crypto && globalThis.crypto.randomUUID) ? globalThis.crypto.randomUUID() : 'mock-task-id';
-    const groupTasks = await getFromStorage(browser.storage.sync, 'groupTasks', {});
+    const groupTasks = await storage.get(browser.storage.sync, 'groupTasks', {});
     if (!groupTasks[groupName]) groupTasks[groupName] = {};
     groupTasks[groupName][taskId] = {
         url: tabData.url,
@@ -409,12 +378,12 @@ export async function createAndStoreGroupTask(groupName, tabData, senderBit) {
         processedMask: senderBit,
         creationTimestamp: Date.now()
     };
-    await setInStorage(browser.storage.sync, 'groupTasks', groupTasks);
+    await utils.storage.set(browser.storage.sync, 'groupTasks', groupTasks);
     return { success: true };
 }
 
 export async function sendTabToGroupDirect(groupName, tabData) {
-    const groupBits = await getFromStorage(browser.storage.local, 'myGroupBits', {});
+    const groupBits = await storage.get(browser.storage.local, 'myGroupBits', {});
     const senderBit = groupBits[groupName] || 0;
     return await createAndStoreGroupTask(groupName, tabData, senderBit);
 }
@@ -462,13 +431,13 @@ export async function renameGroupDirect(oldName, newName) {
 
 export async function renameDeviceDirect(deviceId, newName) {
     try {
-    const deviceRegistry = await getFromStorage(browser.storage.sync, 'deviceRegistry', {});
+    const deviceRegistry = await storage.get(browser.storage.sync, 'deviceRegistry', {});
     if (!deviceRegistry[deviceId]) return { success: false, message: 'Device not found.' };
     deviceRegistry[deviceId].name = newName.trim();
-    await setInStorage(browser.storage.sync, 'deviceRegistry', deviceRegistry);
-    const instanceId = await getFromStorage(browser.storage.local, 'myInstanceId');
+    await utils.storage.set(browser.storage.sync, 'deviceRegistry', deviceRegistry);
+    const instanceId = await storage.get(browser.storage.local, 'myInstanceId');
     if (deviceId === instanceId) {
-        await setInStorage(browser.storage.local, 'myInstanceName', newName.trim());
+        await utils.storage.set(browser.storage.local, 'myInstanceName', newName.trim());
     }
     return { success: true, newName: newName.trim() };
 } catch (error) {
@@ -478,12 +447,12 @@ export async function renameDeviceDirect(deviceId, newName) {
 }
 
 export async function deleteDeviceDirect(deviceId) {
-    const deviceRegistry = await getFromStorage(browser.storage.sync, 'deviceRegistry', {});
+    const deviceRegistry = await storage.get(browser.storage.sync, 'deviceRegistry', {});
     if (!deviceRegistry[deviceId]) return { success: false, message: 'Device not found.' }; // Early exit if device not found
     const groupBits = deviceRegistry[deviceId].groupBits || {};
     delete deviceRegistry[deviceId];
-    await setInStorage(browser.storage.sync, 'deviceRegistry', deviceRegistry); // Update registry
-    const groupState = await getFromStorage(browser.storage.sync, 'groupState', {});
+    await utils.storage.set(browser.storage.sync, 'deviceRegistry', deviceRegistry); // Update registry
+    const groupState = await storage.get(browser.storage.sync, 'groupState', {});
     let groupStateChanged = false;
     for (const groupName in groupBits) {
         const bit = groupBits[groupName];
@@ -497,13 +466,13 @@ export async function deleteDeviceDirect(deviceId) {
         }
     }
     if (groupStateChanged) {
-        await setInStorage(browser.storage.sync, 'groupState', groupState);
+        await utils.storage.set(browser.storage.sync, 'groupState', groupState);
     }
     // Remove local data if this is the current device
-    const localId = await getFromStorage(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID);
+    const localId = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID);
     if (deviceId === localId) {
-        await setInStorage(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
-        await setInStorage(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {});
+        await utils.storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
+        await utils.storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {});
     }
     return { success: true };
 }
@@ -591,13 +560,13 @@ export async function getUnifiedState(isAndroidPlatform) {
             groupState,
             deviceRegistry
         ] = await Promise.all([
-            getFromStorage(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID),
-            getFromStorage(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_NAME),
-            getFromStorage(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []),
-            getFromStorage(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {}),
-            getFromStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []),
-            getFromStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {}),
-            getFromStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {})
+            storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID),
+            storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_NAME),
+            storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []),
+            storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {}),
+            storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []),
+            storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {}),
+            storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {})
         ]);
         return {
             instanceId,
@@ -621,16 +590,16 @@ export async function renameDeviceUnified(deviceId, newName, isAndroidPlatform) 
 
 // --- Generic Storage List/Object Updaters ---
 export async function updateListInStorage(area, key, updater, defaultValue = []) {
-    const list = await getFromStorage(area, key, defaultValue);
+    const list = await storage.get(area, key, defaultValue);
     const updated = updater(Array.isArray(list) ? list : defaultValue);
-    await setInStorage(area, key, updated);
+    await utils.storage.set(area, key, updated);
     return updated;
 }
 
 export async function updateObjectInStorage(area, key, updater, defaultValue = {}) {
-    const obj = await getFromStorage(area, key, defaultValue);
+    const obj = await storage.get(area, key, defaultValue);
     const updated = updater(obj && typeof obj === 'object' ? obj : defaultValue);
-    await setInStorage(area, key, updated);
+    await utils.storage.set(area, key, updated);
     return updated;
 }
 
@@ -680,8 +649,8 @@ export async function performHeartbeat(localInstanceId, localInstanceName, local
 
 export async function performStaleDeviceCheck(cachedDeviceRegistry, cachedGroupState) {
     console.log("Performing stale device check...");
-    let registry = cachedDeviceRegistry ?? await getFromStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
-    let groupState = cachedGroupState ?? await getFromStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {});
+    let registry = cachedDeviceRegistry ?? await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
+    let groupState = cachedGroupState ?? await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {});
     const now = Date.now();
     let registryUpdates = {};
     let groupStateUpdates = {};
@@ -727,7 +696,7 @@ export async function performStaleDeviceCheck(cachedDeviceRegistry, cachedGroupS
 
 export async function performTimeBasedTaskCleanup(localProcessedTasks) {
     console.log("Performing time-based task cleanup...");
-    const allGroupTasks = await getFromStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, {});
+    const allGroupTasks = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, {});
     let groupTasksUpdates = {};
     let needsUpdate = false;
     const now = Date.now();
@@ -750,7 +719,7 @@ export async function performTimeBasedTaskCleanup(localProcessedTasks) {
         await mergeSyncStorage(SYNC_STORAGE_KEYS.GROUP_TASKS, groupTasksUpdates);
         if (Object.keys(processedTasksUpdates).length !== Object.keys(localProcessedTasks).length) {
             localProcessedTasks = processedTasksUpdates;
-            await setInStorage(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, localProcessedTasks);
+            await utils.storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, localProcessedTasks);
         }
     }
     console.log("Time-based task cleanup complete.");
