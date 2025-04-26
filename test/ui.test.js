@@ -4,6 +4,25 @@ import { jest } from '@jest/globals';
 import * as utils from '../utils.js';
 import { STRINGS } from '../constants.js';
 
+// --- Setup Mocks for the entire file ---
+// Provide a minimal browser mock covering APIs used in this test file
+global.browser = {
+  storage: {
+      // Mock storage if needed by functions under test in this file
+      sync: {
+           get: jest.fn().mockResolvedValue({}),
+           set: jest.fn().mockResolvedValue(undefined),
+      },
+      local: {
+           get: jest.fn().mockResolvedValue({}),
+           set: jest.fn().mockResolvedValue(undefined),
+      }
+  },
+  runtime: {
+      getPlatformInfo: jest.fn(async () => ({ os: 'win' })) // Default mock
+  }
+};
+
 // Setup DOM for UI tests
 describe('UI Rendering Helpers', () => {
   let container;
@@ -94,10 +113,10 @@ describe('UI Rendering Helpers', () => {
 });
 
 describe('Error handling in utils.js', () => {
-  beforeEach(() => {
-    // Provide a minimal browser mock for getStorage error test
-    global.browser = { storage: { sync: {}, local: {} } };
-  });
+  // beforeEach(() => {
+  //   // Provide a minimal browser mock for getStorage error test
+  //   global.browser = { storage: { sync: {}, local: {} } };
+  // });
   test('getStorage returns default on error', async () => {
     const badArea = { get: async () => { throw new Error('fail'); } };
     const val = await utils.getStorage(badArea, 'foo', 123);
@@ -106,10 +125,10 @@ describe('Error handling in utils.js', () => {
 
   test('mergeSyncStorage returns false on error', async () => {
     const orig = global.browser;
-    global.browser = { storage: { sync: { set: async () => { throw new Error('fail'); }, get: async () => ({}) } } };
+    // global.browser = { storage: { sync: { set: async () => { throw new Error('fail'); }, get: async () => ({}) } } };
     const result = await utils.mergeSyncStorage('key', { a: 1 });
     expect(result).toBe(false);
-    global.browser = orig;
+    // global.browser = orig;
   });
 });
 
@@ -121,13 +140,13 @@ describe('utils.js platform and bit helpers', () => {
   });
 
   test('isDesktop returns true for win/mac/linux', async () => {
-    global.browser = { runtime: { getPlatformInfo: async () => ({ os: 'win' }) } };
+    // global.browser = { runtime: { getPlatformInfo: async () => ({ os: 'win' }) } };
     expect(await utils.isDesktop()).toBe(true);
-    global.browser = { runtime: { getPlatformInfo: async () => ({ os: 'mac' }) } };
+    // global.browser = { runtime: { getPlatformInfo: async () => ({ os: 'mac' }) } };
     expect(await utils.isDesktop()).toBe(true);
-    global.browser = { runtime: { getPlatformInfo: async () => ({ os: 'linux' }) } };
+    // global.browser = { runtime: { getPlatformInfo: async () => ({ os: 'linux' }) } };
     expect(await utils.isDesktop()).toBe(true);
-    global.browser = { runtime: { getPlatformInfo: async () => ({ os: 'android' }) } };
+    // global.browser = { runtime: { getPlatformInfo: async () => ({ os: 'android' }) } };
     expect(await utils.isDesktop()).toBe(false);
   });
 });
@@ -206,10 +225,10 @@ describe('Device/group logic: rename, add, delete, send tab', () => {
       set: jest.fn(async (obj) => { Object.assign(memoryStore, obj); }),
       clear: jest.fn(async () => { for (const k in memoryStore) delete memoryStore[k]; })
     };
-    global.browser = {
-      storage: { local: mockStorage, sync: mockStorage },
-      runtime: { getPlatformInfo: jest.fn(async () => ({ os: 'win' })) }
-    };
+    // global.browser = {
+    //   storage: { local: mockStorage, sync: mockStorage },
+    //   runtime: { getPlatformInfo: jest.fn(async () => ({ os: 'win' })) }
+    // };
   });
 
   test('create, rename, and delete group', async () => {
