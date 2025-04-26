@@ -50,9 +50,9 @@ export async function isDesktop() {
 }
 
 // --- Type Safety and Validation Helpers ---
-const ensureObject = (val, fallback = {}) => (val && typeof val === 'object' && !Array.isArray(val)) ? val : fallback;
-const ensureArray = (val, fallback = []) => Array.isArray(val) ? val : fallback;
-const ensureString = (val, fallback = '') => typeof val === 'string' ? val : fallback;
+export const ensureObject = (val, fallback = {}) => (val && typeof val === 'object' && !Array.isArray(val)) ? val : fallback;
+export const ensureArray = (val, fallback = []) => Array.isArray(val) ? val : fallback;
+export const ensureString = (val, fallback = '') => typeof val === 'string' ? val : fallback;
 
 // --- Storage Access Helpers ---
 export async function getFromStorage(area, key, defaultValue = null) {
@@ -211,7 +211,7 @@ export function renderDeviceList(container, devices, highlightId = null) {
 }
 
 // --- Simple HTML template utility for rendering repeated DOM blocks ---
-const html = (strings, ...values) => {
+export const html = (strings, ...values) => {
     const template = document.createElement('template');
     template.innerHTML = strings.reduce((acc, str, i) => acc + str + (values[i] ?? ''), '');
     return template.content.cloneNode(true);

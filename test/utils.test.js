@@ -76,21 +76,25 @@ jest.mock('../constants.js', () => ({
 }));
 
 describe('utils', () => {
-    const mockLocalStorage = global.browser.storage.local;
+    const mockStorage = global.browser.storage.local;
     const mockSyncStorage = global.browser.storage.sync;
 
     beforeEach(async () => {
+        jest.clearAllMocks();
+
         // Clear the stores using their mock methods
-        await mockLocalStorage.clear();
+        await mockStorage.clear();
         await mockSyncStorage.clear();
 
         // Reset platformInfo cache if needed (accessing internal store via helper)
-        delete mockLocalStorage._getStore().platformInfo;
+        delete mockStorage._getStore().platformInfo;
 
         // Reset mocks used within tests
         global.browser.runtime.getPlatformInfo.mockClear(); // Clear calls
         global.browser.runtime.getPlatformInfo.mockResolvedValue({ os: 'win' }); // Reset return value
-
+        if (global.browser.storage.local._getStore) {
+            delete global.browser.storage.local._getStore().platformInfo;
+        }
         // Reset crypto mock state
         mockRandomUUID.mockClear();
         mockRandomUUID.mockReturnValue('mock-uuid-123')
@@ -116,17 +120,21 @@ describe('utils', () => {
     });
 
     test('mergeSyncStorage merges and sets', async () => {
-        await mockStorage.set({ test: { a: 1, b: 2 } });
+        await mockSyncStorage.set({ test: { a: 1, b: 2 } });
         await utils.mergeSyncStorage('test', { b: 3, c: 4 });
-        expect((await mockStorage.get('test')).test).toEqual({ a: 1, b: 3, c: 4 });
+        expect((await mockSyncStorage.get('test')).test).toEqual({ a: 1, b: 3, c: 4 });
     });
 
     test('getInstanceId generates and persists uuid', async () => {
         await mockStorage.clear();
-        const id = await utils.getInstanceId({ randomUUID: () => 'mock-uuid-1234' });
+        await mockSyncStorage.clear();  // Use the correct mock variable
+
+        const id = await utils.getInstanceId({ randomUUID: mockRandomUUID });
         expect(id).toBe('mock-uuid-1234');
         expect(mockRandomUUID).toHaveBeenCalledTimes(1);
+
         expect((await mockStorage.get('myInstanceId')).myInstanceId).toBe('mock-uuid-1234');
+        expect((await mockSyncStorage.get('myInstanceId')).myInstanceId).toBe('mock-uuid-123');
     });
 
     test('getInstanceName generates and persists name', async () => {
@@ -137,23 +145,36 @@ describe('utils', () => {
     });
 
     test('isAndroid and isDesktop platform detection', async () => {
-        browser.runtime.getPlatformInfo.mockResolvedValueOnce({ os: 'android' });
-        delete global.browser.storage.local._getStore().platformInfo;
-        expect(await utils.isAndroid()).toBe(true);
-
-        browser.runtime.getPlatformInfo.mockResolvedValueOnce({ os: 'win' });
-        delete global.browser.storage.local._getStore().platformInfo;
-        expect(await utils.isAndroid()).toBe(false);
+        // Test desktop cases (ensure cache is clear before each)
+        if (global.browser.storage.local._getStore) delete global.browser.storage.local._getStore().platformInfo;
+        global.browser.runtime.getPlatformInfo.mockResolvedValue({ os: 'win' });
         expect(await utils.isDesktop()).toBe(true);
+        expect(await utils.isAndroid()).toBe(false);
+        
+        if (global.browser.storage.local._getStore) delete global.browser.storage.local._getStore().platformInfo;
+        global.browser.runtime.getPlatformInfo.mockResolvedValue({ os: 'mac' });
+        expect(await utils.isDesktop()).toBe(true);
+        expect(await utils.isAndroid()).toBe(false);
+        
+        if (global.browser.storage.local._getStore) delete global.browser.storage.local._getStore().platformInfo;
+        global.browser.runtime.getPlatformInfo.mockResolvedValue({ os: 'linux' });
+        expect(await utils.isDesktop()).toBe(true);
+        expect(await utils.isAndroid()).toBe(false);
+        
+        // Test non-desktop case
+        if (global.browser.storage.local._getStore) delete global.browser.storage.local._getStore().platformInfo;
+        global.browser.runtime.getPlatformInfo.mockResolvedValue({ os: 'android' });
+        expect(await utils.isDesktop()).toBe(false); // This should now pass
+        expect(await utils.isAndroid()).toBe(true);
     });
 
     // Direct storage logic tests (group management, tab sending)
     test('direct group create/subscribe/unsubscribe', async () => {
         // Simulate direct group creation
-        await mockStorage.set({ definedGroups: [] });
+        await mockSyncStorage.set({ definedGroups: [] });
         const createRes = await utils.createGroupDirect('TestGroup');
         expect(createRes.success).toBe(true);
-        expect((await mockStorage.get('definedGroups')).definedGroups).toContain('TestGroup');
+        expect((await mockSyncStorage.get('definedGroups')).definedGroups).toContain('TestGroup');
         // Subscribe
         const subRes = await utils.subscribeToGroupDirect('TestGroup');
         expect(subRes.success).toBe(true);
@@ -163,10 +184,10 @@ describe('utils', () => {
     });
 
     test('direct sendTabToGroupDirect', async () => {
-        await mockStorage.set({ myGroupBits: { TestGroup: 1 } });
+        await mockSyncStorage.set({ myGroupBits: { TestGroup: 1 } });
         const res = await utils.sendTabToGroupDirect('TestGroup', { url: 'https://example.com', title: 'Example' });
         expect(res.success).toBe(true);
-        const groupTasks = (await mockStorage.get('groupTasks')).groupTasks;
+        const groupTasks = (await mockSyncStorage.get('groupTasks')).groupTasks;
         expect(groupTasks.TestGroup).toBeDefined();
         const task = Object.values(groupTasks.TestGroup)[0];
         expect(task.url).toBe('https://example.com');
@@ -266,65 +287,65 @@ describe('utils', () => {
     // --- Storage Access Helpers ---
     describe('Storage Access (getFromStorage / setInStorage / storage object)', () => {
         test('getFromStorage retrieves value', async () => {
-            await global.browser.storage.local.set({ testKey: 'testValue' });
-            const value = await utils.getFromStorage(global.browser.storage.local, 'testKey');
+            await mockStorage.set({ testKey: 'testValue' });
+            const value = await utils.getFromStorage(mockStorage, 'testKey');
             expect(value).toBe('testValue');
-            expect(global.browser.storage.local.get).toHaveBeenCalledWith('testKey');
+            expect(mockStorage.get).toHaveBeenCalledWith('testKey');
         });
 
         test('getFromStorage returns default value if not found', async () => {
-            const value = await utils.getFromStorage(global.browser.storage.local, 'nonExistentKey', 'defaultValue');
+            const value = await utils.getFromStorage(mockStorage, 'nonExistentKey', 'defaultValue');
             expect(value).toBe('defaultValue');
         });
 
         test('getFromStorage handles errors', async () => {
-            global.browser.storage.local.get.mockRejectedValueOnce(new Error('Storage failed'));
-            const value = await utils.getFromStorage(global.browser.storage.local, 'anyKey', 'fallback');
+            mockStorage.get.mockRejectedValueOnce(new Error('Storage failed'));
+            const value = await utils.getFromStorage(mockStorage, 'anyKey', 'fallback');
             expect(value).toBe('fallback');
             // Check console.error was called (optional)
         });
 
         test('setInStorage sets value', async () => {
-            const success = await utils.setInStorage(global.browser.storage.local, 'newKey', { data: 1 });
+            const success = await utils.setInStorage(mockStorage, 'newKey', { data: 1 });
             expect(success).toBe(true);
-            expect(global.browser.storage.local.set).toHaveBeenCalledWith({ newKey: { data: 1 } });
-            const stored = await global.browser.storage.local.get('newKey');
+            expect(mockStorage.set).toHaveBeenCalledWith({ newKey: { data: 1 } });
+            const stored = await mockStorage.get('newKey');
             expect(stored.newKey).toEqual({ data: 1 });
         });
 
         test('setInStorage handles errors', async () => {
-            global.browser.storage.local.set.mockRejectedValueOnce(new Error('Set failed'));
-            const success = await utils.setInStorage(global.browser.storage.local, 'failKey', 'value');
+            mockStorage.set.mockRejectedValueOnce(new Error('Set failed'));
+            const success = await utils.setInStorage(mockStorage, 'failKey', 'value');
             expect(success).toBe(false);
             // Check console.error was called (optional)
         });
 
         // Test the 'storage' object wrapper
         test('storage.get retrieves value', async () => {
-            await global.browser.storage.sync.set({ syncKey: 'syncValue' });
-            const value = await utils.storage.get(global.browser.storage.sync, 'syncKey');
+            await mockSyncStorage.set({ syncKey: 'syncValue' });
+            const value = await utils.storage.get(mockSyncStorage, 'syncKey');
             expect(value).toBe('syncValue');
         });
 
         test('storage.set sets value', async () => {
-            await utils.storage.set(global.browser.storage.sync, 'anotherSyncKey', [1, 2]);
-            const stored = await global.browser.storage.sync.get('anotherSyncKey');
+            await utils.storage.set(mockSyncStorage, 'anotherSyncKey', [1, 2]);
+            const stored = await mockSyncStorage.get('anotherSyncKey');
             expect(stored.anotherSyncKey).toEqual([1, 2]);
         });
 
         test('storage.merge performs deep merge', async () => {
-            await global.browser.storage.sync.set({ mergeKey: { a: 1, b: { x: 10 } } });
-            const success = await utils.storage.merge(global.browser.storage.sync, 'mergeKey', { b: { y: 20 }, c: 3 });
+            await mockSyncStorage.set({ mergeKey: { a: 1, b: { x: 10 } } });
+            const success = await utils.storage.merge(mockSyncStorage, 'mergeKey', { b: { y: 20 }, c: 3 });
             expect(success).toBe(true);
-            const stored = await global.browser.storage.sync.get('mergeKey');
+            const stored = await mockSyncStorage.get('mergeKey');
             expect(stored.mergeKey).toEqual({ a: 1, b: { x: 10, y: 20 }, c: 3 });
         });
 
         test('storage.merge handles null for deletion', async () => {
-            await global.browser.storage.sync.set({ mergeKey: { a: 1, b: 2 } });
-            const success = await utils.storage.merge(global.browser.storage.sync, 'mergeKey', { b: null });
+            await mockSyncStorage.set({ mergeKey: { a: 1, b: 2 } });
+            const success = await utils.storage.merge(mockSyncStorage, 'mergeKey', { b: null });
             expect(success).toBe(true);
-            const stored = await global.browser.storage.sync.get('mergeKey');
+            const stored = await mockSyncStorage.get('mergeKey');
             expect(stored.mergeKey).toEqual({ a: 1 });
         });
     });
@@ -382,32 +403,32 @@ describe('utils', () => {
     // --- Instance ID/Name ---
     describe('Instance ID/Name', () => {
         test('getInstanceId generates new ID if none exists', async () => {
-            const id = await utils.getInstanceId();
+            const id = await utils.getInstanceId(global.crypto);
             expect(id).toBe('mock-uuid-123');
             expect(global.crypto.randomUUID).toHaveBeenCalledTimes(1);
             // Check it was saved to both local and sync
-            expect(global.browser.storage.local.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_ID]: 'mock-uuid-123' });
-            expect(global.browser.storage.sync.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_ID]: 'mock-uuid-123' });
+            expect(mockStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_ID]: 'mock-uuid-123' });
+            expect(mockSyncStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_ID]: 'mock-uuid-123' });
         });
 
         test('getInstanceId retrieves from local storage first', async () => {
-            global.browser.storage.local._getStore()[utils.LOCAL_STORAGE_KEYS.INSTANCE_ID] = 'local-id';
-            const id = await utils.getInstanceId();
+            mockStorage._getStore()[utils.LOCAL_STORAGE_KEYS.INSTANCE_ID] = 'local-id';
+            const id = await utils.getInstanceId(global.crypto);
             expect(id).toBe('local-id');
             expect(global.crypto.randomUUID).not.toHaveBeenCalled();
             // Check it syncs the local ID to sync storage
-            expect(global.browser.storage.sync.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_ID]: 'local-id' });
+            expect(mockSyncStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_ID]: 'local-id' });
         });
 
         test('getInstanceId retrieves from sync storage if local is empty', async () => {
-            global.browser.storage.sync._getStore()[utils.LOCAL_STORAGE_KEYS.INSTANCE_ID] = 'sync-id';
+            mockSyncStorage._getStore()[utils.LOCAL_STORAGE_KEYS.INSTANCE_ID] = 'sync-id';
             const id = await utils.getInstanceId();
             expect(id).toBe('sync-id');
             expect(global.crypto.randomUUID).not.toHaveBeenCalled();
             // Check it saves the sync ID to local storage
-            expect(global.browser.storage.local.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_ID]: 'sync-id' });
+            expect(mockStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_ID]: 'sync-id' });
             // Check it re-saves to sync storage
-            expect(global.browser.storage.sync.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_ID]: 'sync-id' });
+            expect(mockSyncStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_ID]: 'sync-id' });
         });
 
         test('getInstanceName generates default name if none exists', async () => {
@@ -416,8 +437,8 @@ describe('utils', () => {
             expect(name).toBe('Mac Device');
             expect(global.browser.runtime.getPlatformInfo).toHaveBeenCalledTimes(1);
             // Check it was saved to both local and sync
-            expect(global.browser.storage.local.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_NAME]: 'Mac Device' });
-            expect(global.browser.storage.sync.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_NAME]: 'Mac Device' });
+            expect(mockStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_NAME]: 'Mac Device' });
+            expect(mockSyncStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_NAME]: 'Mac Device' });
         });
 
         test('getInstanceName handles windows platform name', async () => {
@@ -427,23 +448,23 @@ describe('utils', () => {
         });
 
         test('getInstanceName retrieves from local storage first', async () => {
-            global.browser.storage.local._getStore()[utils.LOCAL_STORAGE_KEYS.INSTANCE_NAME] = 'local-name';
+            mockStorage._getStore()[utils.LOCAL_STORAGE_KEYS.INSTANCE_NAME] = 'local-name';
             const name = await utils.getInstanceName();
             expect(name).toBe('local-name');
             expect(global.browser.runtime.getPlatformInfo).not.toHaveBeenCalled();
             // Check it syncs the local name to sync storage
-            expect(global.browser.storage.sync.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_NAME]: 'local-name' });
+            expect(mockSyncStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_NAME]: 'local-name' });
         });
 
         test('getInstanceName retrieves from sync storage if local is empty', async () => {
-            global.browser.storage.sync._getStore()[utils.LOCAL_STORAGE_KEYS.INSTANCE_NAME] = 'sync-name';
+            mockSyncStorage._getStore()[utils.LOCAL_STORAGE_KEYS.INSTANCE_NAME] = 'sync-name';
             const name = await utils.getInstanceName();
             expect(name).toBe('sync-name');
             expect(global.browser.runtime.getPlatformInfo).not.toHaveBeenCalled();
             // Check it saves the sync name to local storage
-            expect(global.browser.storage.local.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_NAME]: 'sync-name' });
+            expect(mockStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_NAME]: 'sync-name' });
             // Check it re-saves to sync storage
-            expect(global.browser.storage.sync.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_NAME]: 'sync-name' });
+            expect(mockSyncStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_NAME]: 'sync-name' });
         });
     });
 
@@ -510,7 +531,7 @@ describe('utils', () => {
         });
 
         test('getPlatformInfoCached uses cache', async () => {
-            global.browser.storage.local._getStore()['platformInfo'] = { os: 'cached-os' };
+            mockStorage._getStore()['platformInfo'] = { os: 'cached-os' };
             const info = await utils.getPlatformInfoCached();
             expect(info).toEqual({ os: 'cached-os' });
             expect(global.browser.runtime.getPlatformInfo).not.toHaveBeenCalled();
@@ -522,7 +543,7 @@ describe('utils', () => {
             expect(info).toEqual({ os: 'fetched-os' });
             expect(global.browser.runtime.getPlatformInfo).toHaveBeenCalledTimes(1);
             // Check if it was cached
-            const cached = await global.browser.storage.local.get('platformInfo');
+            const cached = await mockStorage.get('platformInfo');
             expect(cached.platformInfo).toEqual({ os: 'fetched-os' });
         });
     });
@@ -530,44 +551,44 @@ describe('utils', () => {
     // --- Generic List/Object Updaters ---
     describe('Generic Storage Updaters', () => {
         test('addToList adds item and sorts', async () => {
-            await utils.storage.set(global.browser.storage.local, 'myList', ['b', 'a']);
-            await utils.addToList(global.browser.storage.local, 'myList', 'c');
-            const list = await utils.storage.get(global.browser.storage.local, 'myList');
+            await utils.storage.set(mockStorage, 'myList', ['b', 'a']);
+            await utils.addToList(mockStorage, 'myList', 'c');
+            const list = await utils.storage.get(mockStorage, 'myList');
             expect(list).toEqual(['a', 'b', 'c']);
         });
 
         test('addToList does not add duplicate', async () => {
-            await utils.storage.set(global.browser.storage.local, 'myList', ['a', 'b']);
-            await utils.addToList(global.browser.storage.local, 'myList', 'a');
-            const list = await utils.storage.get(global.browser.storage.local, 'myList');
+            await utils.storage.set(mockStorage, 'myList', ['a', 'b']);
+            await utils.addToList(mockStorage, 'myList', 'a');
+            const list = await utils.storage.get(mockStorage, 'myList');
             expect(list).toEqual(['a', 'b']);
         });
 
         test('removeFromList removes item', async () => {
-            await utils.storage.set(global.browser.storage.local, 'myList', ['a', 'b', 'c']);
-            await utils.removeFromList(global.browser.storage.local, 'myList', 'b');
-            const list = await utils.storage.get(global.browser.storage.local, 'myList');
+            await utils.storage.set(mockStorage, 'myList', ['a', 'b', 'c']);
+            await utils.removeFromList(mockStorage, 'myList', 'b');
+            const list = await utils.storage.get(mockStorage, 'myList');
             expect(list).toEqual(['a', 'c']);
         });
 
         test('renameInList renames item', async () => {
-            await utils.storage.set(global.browser.storage.local, 'myList', ['a', 'b', 'c']);
-            await utils.renameInList(global.browser.storage.local, 'myList', 'b', 'b_new');
-            const list = await utils.storage.get(global.browser.storage.local, 'myList');
+            await utils.storage.set(mockStorage, 'myList', ['a', 'b', 'c']);
+            await utils.renameInList(mockStorage, 'myList', 'b', 'b_new');
+            const list = await utils.storage.get(mockStorage, 'myList');
             expect(list).toEqual(['a', 'b_new', 'c']);
         });
 
         test('updateObjectKey renames property', async () => {
-            await utils.storage.set(global.browser.storage.local, 'myObj', { oldKey: 1, other: 2 });
-            await utils.updateObjectKey(global.browser.storage.local, 'myObj', 'oldKey', 'newKey');
-            const obj = await utils.storage.get(global.browser.storage.local, 'myObj');
+            await utils.storage.set(mockStorage, 'myObj', { oldKey: 1, other: 2 });
+            await utils.updateObjectKey(mockStorage, 'myObj', 'oldKey', 'newKey');
+            const obj = await utils.storage.get(mockStorage, 'myObj');
             expect(obj).toEqual({ newKey: 1, other: 2 });
         });
 
         test('removeObjectKey removes property', async () => {
-            await utils.storage.set(global.browser.storage.local, 'myObj', { keyToRemove: 1, other: 2 });
-            await utils.removeObjectKey(global.browser.storage.local, 'myObj', 'keyToRemove');
-            const obj = await utils.storage.get(global.browser.storage.local, 'myObj');
+            await utils.storage.set(mockStorage, 'myObj', { keyToRemove: 1, other: 2 });
+            await utils.removeObjectKey(mockStorage, 'myObj', 'keyToRemove');
+            const obj = await utils.storage.get(mockStorage, 'myObj');
             expect(obj).toEqual({ other: 2 });
         });
     });
@@ -581,13 +602,13 @@ describe('utils', () => {
             const initialRegistry = {
                 'other-id': { name: 'Other', lastSeen: Date.now() - 10000, groupBits: {} }
             };
-            await utils.storage.set(global.browser.storage.sync, utils.SYNC_STORAGE_KEYS.DEVICE_REGISTRY, initialRegistry);
+            await utils.storage.set(mockSyncStorage, utils.SYNC_STORAGE_KEYS.DEVICE_REGISTRY, initialRegistry);
 
             const beforeTimestamp = Date.now();
             await utils.performHeartbeat(instanceId, instanceName, groupBits, {}); // Pass empty cache
             const afterTimestamp = Date.now();
 
-            const registry = await utils.storage.get(global.browser.storage.sync, utils.SYNC_STORAGE_KEYS.DEVICE_REGISTRY);
+            const registry = await utils.storage.get(mockSyncStorage, utils.SYNC_STORAGE_KEYS.DEVICE_REGISTRY);
 
             expect(registry['other-id']).toEqual(initialRegistry['other-id']); // Ensure other device wasn't touched
             expect(registry[instanceId]).toBeDefined();
@@ -597,7 +618,7 @@ describe('utils', () => {
             expect(registry[instanceId].lastSeen).toBeLessThanOrEqual(afterTimestamp);
 
             // Check merge was called correctly
-            expect(global.browser.storage.sync.set).toHaveBeenCalledWith({
+            expect(mockSyncStorage.set).toHaveBeenCalledWith({
                 [utils.SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: expect.objectContaining({
                     [instanceId]: expect.objectContaining({
                         name: instanceName,
@@ -610,7 +631,7 @@ describe('utils', () => {
 
         test('performHeartbeat handles missing instanceId', async () => {
             await utils.performHeartbeat(null, 'Test Name', {}, {});
-            expect(global.browser.storage.sync.set).not.toHaveBeenCalled();
+            expect(mockSyncStorage.set).not.toHaveBeenCalled();
             // Check console.warn was called (optional, requires spying on console)
         });
 
