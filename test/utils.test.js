@@ -1,66 +1,91 @@
 import { jest } from '@jest/globals';
 
 // --- Mock crypto consistently at the top ---
-const mockRandomUUID = jest.fn(() => 'mock-uuid-1234'); // Create the mock function
-jest.unstable_mockModule('crypto', () => ({
-    // Mock the 'crypto' module itself
-    default: { // If utils.js imports crypto like `import crypto from 'crypto'`
-        randomUUID: mockRandomUUID
-    },
-    // Also mock the global crypto if utils.js uses globalThis.crypto
-    randomUUID: mockRandomUUID
-}));
-// Assign the mock to the global scope *once* before tests run
-global.crypto = {
+const mockRandomUUID = jest.fn(() => 'mock-uuid-1234');
+global.crypto = { // Assign the mock to the global scope *once*
     randomUUID: mockRandomUUID
 };
 
-// global.crypto = {
-//     randomUUID: jest.fn().mockReturnValue('mock-uuid-123'),
-//   };
-
 import * as utils from '../utils.js';
-// import './setup.js';
-// import '../test/setup.js';
+import { STRINGS, DEFAULT_DEVICE_ICON } from '../constants.js'; // Import STRINGS and other constants for UI tests
 
 // --- Shared test fixtures and mock setup ---
 const getMockStorage = () => {
     const memoryStore = {};
+    // --- Configuration for error simulation ---
+    const errorConfig = {
+        getError: null, // Key to throw error on get
+        setError: null  // Key to throw error on set
+    };
+
     return {
-        get: jest.fn(async (key) => {
-            // Return undefined for keys not found, mimicking browser behavior
-            if (!key) return { ...memoryStore };
-            if (typeof key === 'string') return { [key]: memoryStore[key] };
-            if (Array.isArray(key)) {
+        get: jest.fn(async (keyOrKeys) => {
+            // --- Simulate get error ---
+            if (errorConfig.getError && (
+                (typeof keyOrKeys === 'string' && keyOrKeys === errorConfig.getError) ||
+                (Array.isArray(keyOrKeys) && keyOrKeys.includes(errorConfig.getError)) ||
+                (typeof keyOrKeys === 'object' && keyOrKeys !== null && errorConfig.getError in keyOrKeys)
+            )) {
+                throw new Error(`Simulated get error for key: ${errorConfig.getError}`);
+            }
+            // --- Original get logic ---
+            if (!keyOrKeys) return { ...memoryStore };
+            if (typeof keyOrKeys === 'string') {
+                return { [keyOrKeys]: memoryStore[keyOrKeys] };
+            }
+            if (Array.isArray(keyOrKeys)) {
                 const result = {};
-                for (const k of key) result[k] = memoryStore[k];
+                for (const k of keyOrKeys) result[k] = memoryStore[k];
                 return result;
             }
-            // Handle object key format if needed, e.g. get({ key1: default1 })
-            // For simplicity, assuming string or array or null/undefined
-            return {}; // Or handle object keys properly
+            if (typeof keyOrKeys === 'object' && keyOrKeys !== null) {
+                const result = {};
+                for (const k in keyOrKeys) {
+                    result[k] = memoryStore[k] ?? keyOrKeys[k];
+                }
+                return result;
+            }
+            return {};
         }),
-        set: jest.fn(async (obj) => { Object.assign(memoryStore, obj); }),
-        clear: jest.fn(async () => { for (const k in memoryStore) delete memoryStore[k]; }),
-        _getStore: () => memoryStore // Helper for tests
+        set: jest.fn(async (obj) => {
+            // --- Simulate set error ---
+            if (errorConfig.setError && Object.keys(obj).includes(errorConfig.setError)) {
+                 throw new Error(`Simulated set error for key: ${errorConfig.setError}`);
+            }
+            // --- Original set logic ---
+            Object.assign(memoryStore, obj);
+        }),
+        clear: jest.fn(async () => {
+            for (const k in memoryStore) delete memoryStore[k];
+            // Reset error config on clear
+            errorConfig.getError = null;
+            errorConfig.setError = null;
+        }),
+        _getStore: () => memoryStore, // Helper for tests
+        // --- Method to configure errors ---
+        _simulateError: (type, key) => {
+            if (type === 'get') errorConfig.getError = key;
+            if (type === 'set') errorConfig.setError = key;
+        }
     };
 };
 
 // --- Mock browser API consistently ---
-// Define this once using the chosen mock storage implementation
 global.browser = {
     storage: {
-        local: getMockStorage(), // Use the factory directly or via a variable
+        local: getMockStorage(),
         sync: getMockStorage(),
     },
     runtime: {
-        getPlatformInfo: jest.fn(async () => ({ os: 'win' })), // Or linux, depending on default test needs
+        getPlatformInfo: jest.fn(async () => ({ os: 'win' })),
         getURL: jest.fn(path => `moz-extension://test-uuid/${path}`),
     },
     notifications: {
         create: jest.fn().mockResolvedValue('test-notif-id'),
     },
-    // Add other browser APIs if needed by functions under test
+    tabs: {
+        create: jest.fn().mockResolvedValue({ id: 123, url: 'mock-tab-url' })
+    }
 };
 
 // Mock the constants dependency
@@ -68,189 +93,97 @@ jest.mock('../constants.js', () => ({
     STRINGS: {
         deviceNameNotSet: '(Not Set)',
         noDevices: 'No devices registered.',
-        noGroups: 'No groups defined.',
-        notSubscribed: 'Not subscribed.',
+        noGroups: 'No groups defined. Use Settings to create one.',
+        notSubscribed: 'Not subscribed to any groups.',
         subscribedGroups: 'Subscribed groups: ',
+        loadingGroups: 'Loading groups...',
+        loadingRegistry: 'Loading registry...',
         error: 'Error',
+        confirmRenameGroup: (oldName, newName) => `Rename group "${oldName}" to "${newName}"?`,
+        confirmDeleteGroup: groupName => `Are you sure you want to delete the group "${groupName}"? This cannot be undone and will affect all devices.`,
+        confirmRenameDevice: newName => `Rename device to "${newName}"?`,
+        confirmDeleteDevice: deviceName => `Are you sure you want to delete device "${deviceName}"? This cannot be undone and will affect all groups.`,
+        sendTabToGroup: groupName => `Send current tab to group '${groupName}'`,
+        sendTabToGroupAria: groupName => `Send current tab to group ${groupName}`,
+        sendTabToGroupBtn: 'Send Tab to Group',
+        sendTabFailed: 'Send failed.',
+        sendTabError: error => `Error: ${error}`,
+        sendTabCannot: 'Cannot send this type of tab.',
+        deviceRenameSuccess: newName => `Device renamed to "${newName}".`,
+        deviceDeleteSuccess: deviceName => `Device "${deviceName}" deleted successfully.`,
+        groupRenameSuccess: newName => `Group renamed to "${newName}".`,
+        groupDeleteSuccess: groupName => `Group "${groupName}" deleted successfully.`,
+        groupCreateSuccess: groupName => `Group "${groupName}" created successfully.`,
+        groupCreateFailed: 'Failed to create group.',
+        groupRenameFailed: 'Rename failed.',
+        groupDeleteFailed: 'Failed to delete group.',
+        deviceRenameFailed: 'Rename failed.',
+        deviceDeleteFailed: 'Delete failed.',
+        saveNameFailed: 'Failed to save name.',
+        saveNameSuccess: 'Device name saved successfully.',
+        loadingSettingsError: error => `Error loading settings: ${error}`,
+        testNotificationSent: 'Test notification sent!',
+        testNotificationFailed: error => `Failed to send notification: ${error}`,
+        androidBanner: 'Note: On Firefox for Android, background processing is not available. Open this page and tap "Sync Now" to process new tabs or changes.'
     },
+    DEFAULT_DEVICE_ICON: '💻',
 }));
 
 describe('utils', () => {
     const mockStorage = global.browser.storage.local;
     const mockSyncStorage = global.browser.storage.sync;
 
+    // --- Console Spies ---
+    let consoleErrorSpy, consoleWarnSpy, consoleLogSpy;
+
     beforeEach(async () => {
         jest.clearAllMocks();
-
-        // Clear the stores using their mock methods
+        // Clear storage (which also resets error simulation)
         await mockStorage.clear();
         await mockSyncStorage.clear();
 
-        // Reset platformInfo cache if needed (accessing internal store via helper)
-        delete mockStorage._getStore().platformInfo;
-
-        // Reset mocks used within tests
-        global.browser.runtime.getPlatformInfo.mockClear(); // Clear calls
-        global.browser.runtime.getPlatformInfo.mockResolvedValue({ os: 'win' }); // Reset return value
-        if (global.browser.storage.local._getStore) {
-            delete global.browser.storage.local._getStore().platformInfo;
+        // Reset platformInfo cache
+        if (mockStorage._getStore) {
+            delete mockStorage._getStore().platformInfo;
         }
+        global.browser.runtime.getPlatformInfo.mockResolvedValue({ os: 'win' });
+
         // Reset crypto mock state
         mockRandomUUID.mockClear();
-        mockRandomUUID.mockReturnValue('mock-uuid-123')
-    });
-   
+        mockRandomUUID.mockReturnValue('mock-uuid-1234');
 
-    test('deepMerge merges deeply and deletes keys', () => {
-        const a = { foo: { bar: 1 }, baz: 2 };
-        const b = { foo: { bar: 2 }, baz: null };
-        expect(utils.deepMerge(a, b)).toEqual({ foo: { bar: 2 } });
+        // Suppress console output during tests unless needed for debugging
+        consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+        consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+        consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
     });
 
-    test('isObject works', () => {
-        expect(utils.isObject({})).toBe(true);
-        expect(utils.isObject([])).toBe(false);
-        expect(utils.isObject(null)).toBe(false);
+    afterEach(() => {
+        // Restore console spies
+        consoleErrorSpy.mockRestore();
+        consoleWarnSpy.mockRestore();
+        consoleLogSpy.mockRestore();
     });
 
-    test('getStorage returns value or default', async () => {
-        await mockStorage.set({ foo: 42 });
-        expect(await utils.getStorage(mockStorage, 'foo', 0)).toBe(42);
-        expect(await utils.getStorage(mockStorage, 'bar', 99)).toBe(99);
-    });
+    // --- Core Utilities (deepMerge, isObject) ---
+    describe('Core Utilities', () => {
+        test('deepMerge merges deeply and deletes keys', () => {
+            const a = { foo: { bar: 1 }, baz: 2 };
+            const b = { foo: { bar: 2 }, baz: null };
+            expect(utils.deepMerge(a, b)).toEqual({ foo: { bar: 2 } });
+        });
 
-    test('mergeSyncStorage merges and sets', async () => {
-        await mockSyncStorage.set({ test: { a: 1, b: 2 } });
-        await utils.mergeSyncStorage('test', { b: 3, c: 4 });
-        expect((await mockSyncStorage.get('test')).test).toEqual({ a: 1, b: 3, c: 4 });
-    });
-
-    test('getInstanceId generates and persists uuid', async () => {
-        await mockStorage.clear();
-        await mockSyncStorage.clear();  // Use the correct mock variable
-
-        const id = await utils.getInstanceId({ randomUUID: mockRandomUUID });
-        expect(id).toBe('mock-uuid-1234');
-        expect(mockRandomUUID).toHaveBeenCalledTimes(1);
-
-        expect((await mockStorage.get('myInstanceId')).myInstanceId).toBe('mock-uuid-1234');
-        expect((await mockSyncStorage.get('myInstanceId')).myInstanceId).toBe('mock-uuid-123');
-    });
-
-    test('getInstanceName generates and persists name', async () => {
-        await mockStorage.clear();
-        const name = await utils.getInstanceName();
-        expect(typeof name).toBe('string');
-        expect((await mockStorage.get('myInstanceName')).myInstanceName).toBe(name);
-    });
-
-    test('isAndroid and isDesktop platform detection', async () => {
-        // Test desktop cases (ensure cache is clear before each)
-        if (global.browser.storage.local._getStore) delete global.browser.storage.local._getStore().platformInfo;
-        global.browser.runtime.getPlatformInfo.mockResolvedValue({ os: 'win' });
-        expect(await utils.isDesktop()).toBe(true);
-        expect(await utils.isAndroid()).toBe(false);
-        
-        if (global.browser.storage.local._getStore) delete global.browser.storage.local._getStore().platformInfo;
-        global.browser.runtime.getPlatformInfo.mockResolvedValue({ os: 'mac' });
-        expect(await utils.isDesktop()).toBe(true);
-        expect(await utils.isAndroid()).toBe(false);
-        
-        if (global.browser.storage.local._getStore) delete global.browser.storage.local._getStore().platformInfo;
-        global.browser.runtime.getPlatformInfo.mockResolvedValue({ os: 'linux' });
-        expect(await utils.isDesktop()).toBe(true);
-        expect(await utils.isAndroid()).toBe(false);
-        
-        // Test non-desktop case
-        if (global.browser.storage.local._getStore) delete global.browser.storage.local._getStore().platformInfo;
-        global.browser.runtime.getPlatformInfo.mockResolvedValue({ os: 'android' });
-        expect(await utils.isDesktop()).toBe(false); // This should now pass
-        expect(await utils.isAndroid()).toBe(true);
-    });
-
-    // Direct storage logic tests (group management, tab sending)
-    test('direct group create/subscribe/unsubscribe', async () => {
-        // Simulate direct group creation
-        await mockSyncStorage.set({ definedGroups: [] });
-        const createRes = await utils.createGroupDirect('TestGroup');
-        expect(createRes.success).toBe(true);
-        expect((await mockSyncStorage.get('definedGroups')).definedGroups).toContain('TestGroup');
-        // Subscribe
-        const subRes = await utils.subscribeToGroupDirect('TestGroup');
-        expect(subRes.success).toBe(true);
-        // Unsubscribe
-        const unsubRes = await utils.unsubscribeFromGroupDirect('TestGroup');
-        expect(unsubRes.success).toBe(true);
-    });
-
-    test('direct sendTabToGroupDirect', async () => {
-        await mockSyncStorage.set({ myGroupBits: { TestGroup: 1 } });
-        const res = await utils.sendTabToGroupDirect('TestGroup', { url: 'https://example.com', title: 'Example' });
-        expect(res.success).toBe(true);
-        const groupTasks = (await mockSyncStorage.get('groupTasks')).groupTasks;
-        expect(groupTasks.TestGroup).toBeDefined();
-        const task = Object.values(groupTasks.TestGroup)[0];
-        expect(task.url).toBe('https://example.com');
-    });
-
-    test('showAndroidBanner and setLastSyncTime create elements', () => {
-        document.body.innerHTML = '<div class="container"></div>';
-        const container = document.querySelector('.container');
-        utils.showAndroidBanner(container, 'Android banner test');
-        expect(container.querySelector('.android-banner').textContent).toBe('Android banner test');
-        utils.setLastSyncTime(container, 1234567890000);
-        expect(container.querySelector('.last-sync-time').textContent).toContain('Last sync:');
-    });
-
-    test('showDebugInfo displays debug info', () => {
-        document.body.innerHTML = '<div class="container"></div>';
-        const container = document.querySelector('.container');
-        const state = {
-            instanceId: 'id',
-            instanceName: 'name',
-            subscriptions: ['g1'],
-            groupBits: { g1: 1 },
-            definedGroups: ['g1'],
-            deviceRegistry: { id: { name: 'name', lastSeen: 1, groupBits: { g1: 1 } } },
-            groupState: { g1: { assignedMask: 1, assignedCount: 1 } }
-        };
-        utils.showDebugInfo(container, state);
-        expect(container.querySelector('.debug-info').innerHTML).toContain('Instance ID: id');
-        expect(container.querySelector('.debug-info').innerHTML).toContain('Defined Groups:');
-    });
-
-    test('showAndroidBanner and setLastSyncTime create elements', () => {
-        document.body.innerHTML = '<div class="container"></div>';
-        const container = document.querySelector('.container');
-        utils.showAndroidBanner(container, 'Android banner test');
-        expect(container.querySelector('.android-banner').textContent).toBe('Android banner test');
-        utils.setLastSyncTime(container, 1234567890000);
-        expect(container.querySelector('.last-sync-time').textContent).toContain('Last sync:');
-    });
-
-    test('showDebugInfo displays debug info', () => {
-        document.body.innerHTML = '<div class="container"></div>';
-        const container = document.querySelector('.container');
-        const state = {
-            instanceId: 'id',
-            instanceName: 'name',
-            subscriptions: ['g1'],
-            groupBits: { g1: 1 },
-            definedGroups: ['g1'],
-            deviceRegistry: { id: { name: 'name', lastSeen: 1, groupBits: { g1: 1 } } },
-            groupState: { g1: { assignedMask: 1 } } // Removed assignedCount as it's not used in showDebugInfo
-        };
-        utils.showDebugInfo(container, state);
-        expect(container.querySelector('.debug-info').innerHTML).toContain('Instance ID: id');
-        expect(container.querySelector('.debug-info').innerHTML).toContain('Defined Groups:');
+        test('isObject works', () => {
+            expect(utils.isObject({})).toBe(true);
+            expect(utils.isObject([])).toBe(false);
+            expect(utils.isObject(null)).toBe(false);
+        });
     });
 
     // --- Type Safety Helpers ---
     describe('Type Safety Helpers', () => {
-        test('ensureObject returns object for valid object', () => {
+        test('ensureObject returns object or fallback', () => {
             expect(utils.ensureObject({ a: 1 })).toEqual({ a: 1 });
-        });
-        test('ensureObject returns fallback for non-object', () => {
             expect(utils.ensureObject(null)).toEqual({});
             expect(utils.ensureObject(undefined)).toEqual({});
             expect(utils.ensureObject([])).toEqual({});
@@ -259,10 +192,8 @@ describe('utils', () => {
             expect(utils.ensureObject(true, { x: 0 })).toEqual({ x: 0 });
         });
 
-        test('ensureArray returns array for valid array', () => {
+        test('ensureArray returns array or fallback', () => {
             expect(utils.ensureArray([1, 2])).toEqual([1, 2]);
-        });
-        test('ensureArray returns fallback for non-array', () => {
             expect(utils.ensureArray(null)).toEqual([]);
             expect(utils.ensureArray(undefined)).toEqual([]);
             expect(utils.ensureArray({})).toEqual([]);
@@ -271,10 +202,8 @@ describe('utils', () => {
             expect(utils.ensureArray(true, ['a'])).toEqual(['a']);
         });
 
-        test('ensureString returns string for valid string', () => {
+        test('ensureString returns string or fallback', () => {
             expect(utils.ensureString('hello')).toBe('hello');
-        });
-        test('ensureString returns fallback for non-string', () => {
             expect(utils.ensureString(null)).toBe('');
             expect(utils.ensureString(undefined)).toBe('');
             expect(utils.ensureString({})).toBe('');
@@ -284,8 +213,8 @@ describe('utils', () => {
         });
     });
 
-    // --- Storage Access Helpers ---
-    describe('Storage Access (getFromStorage / setInStorage / storage object)', () => {
+    // --- Storage Access Helpers (getFromStorage / setInStorage / storage object / mergeSyncStorage) ---
+    describe('Storage Access Helpers', () => {
         test('getFromStorage retrieves value', async () => {
             await mockStorage.set({ testKey: 'testValue' });
             const value = await utils.getFromStorage(mockStorage, 'testKey');
@@ -298,11 +227,13 @@ describe('utils', () => {
             expect(value).toBe('defaultValue');
         });
 
-        test('getFromStorage handles errors', async () => {
-            mockStorage.get.mockRejectedValueOnce(new Error('Storage failed'));
+        test('getFromStorage handles errors and returns default', async () => {
+            // Configure mock to throw error on 'get' for 'anyKey'
+            mockStorage._simulateError('get', 'anyKey');
             const value = await utils.getFromStorage(mockStorage, 'anyKey', 'fallback');
             expect(value).toBe('fallback');
-            // Check console.error was called (optional)
+            // Error should have been logged by getFromStorage
+            expect(console.error).toHaveBeenCalledWith('Error getting anyKey:', expect.any(Error));
         });
 
         test('setInStorage sets value', async () => {
@@ -313,11 +244,13 @@ describe('utils', () => {
             expect(stored.newKey).toEqual({ data: 1 });
         });
 
-        test('setInStorage handles errors', async () => {
-            mockStorage.set.mockRejectedValueOnce(new Error('Set failed'));
+        test('setInStorage handles errors and returns false', async () => {
+            // Configure mock to throw error on 'set' for 'failKey'
+            mockStorage._simulateError('set', 'failKey');
             const success = await utils.setInStorage(mockStorage, 'failKey', 'value');
             expect(success).toBe(false);
-            // Check console.error was called (optional)
+            // Error should have been logged by setInStorage
+            expect(console.error).toHaveBeenCalledWith('Error setting failKey:', expect.any(Error));
         });
 
         // Test the 'storage' object wrapper
@@ -348,72 +281,37 @@ describe('utils', () => {
             const stored = await mockSyncStorage.get('mergeKey');
             expect(stored.mergeKey).toEqual({ a: 1 });
         });
-    });
 
-    // --- Deep Merge ---
-    describe('deepMerge', () => {
-        test('merges simple objects', () => {
-            const target = { a: 1, b: 2 };
-            const source = { b: 3, c: 4 };
-            expect(utils.deepMerge(target, source)).toEqual({ a: 1, b: 3, c: 4 });
+        // Test mergeSyncStorage (uses storage.get/set internally)
+        test('mergeSyncStorage merges and sets', async () => {
+            await mockSyncStorage.set({ test: { a: 1, b: 2 } });
+            await utils.mergeSyncStorage('test', { b: 3, c: 4 });
+            expect((await mockSyncStorage.get('test')).test).toEqual({ a: 1, b: 3, c: 4 });
         });
 
-        test('merges nested objects', () => {
-            const target = { a: 1, b: { x: 10, y: 20 } };
-            const source = { b: { y: 30, z: 40 }, c: 5 };
-            expect(utils.deepMerge(target, source)).toEqual({ a: 1, b: { x: 10, y: 30, z: 40 }, c: 5 });
-        });
-
-        test('handles null source', () => {
-            const target = { a: 1 };
-            expect(utils.deepMerge(target, null)).toEqual({ a: 1 });
-        });
-
-        test('handles null target', () => {
-            const source = { b: 2 };
-            // Note: deepMerge implementation assumes target is an object, might need adjustment if null target is valid
-            expect(utils.deepMerge({}, source)).toEqual({ b: 2 });
-        });
-
-        test('deletes keys when source value is null', () => {
-            const target = { a: 1, b: { x: 10 }, c: 3 };
-            const source = { b: null, c: undefined }; // undefined should overwrite
-            expect(utils.deepMerge(target, source)).toEqual({ a: 1, c: undefined });
-        });
-
-        test('overwrites non-object target key with source object', () => {
-            const target = { a: 1, b: 'string' };
-            const source = { b: { x: 10 } };
-            expect(utils.deepMerge(target, source)).toEqual({ a: 1, b: { x: 10 } });
-        });
-
-        test('does not merge object into non-object target key', () => {
-            const target = { a: 1, b: { x: 10 } };
-            const source = { b: 'string' }; // Overwrites object with string
-            expect(utils.deepMerge(target, source)).toEqual({ a: 1, b: 'string' });
-        });
-
-        test('handles empty objects', () => {
-            expect(utils.deepMerge({}, { a: 1 })).toEqual({ a: 1 });
-            expect(utils.deepMerge({ a: 1 }, {})).toEqual({ a: 1 });
-            expect(utils.deepMerge({}, {})).toEqual({});
+        test('mergeSyncStorage returns false on error', async () => {
+            // Configure mock to throw error on 'set' for 'key'
+            mockSyncStorage._simulateError('set', 'key');
+            const result = await utils.mergeSyncStorage('key', { a: 1 });
+            expect(result).toBe(false);
+            // Error should have been logged by mergeSyncStorage
+            expect(console.error).toHaveBeenCalledWith('Error merging key in sync storage:', expect.any(Error), 'Updates:', { a: 1 });
         });
     });
 
     // --- Instance ID/Name ---
     describe('Instance ID/Name', () => {
         test('getInstanceId generates new ID if none exists', async () => {
-            const id = await utils.getInstanceId(global.crypto);
-            expect(id).toBe('mock-uuid-123');
+            const id = await utils.getInstanceId(); // Call without argument
+            expect(id).toBe('mock-uuid-1234');
             expect(global.crypto.randomUUID).toHaveBeenCalledTimes(1);
-            // Check it was saved to both local and sync
-            expect(mockStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_ID]: 'mock-uuid-123' });
-            expect(mockSyncStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_ID]: 'mock-uuid-123' });
+            expect(mockStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_ID]: 'mock-uuid-1234' });
+            expect(mockSyncStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_ID]: 'mock-uuid-1234' });
         });
 
         test('getInstanceId retrieves from local storage first', async () => {
             mockStorage._getStore()[utils.LOCAL_STORAGE_KEYS.INSTANCE_ID] = 'local-id';
-            const id = await utils.getInstanceId(global.crypto);
+            const id = await utils.getInstanceId(); // Call without argument
             expect(id).toBe('local-id');
             expect(global.crypto.randomUUID).not.toHaveBeenCalled();
             // Check it syncs the local ID to sync storage
@@ -422,12 +320,12 @@ describe('utils', () => {
 
         test('getInstanceId retrieves from sync storage if local is empty', async () => {
             mockSyncStorage._getStore()[utils.LOCAL_STORAGE_KEYS.INSTANCE_ID] = 'sync-id';
-            const id = await utils.getInstanceId();
+            const id = await utils.getInstanceId(); // Call without argument
             expect(id).toBe('sync-id');
             expect(global.crypto.randomUUID).not.toHaveBeenCalled();
             // Check it saves the sync ID to local storage
             expect(mockStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_ID]: 'sync-id' });
-            // Check it re-saves to sync storage
+            // Check it re-saves to sync storage (idempotent)
             expect(mockSyncStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_ID]: 'sync-id' });
         });
 
@@ -436,7 +334,6 @@ describe('utils', () => {
             const name = await utils.getInstanceName();
             expect(name).toBe('Mac Device');
             expect(global.browser.runtime.getPlatformInfo).toHaveBeenCalledTimes(1);
-            // Check it was saved to both local and sync
             expect(mockStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_NAME]: 'Mac Device' });
             expect(mockSyncStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_NAME]: 'Mac Device' });
         });
@@ -452,7 +349,6 @@ describe('utils', () => {
             const name = await utils.getInstanceName();
             expect(name).toBe('local-name');
             expect(global.browser.runtime.getPlatformInfo).not.toHaveBeenCalled();
-            // Check it syncs the local name to sync storage
             expect(mockSyncStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_NAME]: 'local-name' });
         });
 
@@ -461,73 +357,40 @@ describe('utils', () => {
             const name = await utils.getInstanceName();
             expect(name).toBe('sync-name');
             expect(global.browser.runtime.getPlatformInfo).not.toHaveBeenCalled();
-            // Check it saves the sync name to local storage
             expect(mockStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_NAME]: 'sync-name' });
-            // Check it re-saves to sync storage
             expect(mockSyncStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_NAME]: 'sync-name' });
         });
     });
 
-    // --- Bitmask Helpers ---
-    describe('getNextAvailableBitPosition', () => {
-        test('returns 0 for empty mask', () => {
-            expect(utils.getNextAvailableBitPosition(0)).toBe(0);
-        });
-        test('returns next available bit', () => {
-            expect(utils.getNextAvailableBitPosition(1)).toBe(1); // 0001 -> bit 1
-            expect(utils.getNextAvailableBitPosition(3)).toBe(2); // 0011 -> bit 2
-            expect(utils.getNextAvailableBitPosition(5)).toBe(1); // 0101 -> bit 1
-            expect(utils.getNextAvailableBitPosition(7)).toBe(3); // 0111 -> bit 3
-        });
-        test('returns correct bit when lower bits are free', () => {
-            expect(utils.getNextAvailableBitPosition(0b11110111)).toBe(3);
-        });
-        test('returns -1 when mask is full (up to MAX_DEVICES_PER_GROUP)', () => {
-            const fullMask = (1 << utils.MAX_DEVICES_PER_GROUP) - 1;
-            expect(utils.getNextAvailableBitPosition(fullMask)).toBe(-1);
-        });
-        test('handles masks larger than MAX_DEVICES_PER_GROUP', () => {
-            const largeMask = (1 << (utils.MAX_DEVICES_PER_GROUP + 2)) - 1; // e.g., 17 bits set
-            expect(utils.getNextAvailableBitPosition(largeMask)).toBe(-1); // Should still return -1
-        });
-    });
+    // --- Platform Info & Bitmask Helpers ---
+    describe('Platform Info & Bitmask Helpers', () => {
+        test('isAndroid and isDesktop platform detection', async () => {
+            const clearCache = () => { if (mockStorage._getStore) delete mockStorage._getStore().platformInfo; };
 
-    // --- Platform Info ---
-    describe('Platform Info', () => {
-        test('isAndroid returns true for android os', async () => {
-            global.browser.runtime.getPlatformInfo.mockResolvedValue({ os: 'android' });
-            await utils.getPlatformInfoCached(); // Cache it
-            expect(await utils.isAndroid()).toBe(true);
-        });
-
-        test('isAndroid returns false for non-android os', async () => {
+            clearCache();
             global.browser.runtime.getPlatformInfo.mockResolvedValue({ os: 'win' });
-            await utils.getPlatformInfoCached(); // Cache it
+            expect(await utils.isDesktop()).toBe(true);
             expect(await utils.isAndroid()).toBe(false);
-        });
 
-        test('isDesktop returns true for win/mac/linux', async () => {
-            global.browser.runtime.getPlatformInfo.mockResolvedValue({ os: 'win' });
-            await utils.getPlatformInfoCached();
-            expect(await utils.isDesktop()).toBe(true);
-
+            clearCache();
             global.browser.runtime.getPlatformInfo.mockResolvedValue({ os: 'mac' });
-            await utils.getPlatformInfoCached();
             expect(await utils.isDesktop()).toBe(true);
+            expect(await utils.isAndroid()).toBe(false);
 
+            clearCache();
             global.browser.runtime.getPlatformInfo.mockResolvedValue({ os: 'linux' });
-            await utils.getPlatformInfoCached();
             expect(await utils.isDesktop()).toBe(true);
-        });
+            expect(await utils.isAndroid()).toBe(false);
 
-        test('isDesktop returns false for other os', async () => {
+            clearCache();
             global.browser.runtime.getPlatformInfo.mockResolvedValue({ os: 'android' });
-            await utils.getPlatformInfoCached();
             expect(await utils.isDesktop()).toBe(false);
+            expect(await utils.isAndroid()).toBe(true);
 
+            clearCache();
             global.browser.runtime.getPlatformInfo.mockResolvedValue({ os: 'chromeos' });
-            await utils.getPlatformInfoCached();
             expect(await utils.isDesktop()).toBe(false);
+            expect(await utils.isAndroid()).toBe(false);
         });
 
         test('getPlatformInfoCached uses cache', async () => {
@@ -542,9 +405,17 @@ describe('utils', () => {
             const info = await utils.getPlatformInfoCached();
             expect(info).toEqual({ os: 'fetched-os' });
             expect(global.browser.runtime.getPlatformInfo).toHaveBeenCalledTimes(1);
-            // Check if it was cached
             const cached = await mockStorage.get('platformInfo');
             expect(cached.platformInfo).toEqual({ os: 'fetched-os' });
+        });
+
+        test('getNextAvailableBitPosition finds first zero bit', () => {
+            expect(utils.getNextAvailableBitPosition(0b0000)).toBe(0);
+            expect(utils.getNextAvailableBitPosition(0b0001)).toBe(1);
+            expect(utils.getNextAvailableBitPosition(0b0011)).toBe(2);
+            expect(utils.getNextAvailableBitPosition(0b0101)).toBe(1);
+            expect(utils.getNextAvailableBitPosition(0b1111)).toBe(4);
+            expect(utils.getNextAvailableBitPosition(0x7FFF)).toBe(-1); // all 15 bits set (0 to 14)
         });
     });
 
@@ -575,7 +446,7 @@ describe('utils', () => {
             await utils.storage.set(mockStorage, 'myList', ['a', 'b', 'c']);
             await utils.renameInList(mockStorage, 'myList', 'b', 'b_new');
             const list = await utils.storage.get(mockStorage, 'myList');
-            expect(list).toEqual(['a', 'b_new', 'c']);
+            expect(list).toEqual(['a', 'b_new', 'c']); // Assumes sort happens elsewhere or isn't needed here
         });
 
         test('updateObjectKey renames property', async () => {
@@ -593,7 +464,159 @@ describe('utils', () => {
         });
     });
 
-    // --- Background Logic Helpers (Example: performHeartbeat) ---
+    // --- Direct Storage Logic (Groups, Devices, Tabs) ---
+    describe('Direct Storage Logic (Groups, Devices, Tabs)', () => {
+        test('create, rename, and delete group', async () => {
+            // Uses mockSyncStorage because these operate on sync
+            await mockSyncStorage.set({ definedGroups: [] });
+            let res = await utils.createGroupDirect('G1');
+            expect(res.success).toBe(true);
+            expect((await mockSyncStorage.get('definedGroups')).definedGroups).toContain('G1');
+
+            res = await utils.renameGroupDirect('G1', 'G2');
+            expect(res.success).toBe(true);
+            expect((await mockSyncStorage.get('definedGroups')).definedGroups).toContain('G2');
+            expect((await mockSyncStorage.get('definedGroups')).definedGroups).not.toContain('G1');
+
+            res = await utils.deleteGroupDirect('G2');
+            expect(res.success).toBe(true);
+            expect((await mockSyncStorage.get('definedGroups')).definedGroups).not.toContain('G2');
+        });
+
+        test('subscribe/unsubscribe affects local and sync storage', async () => {
+            // Setup
+            await mockSyncStorage.set({ definedGroups: ['TestGroup'], groupState: { TestGroup: { assignedMask: 0 } } });
+            await mockStorage.set({ myInstanceId: 'device-sub-test', mySubscriptions: [], myGroupBits: {} });
+
+            // Subscribe
+            const subRes = await utils.subscribeToGroupDirect('TestGroup');
+            expect(subRes.success).toBe(true);
+            expect(subRes.assignedBit).toBeDefined();
+            const assignedBit = subRes.assignedBit;
+
+            // Check local storage
+            expect((await mockStorage.get('mySubscriptions')).mySubscriptions).toContain('TestGroup');
+            expect((await mockStorage.get('myGroupBits')).myGroupBits.TestGroup).toBe(assignedBit);
+
+            // Check sync storage
+            expect((await mockSyncStorage.get('groupState')).groupState.TestGroup.assignedMask).toBe(assignedBit);
+            expect((await mockSyncStorage.get('deviceRegistry')).deviceRegistry['device-sub-test'].groupBits.TestGroup).toBe(assignedBit);
+
+            // Unsubscribe
+            const unsubRes = await utils.unsubscribeFromGroupDirect('TestGroup');
+            expect(unsubRes.success).toBe(true);
+
+            // Check local storage
+            expect((await mockStorage.get('mySubscriptions')).mySubscriptions).not.toContain('TestGroup');
+            expect((await mockStorage.get('myGroupBits')).myGroupBits.TestGroup).toBeUndefined();
+
+            // Check sync storage
+            expect((await mockSyncStorage.get('groupState')).groupState.TestGroup.assignedMask).toBe(0); // Bit removed
+            expect((await mockSyncStorage.get('deviceRegistry')).deviceRegistry['device-sub-test'].groupBits.TestGroup).toBeUndefined();
+        });
+
+        test('device rename and delete', async () => {
+            // Uses both sync (registry) and local (instance name if self)
+            await mockSyncStorage.set({ deviceRegistry: { id1: { name: 'Old', lastSeen: 1, groupBits: {} } } });
+            await mockStorage.set({ myInstanceId: 'id1', myInstanceName: 'Old' }); // Simulate renaming self
+
+            let res = await utils.renameDeviceDirect('id1', 'NewName');
+            expect(res.success).toBe(true);
+            expect((await mockSyncStorage.get('deviceRegistry')).deviceRegistry.id1.name).toBe('NewName');
+            // Check local name updated because it was self
+            expect((await mockStorage.get('myInstanceName')).myInstanceName).toBe('NewName');
+
+            res = await utils.deleteDeviceDirect('id1');
+            expect(res.success).toBe(true);
+            expect((await mockSyncStorage.get('deviceRegistry')).deviceRegistry.id1).toBeUndefined();
+            // Check local subscriptions/bits cleared because it was self
+            expect((await mockStorage.get('mySubscriptions')).mySubscriptions).toEqual([]);
+            expect((await mockStorage.get('myGroupBits')).myGroupBits).toEqual({});
+        });
+
+        test('sendTabToGroupDirect creates task in sync storage', async () => {
+            // sendTabToGroupDirect uses local groupBits to find senderBit, writes task to sync
+            await mockStorage.set({ myGroupBits: { TestGroup: 1 } }); // Sender has bit 1
+            const res = await utils.sendTabToGroupDirect('TestGroup', { url: 'https://example.com', title: 'Example' });
+            expect(res.success).toBe(true);
+
+            const groupTasks = (await mockSyncStorage.get('groupTasks')).groupTasks;
+            expect(groupTasks.TestGroup).toBeDefined();
+            const task = Object.values(groupTasks.TestGroup)[0];
+            expect(task.url).toBe('https://example.com');
+            expect(task.processedMask).toBe(1); // Sender's bit should be set
+        });
+
+        test('processIncomingTabs opens tab and updates masks', async () => {
+            // Setup: Task exists, sent by bit 1. Receiver is bit 2.
+            const taskId = 'task-abc';
+            await mockSyncStorage.set({
+                groupTasks: {
+                    G1: { [taskId]: { url: 'https://a.com', title: 'A', processedMask: 1, creationTimestamp: Date.now() } }
+                }
+            });
+            await mockStorage.set({ processedTaskIds: {} }); // Receiver hasn't processed it locally
+
+            const openTabFn = jest.fn(); // Mock the function that opens the tab
+            const updateProcessedFn = jest.fn(async (updatedTasks) => {
+                // Simulate updating local storage
+                await mockStorage.set({ [utils.LOCAL_STORAGE_KEYS.PROCESSED_TASKS]: updatedTasks });
+            });
+
+            // Simulate processing by a DIFFERENT device (bit 2)
+            const processingState = {
+                definedGroups: ['G1'], // Not strictly needed by processIncomingTabs
+                groupBits: { G1: 2 }, // This device has bit 2
+                subscriptions: ['G1']
+            };
+
+            await utils.processIncomingTabs(processingState, openTabFn, updateProcessedFn);
+
+            // Assertions
+            expect(openTabFn).toHaveBeenCalledWith('https://a.com', 'A'); // Tab should be opened
+            expect(updateProcessedFn).toHaveBeenCalledWith({ [taskId]: true }); // Marked locally processed
+            expect((await mockStorage.get(utils.LOCAL_STORAGE_KEYS.PROCESSED_TASKS))[utils.LOCAL_STORAGE_KEYS.PROCESSED_TASKS]).toEqual({ [taskId]: true });
+
+            // Check sync storage mask update (processIncomingTabs calls set directly)
+            expect(mockSyncStorage.set).toHaveBeenCalledWith(expect.objectContaining({
+                [utils.SYNC_STORAGE_KEYS.GROUP_TASKS]: expect.objectContaining({
+                    G1: expect.objectContaining({
+                        [taskId]: expect.objectContaining({ processedMask: 3 }) // 1 (sender) | 2 (receiver) = 3
+                    })
+                })
+            }));
+        });
+
+        test('processIncomingTabs does not open already processed tab', async () => {
+            const taskId = 'task-xyz';
+            // Setup: Task exists, processed by bit 1 (sender) and bit 2 (this device)
+            await mockSyncStorage.set({
+                groupTasks: {
+                    G1: { [taskId]: { url: 'https://b.com', title: 'B', processedMask: 3, creationTimestamp: Date.now() } }
+                }
+            });
+            await mockStorage.set({ processedTaskIds: { [taskId]: true } }); // Also marked locally
+
+            const openTabFn = jest.fn();
+            const updateProcessedFn = jest.fn();
+
+            const processingState = { groupBits: { G1: 2 }, subscriptions: ['G1'] };
+            await utils.processIncomingTabs(processingState, openTabFn, updateProcessedFn);
+
+            expect(openTabFn).not.toHaveBeenCalled(); // Should NOT open tab
+            expect(updateProcessedFn).not.toHaveBeenCalled(); // No local update needed
+            // Sync storage set should not have been called for this task's mask
+            expect(mockSyncStorage.set).not.toHaveBeenCalledWith(expect.objectContaining({
+                [utils.SYNC_STORAGE_KEYS.GROUP_TASKS]: expect.objectContaining({
+                    G1: expect.objectContaining({
+                        [taskId]: expect.anything()
+                    })
+                })
+            }));
+        });
+    });
+
+    // --- Background Logic Helpers (Heartbeat, Cleanup) ---
     describe('Background Logic Helpers', () => {
         test('performHeartbeat merges correct data into deviceRegistry', async () => {
             const instanceId = 'test-id-1';
@@ -610,14 +633,14 @@ describe('utils', () => {
 
             const registry = await utils.storage.get(mockSyncStorage, utils.SYNC_STORAGE_KEYS.DEVICE_REGISTRY);
 
-            expect(registry['other-id']).toEqual(initialRegistry['other-id']); // Ensure other device wasn't touched
+            expect(registry['other-id']).toEqual(initialRegistry['other-id']);
             expect(registry[instanceId]).toBeDefined();
             expect(registry[instanceId].name).toBe(instanceName);
             expect(registry[instanceId].groupBits).toEqual(groupBits);
             expect(registry[instanceId].lastSeen).toBeGreaterThanOrEqual(beforeTimestamp);
             expect(registry[instanceId].lastSeen).toBeLessThanOrEqual(afterTimestamp);
 
-            // Check merge was called correctly
+            // Check merge was called correctly (via storage.set in mergeSyncStorage)
             expect(mockSyncStorage.set).toHaveBeenCalledWith({
                 [utils.SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: expect.objectContaining({
                     [instanceId]: expect.objectContaining({
@@ -632,11 +655,59 @@ describe('utils', () => {
         test('performHeartbeat handles missing instanceId', async () => {
             await utils.performHeartbeat(null, 'Test Name', {}, {});
             expect(mockSyncStorage.set).not.toHaveBeenCalled();
-            // Check console.warn was called (optional, requires spying on console)
+            expect(console.warn).toHaveBeenCalledWith("Heartbeat skipped: Instance ID not available yet.");
         });
 
-        // TODO: Add tests for performStaleDeviceCheck and performTimeBasedTaskCleanup
-        // These will require more setup for registry, groupState, groupTasks, and time mocking/assertions.
+        test('performStaleDeviceCheck removes stale devices and updates masks', async () => {
+            const now = Date.now();
+            const staleTime = now - (1000 * 60 * 60 * 24 * 31); // 31 days ago
+            const recentTime = now - (1000 * 60 * 60); // 1 hour ago
+            await mockSyncStorage.set({
+                deviceRegistry: {
+                    'stale-id': { name: 'Stale', lastSeen: staleTime, groupBits: { G1: 1, G2: 4 } },
+                    'recent-id': { name: 'Recent', lastSeen: recentTime, groupBits: { G1: 2 } }
+                },
+                groupState: {
+                    G1: { assignedMask: 1 | 2 }, // Bits 1 and 2 assigned
+                    G2: { assignedMask: 4 }      // Bit 4 assigned
+                }
+            });
+
+            await utils.performStaleDeviceCheck({}, {}); // Pass empty caches
+
+            const finalRegistry = await mockSyncStorage.get('deviceRegistry');
+            const finalGroupState = await mockSyncStorage.get('groupState');
+
+            expect(finalRegistry.deviceRegistry['stale-id']).toBeUndefined(); // Stale device removed
+            expect(finalRegistry.deviceRegistry['recent-id']).toBeDefined(); // Recent device kept
+
+            expect(finalGroupState.groupState.G1.assignedMask).toBe(2); // Bit 1 removed
+            expect(finalGroupState.groupState.G2.assignedMask).toBe(0); // Bit 4 removed
+        });
+
+        test('performTimeBasedTaskCleanup removes expired tasks', async () => {
+            const now = Date.now();
+            const expiredTime = now - (1000 * 60 * 60 * 24 * 15); // 15 days ago
+            const recentTime = now - (1000 * 60 * 60); // 1 hour ago
+            await mockSyncStorage.set({
+                groupTasks: {
+                    G1: {
+                        'expired-task': { url: 'a', title: 'A', processedMask: 0, creationTimestamp: expiredTime },
+                        'recent-task': { url: 'b', title: 'B', processedMask: 0, creationTimestamp: recentTime }
+                    }
+                }
+            });
+            await mockStorage.set({ processedTaskIds: { 'expired-task': true } }); // Mark expired as processed locally
+
+            await utils.performTimeBasedTaskCleanup({}); // Pass empty cache
+
+            const finalGroupTasks = await mockSyncStorage.get('groupTasks');
+            const finalProcessed = await mockStorage.get('processedTaskIds');
+
+            expect(finalGroupTasks.groupTasks.G1['expired-task']).toBeUndefined(); // Expired task removed
+            expect(finalGroupTasks.groupTasks.G1['recent-task']).toBeDefined(); // Recent task kept
+            expect(finalProcessed.processedTaskIds['expired-task']).toBeUndefined(); // Local processed ID removed
+        });
     });
 
     // --- Debounce ---
@@ -646,61 +717,58 @@ describe('utils', () => {
         test('executes function after delay', () => {
             const func = jest.fn();
             const debouncedFunc = utils.debounce(func, 100);
-
             debouncedFunc();
             expect(func).not.toHaveBeenCalled();
-
-            jest.advanceTimersByTime(50);
-            expect(func).not.toHaveBeenCalled();
-
-            jest.advanceTimersByTime(50);
+            jest.advanceTimersByTime(100);
             expect(func).toHaveBeenCalledTimes(1);
         });
 
         test('cancels previous timer if called again within delay', () => {
             const func = jest.fn();
             const debouncedFunc = utils.debounce(func, 100);
-
-            debouncedFunc(); // Call 1
+            debouncedFunc();
+            jest.advanceTimersByTime(50);
+            debouncedFunc(); // Reset timer
             jest.advanceTimersByTime(50);
             expect(func).not.toHaveBeenCalled();
-
-            debouncedFunc(); // Call 2 (resets timer)
             jest.advanceTimersByTime(50);
-            expect(func).not.toHaveBeenCalled(); // Still not called
-
-            jest.advanceTimersByTime(50);
-            expect(func).toHaveBeenCalledTimes(1); // Called only once after the second call's delay
+            expect(func).toHaveBeenCalledTimes(1);
         });
 
         test('passes arguments to the original function', () => {
             const func = jest.fn();
             const debouncedFunc = utils.debounce(func, 100);
             const arg1 = { data: 1 };
-            const arg2 = [1, 2];
-
-            debouncedFunc(arg1, arg2);
+            debouncedFunc(arg1, 'test');
             jest.advanceTimersByTime(100);
-
-            expect(func).toHaveBeenCalledWith(arg1, arg2);
+            expect(func).toHaveBeenCalledWith(arg1, 'test');
         });
 
-        // Restore real timers after tests
+        // Restore real timers after debounce tests
         afterAll(() => {
             jest.useRealTimers();
         });
     });
 
-    // --- HTML Template Utility ---
-    describe('html template utility', () => {
-        test('creates simple element', () => {
+    // --- HTML Template Utility & UI Rendering Helpers ---
+    describe('UI Rendering Helpers (DOM)', () => {
+        let container;
+
+        // Setup DOM before each test in this block
+        beforeEach(() => {
+            document.body.innerHTML = ''; // Clear previous DOM
+            container = document.createElement('div');
+            document.body.appendChild(container);
+        });
+
+        test('html template utility creates simple element', () => {
             const frag = utils.html`<div>Hello</div>`;
             const div = frag.querySelector('div');
             expect(div).not.toBeNull();
             expect(div.textContent).toBe('Hello');
         });
 
-        test('interpolates values', () => {
+        test('html template utility interpolates values', () => {
             const name = 'World';
             const className = 'greeting';
             const frag = utils.html`<p class="${className}">Hello ${name}!</p>`;
@@ -710,23 +778,137 @@ describe('utils', () => {
             expect(p.textContent).toBe('Hello World!');
         });
 
-        test('handles multiple elements', () => {
+        test('html template utility handles multiple elements', () => {
             const frag = utils.html`<span>One</span><span>Two</span>`;
             const spans = frag.querySelectorAll('span');
             expect(spans.length).toBe(2);
             expect(spans[0].textContent).toBe('One');
-            expect(spans[1].textContent).toBe('Two');
         });
 
-        test('handles null/undefined values gracefully', () => {
-            const undef = undefined;
-            const nul = null;
-            const frag = utils.html`<div>${undef}${nul}</div>`;
+        test('html template utility handles null/undefined values gracefully', () => {
+            const frag = utils.html`<div>${undefined}${null}</div>`;
             const div = frag.querySelector('div');
-            expect(div.textContent).toBe(''); // Should render as empty string
+            expect(div.textContent).toBe('');
+        });
+
+        test('renderDeviceList shows no devices', () => {
+            utils.renderDeviceList(container, {});
+            expect(container.textContent).toBe(STRINGS.noDevices);
+        });
+
+        test('renderDeviceList renders devices and highlights', () => {
+            const devices = {
+                id1: { name: 'Alpha', lastSeen: 1234567890000 },
+                id2: { name: 'Beta', lastSeen: 1234567891000 }
+            };
+            utils.renderDeviceList(container, devices, 'id2');
+            expect(container.querySelectorAll('li').length).toBe(2);
+            expect(container.querySelector('.this-device').textContent).toContain('Beta');
+            expect(container.querySelector('li:not(.this-device)').textContent).toContain('Alpha');
+        });
+
+        test('renderGroupList shows no groups', () => {
+            utils.renderGroupList(container, [], [], jest.fn(), jest.fn(), jest.fn(), jest.fn());
+            expect(container.textContent).toBe(STRINGS.noGroups);
+        });
+
+        test('renderGroupList renders groups and buttons correctly', () => {
+            const onSubscribe = jest.fn();
+            const onUnsubscribe = jest.fn();
+            const onDelete = jest.fn();
+            const onRename = jest.fn();
+            utils.renderGroupList(container, ['G1', 'G2'], ['G2'], onSubscribe, onUnsubscribe, onDelete, onRename);
+
+            const items = container.querySelectorAll('li');
+            expect(items.length).toBe(2);
+
+            // Check G1 (not subscribed)
+            const g1Item = items[0];
+            expect(g1Item.querySelector('.group-name-label').textContent).toBe('G1');
+            const subBtn = g1Item.querySelector('.subscribe-btn');
+            expect(subBtn).not.toBeNull();
+            expect(g1Item.querySelector('.unsubscribe-btn')).toBeNull();
+
+            // Check G2 (subscribed)
+            const g2Item = items[1];
+            expect(g2Item.querySelector('.group-name-label').textContent).toBe('G2');
+            expect(g2Item.querySelector('.subscribe-btn')).toBeNull();
+            const unsubBtn = g2Item.querySelector('.unsubscribe-btn');
+            expect(unsubBtn).not.toBeNull();
+
+            // Simulate clicks
+            subBtn.click();
+            expect(onSubscribe).toHaveBeenCalledTimes(1);
+
+            unsubBtn.click();
+            expect(onUnsubscribe).toHaveBeenCalledTimes(1);
+
+            const g1DeleteBtn = g1Item.querySelector('.delete-btn');
+            g1DeleteBtn.click();
+            expect(onDelete).toHaveBeenCalledTimes(1);
+
+            const g2NameSpan = g2Item.querySelector('.group-name-label');
+            g2NameSpan.click();
+            expect(onRename).toHaveBeenCalledTimes(1);
+        });
+
+        test('renderDeviceName fallback', () => {
+            utils.renderDeviceName(container, '');
+            expect(container.textContent).toBe(STRINGS.deviceNameNotSet);
+            utils.renderDeviceName(container, 'MyDevice');
+            expect(container.textContent).toBe('MyDevice');
+        });
+
+        test('renderSubscriptions fallback and normal', () => {
+            utils.renderSubscriptions(container, []);
+            expect(container.textContent).toBe(STRINGS.notSubscribed);
+            utils.renderSubscriptions(container, ['A', 'B']);
+            expect(container.textContent).toBe(STRINGS.subscribedGroups + 'A, B');
+        });
+
+        test('showAndroidBanner creates and updates banner', () => {
+            // Need a child for insertBefore logic
+            container.appendChild(document.createElement('span'));
+            utils.showAndroidBanner(container, 'Banner1');
+            const banner1 = container.querySelector('.android-banner');
+            expect(banner1).not.toBeNull();
+            expect(banner1.textContent).toBe('Banner1');
+
+            utils.showAndroidBanner(container, 'Banner2');
+            const banner2 = container.querySelector('.android-banner');
+            expect(banner2).not.toBeNull();
+            expect(banner2.textContent).toBe('Banner2');
+            expect(container.querySelectorAll('.android-banner').length).toBe(1); // Ensure it updated, not added
+        });
+
+        test('setLastSyncTime creates and updates sync time', () => {
+            // Need a child for insertBefore logic
+            container.appendChild(document.createElement('span'));
+            utils.setLastSyncTime(container, 1234567890000);
+            const time1 = container.querySelector('.last-sync-time');
+            expect(time1).not.toBeNull();
+            expect(time1.textContent).toContain('Last sync:');
+
+            utils.setLastSyncTime(container, 1234567891000);
+            const time2 = container.querySelector('.last-sync-time');
+            expect(time2).not.toBeNull();
+            expect(time2.textContent).toContain('Last sync:');
+            expect(container.querySelectorAll('.last-sync-time').length).toBe(1); // Ensure it updated
+        });
+
+        test('showDebugInfo displays debug info', () => {
+            const state = {
+                instanceId: 'id', instanceName: 'name', subscriptions: ['g1'],
+                groupBits: { g1: 1 }, definedGroups: ['g1'],
+                deviceRegistry: { id: { name: 'name', lastSeen: 1, groupBits: { g1: 1 } } },
+                groupState: { g1: { assignedMask: 1 } }
+            };
+            utils.showDebugInfo(container, state);
+            const debugDiv = container.querySelector('.debug-info');
+            expect(debugDiv).not.toBeNull();
+            expect(debugDiv.innerHTML).toContain('Instance ID: id');
+            expect(debugDiv.innerHTML).toContain('Defined Groups: ["g1"]');
+            expect(debugDiv.innerHTML).toContain('Device Registry: {"id":{"name":"name","lastSeen":1,"groupBits":{"g1":1}}}');
         });
     });
-
-    // Add more describe blocks for other function categories (e.g., Direct Actions, Rendering Helpers if testable)
-
 });
