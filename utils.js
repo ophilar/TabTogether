@@ -57,10 +57,8 @@ export const ensureString = (val, fallback = '') => typeof val === 'string' ? va
 // Avoids race conditions where concurrent updates overwrite each other.
 export async function mergeSyncStorage(key, updates) {
     try {
-        const currentData = await storage.get(browser.storage.sync, key, {});
-        // Basic deep merge (can be improved for arrays if needed)
-        const mergedData = deepMerge(currentData, updates);
-        const success = await storage.set(browser.storage.sync, key, mergedData);
+        const success = await storage.merge(browser.storage.sync, key, updates);
+
         if (success) {
             console.log(`Merged data for key "${key}"`, updates); // Log updates on success
         } else {
@@ -114,11 +112,11 @@ export async function getInstanceId() {
         id = await storage.get(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_ID);
         if (!id) {
             id = globalThis.crypto.randomUUID();
-            await utils.storage.set(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_ID, id);
+            await storage.set(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_ID, id);
         }
-        await utils.storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID, id);
+        await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID, id);
     }
-    await utils.storage.set(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_ID, id);
+    await storage.set(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_ID, id);
     return id;
 }
 
@@ -136,11 +134,11 @@ export async function getInstanceName() {
             } catch (e) {
                 name = "My Device";
             }
-            await utils.storage.set(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_NAME, name);
+            await storage.set(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_NAME, name);
         }
-        await utils.storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_NAME, name);
+        await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_NAME, name);
     }
-    await utils.storage.set(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_NAME, name);
+    await storage.set(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_NAME, name);
     return name;
 }
 
@@ -330,18 +328,18 @@ export async function subscribeToGroupDirect(groupName) {
     const myBit = 1 << bitPosition;
     state.assignedMask |= myBit;
     groupState[groupName] = state;
-    await utils.storage.set(browser.storage.sync, 'groupState', groupState);
+    await storage.set(browser.storage.sync, 'groupState', groupState);
     subscriptions.push(groupName);
     subscriptions.sort();
     groupBits[groupName] = myBit;
-    await utils.storage.set(browser.storage.local, 'mySubscriptions', subscriptions);
-    await utils.storage.set(browser.storage.local, 'myGroupBits', groupBits);
+    await storage.set(browser.storage.local, 'mySubscriptions', subscriptions);
+    await storage.set(browser.storage.local, 'myGroupBits', groupBits);
     const instanceId = await storage.get(browser.storage.local, 'myInstanceId');
     const deviceRegistry = await storage.get(browser.storage.sync, 'deviceRegistry', {});
     if (!deviceRegistry[instanceId]) deviceRegistry[instanceId] = { name: '', lastSeen: Date.now(), groupBits: {} };
     deviceRegistry[instanceId].groupBits[groupName] = myBit;
     deviceRegistry[instanceId].lastSeen = Date.now();
-    await utils.storage.set(browser.storage.sync, 'deviceRegistry', deviceRegistry);
+    await storage.set(browser.storage.sync, 'deviceRegistry', deviceRegistry);
     return { success: true, subscribedGroup: groupName, assignedBit: myBit };
 }
 
@@ -352,18 +350,18 @@ export async function unsubscribeFromGroupDirect(groupName) {
     const removedBit = groupBits[groupName];
     subscriptions = subscriptions.filter(g => g !== groupName);
     delete groupBits[groupName];
-    await utils.storage.set(browser.storage.local, 'mySubscriptions', subscriptions);
-    await utils.storage.set(browser.storage.local, 'myGroupBits', groupBits);
+    await storage.set(browser.storage.local, 'mySubscriptions', subscriptions);
+    await storage.set(browser.storage.local, 'myGroupBits', groupBits);
     const groupState = await storage.get(browser.storage.sync, 'groupState', {});
     if (groupState[groupName]) {
         groupState[groupName].assignedMask &= ~removedBit;
-        await utils.storage.set(browser.storage.sync, 'groupState', groupState);
+        await storage.set(browser.storage.sync, 'groupState', groupState);
     }
     const instanceId = await storage.get(browser.storage.local, 'myInstanceId');
     const deviceRegistry = await storage.get(browser.storage.sync, 'deviceRegistry', {});
     if (deviceRegistry[instanceId] && deviceRegistry[instanceId].groupBits) {
         delete deviceRegistry[instanceId].groupBits[groupName];
-        await utils.storage.set(browser.storage.sync, 'deviceRegistry', deviceRegistry);
+        await storage.set(browser.storage.sync, 'deviceRegistry', deviceRegistry);
     }
     return { success: true, unsubscribedGroup: groupName };
 }
@@ -378,7 +376,7 @@ export async function createAndStoreGroupTask(groupName, tabData, senderBit) {
         processedMask: senderBit,
         creationTimestamp: Date.now()
     };
-    await utils.storage.set(browser.storage.sync, 'groupTasks', groupTasks);
+    await storage.set(browser.storage.sync, 'groupTasks', groupTasks);
     return { success: true };
 }
 
@@ -434,10 +432,10 @@ export async function renameDeviceDirect(deviceId, newName) {
     const deviceRegistry = await storage.get(browser.storage.sync, 'deviceRegistry', {});
     if (!deviceRegistry[deviceId]) return { success: false, message: 'Device not found.' };
     deviceRegistry[deviceId].name = newName.trim();
-    await utils.storage.set(browser.storage.sync, 'deviceRegistry', deviceRegistry);
+    await storage.set(browser.storage.sync, 'deviceRegistry', deviceRegistry);
     const instanceId = await storage.get(browser.storage.local, 'myInstanceId');
     if (deviceId === instanceId) {
-        await utils.storage.set(browser.storage.local, 'myInstanceName', newName.trim());
+        await storage.set(browser.storage.local, 'myInstanceName', newName.trim());
     }
     return { success: true, newName: newName.trim() };
 } catch (error) {
@@ -451,7 +449,7 @@ export async function deleteDeviceDirect(deviceId) {
     if (!deviceRegistry[deviceId]) return { success: false, message: 'Device not found.' }; // Early exit if device not found
     const groupBits = deviceRegistry[deviceId].groupBits || {};
     delete deviceRegistry[deviceId];
-    await utils.storage.set(browser.storage.sync, 'deviceRegistry', deviceRegistry); // Update registry
+    await storage.set(browser.storage.sync, 'deviceRegistry', deviceRegistry); // Update registry
     const groupState = await storage.get(browser.storage.sync, 'groupState', {});
     let groupStateChanged = false;
     for (const groupName in groupBits) {
@@ -466,13 +464,13 @@ export async function deleteDeviceDirect(deviceId) {
         }
     }
     if (groupStateChanged) {
-        await utils.storage.set(browser.storage.sync, 'groupState', groupState);
+        await storage.set(browser.storage.sync, 'groupState', groupState);
     }
     // Remove local data if this is the current device
     const localId = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID);
     if (deviceId === localId) {
-        await utils.storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
-        await utils.storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {});
+        await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
+        await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {});
     }
     return { success: true };
 }
@@ -482,6 +480,9 @@ export async function processIncomingTabs(state, openTabFn, updateProcessedTasks
     const groupTasks = await browser.storage.sync.get(SYNC_STORAGE_KEYS.GROUP_TASKS).then(r => r[SYNC_STORAGE_KEYS.GROUP_TASKS] || {});
     let localProcessedTasks = await browser.storage.local.get(LOCAL_STORAGE_KEYS.PROCESSED_TASKS).then(r => r[LOCAL_STORAGE_KEYS.PROCESSED_TASKS] || {});
     let processedTasksUpdateBatch = {};
+    let groupTasksSyncUpdates = {}; // Batch sync updates
+    let needsSyncUpdate = false;
+
     for (const groupName of state.subscriptions) {
         const myBit = state.groupBits[groupName];
         if (!myBit) continue;
@@ -495,19 +496,22 @@ export async function processIncomingTabs(state, openTabFn, updateProcessedTasks
                 processedTasksUpdateBatch[taskId] = true;
                 // Mark as processed in sync
                 const newProcessedMask = task.processedMask | myBit;
-                const taskUpdate = { [groupName]: { [taskId]: { processedMask: newProcessedMask } } };
-                await browser.storage.sync.set({ [SYNC_STORAGE_KEYS.GROUP_TASKS]: {
-                    ...groupTasks,
-                    [groupName]: {
-                        ...groupTasks[groupName],
-                        [taskId]: { ...task, processedMask: newProcessedMask }
+                if (newProcessedMask !== task.processedMask) { // Only update if mask changed
+                    if (!groupTasksSyncUpdates[groupName]) {
+                        groupTasksSyncUpdates[groupName] = {};
                     }
-                }});
+                    // Store only the changed mask for merging
+                    groupTasksSyncUpdates[groupName][taskId] = { processedMask: newProcessedMask };
+                    needsSyncUpdate = true;
+                }
             }
         }
     }
     if (Object.keys(processedTasksUpdateBatch).length > 0) {
         await updateProcessedTasksFn({ ...localProcessedTasks, ...processedTasksUpdateBatch });
+    }
+    if (needsSyncUpdate) {
+        await mergeSyncStorage(SYNC_STORAGE_KEYS.GROUP_TASKS, groupTasksSyncUpdates);
     }
 }
 
@@ -592,14 +596,14 @@ export async function renameDeviceUnified(deviceId, newName, isAndroidPlatform) 
 export async function updateListInStorage(area, key, updater, defaultValue = []) {
     const list = await storage.get(area, key, defaultValue);
     const updated = updater(Array.isArray(list) ? list : defaultValue);
-    await utils.storage.set(area, key, updated);
+    await storage.set(area, key, updated);
     return updated;
 }
 
 export async function updateObjectInStorage(area, key, updater, defaultValue = {}) {
     const obj = await storage.get(area, key, defaultValue);
     const updated = updater(obj && typeof obj === 'object' ? obj : defaultValue);
-    await utils.storage.set(area, key, updated);
+    await storage.set(area, key, updated);
     return updated;
 }
 
@@ -621,10 +625,6 @@ export const showError = (message, area = null) => {
     }
 }
 
-// Apply batched sync updates for processed tasks
-// if (Object.keys(groupTasksUpdates).length > 0) {
-//     await mergeSyncStorage(SYNC_STORAGE_KEYS.GROUP_TASKS, groupTasksUpdates);
-// }
 
 // --- Background logic shared for background.js and tests ---
 export async function performHeartbeat(localInstanceId, localInstanceName, localGroupBits, cachedDeviceRegistry) {
@@ -700,7 +700,9 @@ export async function performTimeBasedTaskCleanup(localProcessedTasks) {
     let groupTasksUpdates = {};
     let needsUpdate = false;
     const now = Date.now();
-    let processedTasksUpdates = { ...localProcessedTasks };
+    let processedTasksChanged = false; // Track if local processed tasks need saving
+    let currentProcessedTasks = { ...localProcessedTasks }; // Work on a copy
+
     for (const groupName in allGroupTasks) {
         for (const taskId in allGroupTasks[groupName]) {
             const task = allGroupTasks[groupName][taskId];
@@ -709,18 +711,24 @@ export async function performTimeBasedTaskCleanup(localProcessedTasks) {
                 if (!groupTasksUpdates[groupName]) groupTasksUpdates[groupName] = {};
                 groupTasksUpdates[groupName][taskId] = null;
                 needsUpdate = true;
-                if (processedTasksUpdates[taskId]) {
-                    delete processedTasksUpdates[taskId];
-                }
+                // Delete from the working copy if it exists
+               if (currentProcessedTasks[taskId]) {
+                   delete currentProcessedTasks[taskId];
+                   processedTasksChanged = true; // Mark that we need to save the local changes
+               }
             }
         }
     }
     if (needsUpdate) {
         await mergeSyncStorage(SYNC_STORAGE_KEYS.GROUP_TASKS, groupTasksUpdates);
-        if (Object.keys(processedTasksUpdates).length !== Object.keys(localProcessedTasks).length) {
-            localProcessedTasks = processedTasksUpdates;
-            await utils.storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, localProcessedTasks);
-        }
+        // if (Object.keys(processedTasksUpdates).length !== Object.keys(localProcessedTasks).length) {
+            // localProcessedTasks = processedTasksUpdates;
+            // await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, localProcessedTasks);
+        // }
+    }
+    // Save the updated local processed tasks if changes were made
+    if (processedTasksChanged) {
+        await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, currentProcessedTasks);
     }
     console.log("Time-based task cleanup complete.");
 }

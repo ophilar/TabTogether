@@ -1,9 +1,5 @@
 import { jest } from '@jest/globals';
-jest.mock('crypto', () => ({
-  randomUUID: () => 'mock-uuid-1234'
-}));
 
-global.crypto = { randomUUID: () => 'mock-uuid-1234' };
 import * as utils from '../utils.js';
 
 // Persistent in-memory mock for browser.storage
@@ -20,21 +16,8 @@ const mockStorage = {
   clear: jest.fn(async () => { for (const k in memoryStore) delete memoryStore[k]; })
 };
 
-global.browser = {
-  storage: {
-    local: mockStorage,
-    sync: mockStorage
-  },
-  runtime: {
-    getPlatformInfo: jest.fn(async () => ({ os: 'win' }))
-  }
-};
-
 describe('Integration: Group and Tab Flow', () => {
   beforeEach(async () => {
-    // Clear all storage before each test
-    await browser.storage.local.clear();
-    await browser.storage.sync.clear();
     // Set up a realistic device registry and group state
     await browser.storage.local.set({ myInstanceId: 'test-device-id', myInstanceName: 'Test Device' });
     await browser.storage.sync.set({ deviceRegistry: { 'test-device-id': { name: 'Test Device', lastSeen: Date.now(), groupBits: {} } } });

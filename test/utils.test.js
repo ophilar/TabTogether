@@ -1,92 +1,7 @@
 import { jest } from '@jest/globals';
 
-// --- Mock crypto consistently at the top ---
-const mockRandomUUID = jest.fn(() => 'mock-uuid-1234');
-global.crypto = { // Assign the mock to the global scope *once*
-    randomUUID: mockRandomUUID
-};
-
 import * as utils from '../utils.js';
 import { STRINGS, DEFAULT_DEVICE_ICON } from '../constants.js'; // Import STRINGS and other constants for UI tests
-
-// --- Shared test fixtures and mock setup ---
-const getMockStorage = () => {
-    const memoryStore = {};
-    // --- Configuration for error simulation ---
-    const errorConfig = {
-        getError: null, // Key to throw error on get
-        setError: null  // Key to throw error on set
-    };
-
-    return {
-        get: jest.fn(async (keyOrKeys) => {
-            // --- Simulate get error ---
-            if (errorConfig.getError && (
-                (typeof keyOrKeys === 'string' && keyOrKeys === errorConfig.getError) ||
-                (Array.isArray(keyOrKeys) && keyOrKeys.includes(errorConfig.getError)) ||
-                (typeof keyOrKeys === 'object' && keyOrKeys !== null && errorConfig.getError in keyOrKeys)
-            )) {
-                throw new Error(`Simulated get error for key: ${errorConfig.getError}`);
-            }
-            // --- Original get logic ---
-            if (!keyOrKeys) return { ...memoryStore };
-            if (typeof keyOrKeys === 'string') {
-                return { [keyOrKeys]: memoryStore[keyOrKeys] };
-            }
-            if (Array.isArray(keyOrKeys)) {
-                const result = {};
-                for (const k of keyOrKeys) result[k] = memoryStore[k];
-                return result;
-            }
-            if (typeof keyOrKeys === 'object' && keyOrKeys !== null) {
-                const result = {};
-                for (const k in keyOrKeys) {
-                    result[k] = memoryStore[k] ?? keyOrKeys[k];
-                }
-                return result;
-            }
-            return {};
-        }),
-        set: jest.fn(async (obj) => {
-            // --- Simulate set error ---
-            if (errorConfig.setError && Object.keys(obj).includes(errorConfig.setError)) {
-                 throw new Error(`Simulated set error for key: ${errorConfig.setError}`);
-            }
-            // --- Original set logic ---
-            Object.assign(memoryStore, obj);
-        }),
-        clear: jest.fn(async () => {
-            for (const k in memoryStore) delete memoryStore[k];
-            // Reset error config on clear
-            errorConfig.getError = null;
-            errorConfig.setError = null;
-        }),
-        _getStore: () => memoryStore, // Helper for tests
-        // --- Method to configure errors ---
-        _simulateError: (type, key) => {
-            if (type === 'get') errorConfig.getError = key;
-            if (type === 'set') errorConfig.setError = key;
-        }
-    };
-};
-
-// --- Mock browser API consistently ---
-global.browser = {
-    storage: {
-        local: getMockStorage(),
-        sync: getMockStorage(),
-    },
-    runtime: {
-        getPlatformInfo: jest.fn(async () => ({ os: 'win' })),
-        getURL: jest.fn(path => `moz-extension://test-uuid/${path}`),
-    },
-    notifications: {
-        create: jest.fn().mockResolvedValue('test-notif-id'),
-    },
-    tabs: {
-        create: jest.fn().mockResolvedValue({ id: 123, url: 'mock-tab-url' })
-    }
-};
 
 // Mock the constants dependency
 jest.mock('../constants.js', () => ({
@@ -138,20 +53,13 @@ describe('utils', () => {
 
     beforeEach(async () => {
         jest.clearAllMocks();
-        // Clear storage (which also resets error simulation)
-        await mockStorage.clear();
-        await mockSyncStorage.clear();
-
+        
         // Reset platformInfo cache
         if (mockStorage._getStore) {
             delete mockStorage._getStore().platformInfo;
         }
         global.browser.runtime.getPlatformInfo.mockResolvedValue({ os: 'win' });
-
-        // Reset crypto mock state
-        mockRandomUUID.mockClear();
-        mockRandomUUID.mockReturnValue('mock-uuid-1234');
-
+        
         // Suppress console output during tests unless needed for debugging
         consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
         consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
@@ -213,43 +121,43 @@ describe('utils', () => {
         });
     });
 
-    // --- Storage Access Helpers (getFromStorage / setInStorage / storage object / mergeSyncStorage) ---
+    // --- Storage Access Helpers (storage.get / storage.set / storage object / mergeSyncStorage) ---
     describe('Storage Access Helpers', () => {
-        test('getFromStorage retrieves value', async () => {
+        test('storage.get retrieves value', async () => {
             await mockStorage.set({ testKey: 'testValue' });
-            const value = await utils.getFromStorage(mockStorage, 'testKey');
+            const value = await utils.storage.get(mockStorage, 'testKey');
             expect(value).toBe('testValue');
             expect(mockStorage.get).toHaveBeenCalledWith('testKey');
         });
 
-        test('getFromStorage returns default value if not found', async () => {
-            const value = await utils.getFromStorage(mockStorage, 'nonExistentKey', 'defaultValue');
+        test('storage.get returns default value if not found', async () => {
+            const value = await utils.storage.get(mockStorage, 'nonExistentKey', 'defaultValue');
             expect(value).toBe('defaultValue');
         });
 
-        test('getFromStorage handles errors and returns default', async () => {
+        test('storage.get handles errors and returns default', async () => {
             // Configure mock to throw error on 'get' for 'anyKey'
             mockStorage._simulateError('get', 'anyKey');
-            const value = await utils.getFromStorage(mockStorage, 'anyKey', 'fallback');
+            const value = await utils.storage.get(mockStorage, 'anyKey', 'fallback');
             expect(value).toBe('fallback');
-            // Error should have been logged by getFromStorage
+            // Error should have been logged by storage.get
             expect(console.error).toHaveBeenCalledWith('Error getting anyKey:', expect.any(Error));
         });
 
-        test('setInStorage sets value', async () => {
-            const success = await utils.setInStorage(mockStorage, 'newKey', { data: 1 });
+        test('storage.set sets value', async () => {
+            const success = await utils.storage.set(mockStorage, 'newKey', { data: 1 });
             expect(success).toBe(true);
             expect(mockStorage.set).toHaveBeenCalledWith({ newKey: { data: 1 } });
             const stored = await mockStorage.get('newKey');
             expect(stored.newKey).toEqual({ data: 1 });
         });
 
-        test('setInStorage handles errors and returns false', async () => {
+        test('storage.set handles errors and returns false', async () => {
             // Configure mock to throw error on 'set' for 'failKey'
             mockStorage._simulateError('set', 'failKey');
-            const success = await utils.setInStorage(mockStorage, 'failKey', 'value');
+            const success = await utils.storage.set(mockStorage, 'failKey', 'value');
             expect(success).toBe(false);
-            // Error should have been logged by setInStorage
+            // Error should have been logged by storage.set
             expect(console.error).toHaveBeenCalledWith('Error setting failKey:', expect.any(Error));
         });
 
@@ -295,7 +203,7 @@ describe('utils', () => {
             const result = await utils.mergeSyncStorage('key', { a: 1 });
             expect(result).toBe(false);
             // Error should have been logged by mergeSyncStorage
-            expect(console.error).toHaveBeenCalledWith('Error merging key in sync storage:', expect.any(Error), 'Updates:', { a: 1 });
+            expect(console.error).toHaveBeenCalledWith('Failed to set merged data for key "key"');
         });
     });
 
@@ -304,7 +212,7 @@ describe('utils', () => {
         test('getInstanceId generates new ID if none exists', async () => {
             const id = await utils.getInstanceId(); // Call without argument
             expect(id).toBe('mock-uuid-1234');
-            expect(global.crypto.randomUUID).toHaveBeenCalledTimes(1);
+            expect(globalThis.crypto.randomUUID).toHaveBeenCalledTimes(1);
             expect(mockStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_ID]: 'mock-uuid-1234' });
             expect(mockSyncStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_ID]: 'mock-uuid-1234' });
         });
@@ -313,7 +221,7 @@ describe('utils', () => {
             mockStorage._getStore()[utils.LOCAL_STORAGE_KEYS.INSTANCE_ID] = 'local-id';
             const id = await utils.getInstanceId(); // Call without argument
             expect(id).toBe('local-id');
-            expect(global.crypto.randomUUID).not.toHaveBeenCalled();
+            expect(globalThis.crypto.randomUUID).not.toHaveBeenCalled();
             // Check it syncs the local ID to sync storage
             expect(mockSyncStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_ID]: 'local-id' });
         });
@@ -322,7 +230,7 @@ describe('utils', () => {
             mockSyncStorage._getStore()[utils.LOCAL_STORAGE_KEYS.INSTANCE_ID] = 'sync-id';
             const id = await utils.getInstanceId(); // Call without argument
             expect(id).toBe('sync-id');
-            expect(global.crypto.randomUUID).not.toHaveBeenCalled();
+            expect(globalThis.crypto.randomUUID).not.toHaveBeenCalled();
             // Check it saves the sync ID to local storage
             expect(mockStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_ID]: 'sync-id' });
             // Check it re-saves to sync storage (idempotent)
