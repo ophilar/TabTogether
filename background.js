@@ -16,7 +16,8 @@ import {
   deleteGroupDirect,
   renameGroupDirect,
   deleteDeviceDirect,
-  createAndStoreGroupTask // Assuming this is also in utils.js
+  createAndStoreGroupTask, // Assuming this is also in utils.js
+  storage,
 } from "./utils.js";
 import { getNextAvailableBitPosition } from "./utils.js";
 
@@ -320,34 +321,34 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
 // --- Storage Change Listener (Updates Caches) ---
 
 browser.storage.onChanged.addListener(async (changes, areaName) => {
-    if (areaName !== 'sync') return; // Only care about sync changes
+  if (areaName !== 'sync') return; // Only care about sync changes
 
-    let contextMenuNeedsUpdate = false;
+  let contextMenuNeedsUpdate = false;
 
-    // Check if definedGroups changed
-    if (changes[SYNC_STORAGE_KEYS.DEFINED_GROUPS]) {
-        console.log("Cache updated: definedGroups");
-        contextMenuNeedsUpdate = true; // Mark that menu needs update
-    }
-    // Check other keys (no need to cache them here if only used elsewhere)
-    if (changes[SYNC_STORAGE_KEYS.GROUP_STATE]) {
-        console.log("Cache updated: groupState");
-    }
-    if (changes[SYNC_STORAGE_KEYS.DEVICE_REGISTRY]) {
-        console.log("Cache updated: deviceRegistry");
-    }
+  // Check if definedGroups changed
+  if (changes[SYNC_STORAGE_KEYS.DEFINED_GROUPS]) {
+    console.log("Cache updated: definedGroups");
+    contextMenuNeedsUpdate = true; // Mark that menu needs update
+  }
+  // Check other keys (no need to cache them here if only used elsewhere)
+  if (changes[SYNC_STORAGE_KEYS.GROUP_STATE]) {
+    console.log("Cache updated: groupState");
+  }
+  if (changes[SYNC_STORAGE_KEYS.DEVICE_REGISTRY]) {
+    console.log("Cache updated: deviceRegistry");
+  }
 
-    // Trigger actions based on changes
-    if (contextMenuNeedsUpdate) {
-        // Fetch the latest definedGroups right before updating the menu
-        const groupsForMenu = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []);
-        await updateContextMenu(groupsForMenu); // Pass the freshly fetched groups
-    }
+  // Trigger actions based on changes
+  if (contextMenuNeedsUpdate) {
+    // Fetch the latest definedGroups right before updating the menu
+    const groupsForMenu = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []);
+    await updateContextMenu(groupsForMenu); // Pass the freshly fetched groups
+  }
 
-    if (changes[SYNC_STORAGE_KEYS.GROUP_TASKS]) {
-        console.log("Detected change in group tasks, processing...");
-        await processIncomingTasks(changes[SYNC_STORAGE_KEYS.GROUP_TASKS].newValue); // Pass only new value
-    }
+  if (changes[SYNC_STORAGE_KEYS.GROUP_TASKS]) {
+    console.log("Detected change in group tasks, processing...");
+    await processIncomingTasks(changes[SYNC_STORAGE_KEYS.GROUP_TASKS].newValue); // Pass only new value
+  }
 });
 
 // --- Task Processing (Remains largely the same logic) ---
