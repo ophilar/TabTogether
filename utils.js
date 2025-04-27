@@ -74,33 +74,32 @@ export async function mergeSyncStorage(key, updates) {
 
 // Simple deep merge utility (adjust if complex array merging is needed)
 export const deepMerge = (target, source) => {
-    const output = { ...target };
-    if (isObject(target) && isObject(source)) {
+    const output = { ...ensureObject(target) }; // Ensure output starts as a copy of an object
+
+    if (isObject(source)) {
         Object.keys(source).forEach(key => {
-            // Handle null explicitly: if source[key] is null, it means delete the key in the target
-            if (source[key] === null) {
-                 delete output[key];
-            } else if (isObject(source[key])) {
-                if (!(key in target)) {
-                    // If key doesn't exist in target, assign source's object directly
-                    Object.assign(output, { [key]: source[key] });
+            const sourceValue = source[key];
+            const targetValue = output[key];
+
+            if (sourceValue === null) {
+                // Explicit deletion
+                delete output[key];
+            } else if (isObject(sourceValue)) {
+                // Recurse only if target value is also an object
+                if (isObject(targetValue)) {
+                    output[key] = deepMerge(targetValue, sourceValue);
                 } else {
-                    // If key exists in target, only merge if target's value is also an object
-                    if (isObject(target[key])) {
-                         output[key] = deepMerge(target[key], source[key]);
-                    } else {
-                         // Overwrite if target key exists but isn't an object
-                         output[key] = source[key];
-                    }
+                    // Overwrite if target is not an object or doesn't exist
+                    output[key] = sourceValue; // Assign source object directly
                 }
             } else {
                 // Assign non-object values directly (overwriting target)
-                Object.assign(output, { [key]: source[key] });
+                output[key] = sourceValue;
             }
         });
     }
     return output;
-}
+};
 
 export const isObject = item => !!item && typeof item === 'object' && !Array.isArray(item);
 
@@ -719,6 +718,9 @@ export async function performTimeBasedTaskCleanup(localProcessedTasks) {
             }
         }
     }
+
+    console.log(`[Cleanup] Before final local set: processedTasksChanged=${processedTasksChanged}, currentProcessedTasks=`, JSON.stringify(currentProcessedTasks));
+
     if (needsUpdate) {
         await mergeSyncStorage(SYNC_STORAGE_KEYS.GROUP_TASKS, groupTasksUpdates);
         // if (Object.keys(processedTasksUpdates).length !== Object.keys(localProcessedTasks).length) {
@@ -728,6 +730,7 @@ export async function performTimeBasedTaskCleanup(localProcessedTasks) {
     }
     // Save the updated local processed tasks if changes were made
     if (processedTasksChanged) {
+        console.log(`[Cleanup] Saving updated local processed tasks...`);
         await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, currentProcessedTasks);
     }
     console.log("Time-based task cleanup complete.");
@@ -764,9 +767,17 @@ export const storage = {
     },
     async merge(area, key, updates) {
         try {
-            const currentData = await this.get(area, key, {});
-            const mergedData = deepMerge(currentData, updates);
-            await area.set({ [key]: mergedData });
+            // Ensure currentData is treated as an object for deepMerge
+            const currentDataObj = await this.get(area, key, {}); // Fetch fresh data
+            const mergedData = deepMerge(currentDataObj, updates);
+
+            // Only set if data actually changed
+            if (JSON.stringify(currentDataObj) !== JSON.stringify(mergedData)) {
+                console.log(`[storage.merge] Data changed for key "${key}", setting...`, mergedData);
+                await area.set({ [key]: mergedData }); // Ensure await here
+            } else {
+                console.log(`[storage.merge] Skipped setting ${key} as merge resulted in no change.`);
+            }
             return true;
         } catch (error) {
             console.error(`Error merging ${key}:`, error, 'Updates:', updates);
