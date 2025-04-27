@@ -13,11 +13,11 @@ html {
 
 body {
   /* Use main card background for consistency */
-  background-color: var(--main-card);
+  /* background-color: var(--main-card); */
   margin: 0;
   /* font-family is inherited from styles.css */
   font-size: 1em;
-  color: var(--main-text);
+  /* color: var(--main-text); */
   line-height: 1.5;
   min-width: 300px;
   /* Slightly reduced min-width for flexibility */
@@ -170,16 +170,25 @@ body {
   /* Color is determined by adding .success or .error class from styles.css */
 }
 
-/* Links at the bottom (Options, Refresh) */
-/* .options-link,
-.refresh-link {
-  margin-top: 15px;
-  /* Consistent margin */
-/*  text-align: center;
-} */
+
 /* Style the links in the popup footer */
-.options-link .refresh-link { /* Target links specifically within the footer */
+.popup-footer .options-link { /* Target links specifically within the footer */
   margin-top: 15px;
+  margin-left: 10px;
+  font-size: 2em;  /* Increase font size (adjust value as needed) */
+  padding: 5px;      /* Add some padding for easier clicking */
+  line-height: 1;    /* Adjust line height if necessary */
+  text-decoration: none; /* Ensure no underline */
+  color: var(--main-accent); /* Use accent color from theme */
+  opacity: 0.8;
+  transition: opacity var(--transition), color var(--transition);
+}
+.popup-footer .options-link:first-child {
+  margin-left: 0; /* No margin on the first icon */
+}
+.popup-footer .refresh-link { /* Target links specifically within the footer */
+  margin-top: 15px;
+  margin-left: 0px;
   font-size: 2em;  /* Increase font size (adjust value as needed) */
   padding: 5px;      /* Add some padding for easier clicking */
   line-height: 1;    /* Adjust line height if necessary */
@@ -189,36 +198,21 @@ body {
   transition: opacity var(--transition), color var(--transition);
 }
 
-.options-link .refresh-link:hover {
+.popup-footer .options-link:hover {
   opacity: 1;
   color: var(--main-orange-dark); /* Use darker accent for hover */
   text-decoration: none; /* Ensure no underline on hover */
 }
 
-/* Ensure the footer itself has enough space
-.popup-footer {
-  display: flex; /* Use flexbox for alignment */
- /* justify-content: center; /* Center icons horizontally */
-/*  gap: 15px; /* Add space between icons */
-/*  margin-top: 15px; /* Consistent margin */
-/*  padding-top: 10px; /* Add some space above the icons */
-/*  border-top: 1px solid var(--main-border); /* Optional: Add a subtle separator */
-/*} */
-
-/* General link style within the popup container
-.container a {
-  /* Use main accent color for links */
-  /* color: var(--main-accent);
-  text-decoration: none;
-  font-weight: 500;
-  transition: color var(--transition);
+.popup-footer .refresh-link:hover {
+  opacity: 1;
+  color: var(--main-orange-dark); /* Use darker accent for hover */
+  text-decoration: none; /* Ensure no underline on hover */
 }
 
-.container a:hover {
-  text-decoration: underline;
-  /* Use darker accent for hover */
-/*   color: var(--main-orange-dark);
-} */
+[data-theme="dark"] .popup-footer .popup-link:hover {
+  color: var(--main-orange-light);
+}
 
 /* Adjust dark theme link hover if needed */
 [data-theme="dark"] .container a:hover {

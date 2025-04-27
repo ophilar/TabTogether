@@ -36,9 +36,7 @@ export function injectSharedUI(containerSelector = '.container') {
         const h1 = document.createElement('h1'); // REMOVED
         h1.id = 'mainTitle';                 // REMOVED
         h1.textContent = 'TabTogether';        // REMOVED
-        // const hr = document.createElement('hr'); // REMOVED
         header.appendChild(h1);                // REMOVED
-        // header.appendChild(hr);                // REMOVED
         container.prepend(header);             // REMOVED (or just prepend an empty header if needed for structure)
     }
 }
