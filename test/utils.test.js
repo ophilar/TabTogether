@@ -1,7 +1,7 @@
 import { jest } from '@jest/globals';
 
 import * as utils from '../utils.js';
-import { STRINGS, DEFAULT_DEVICE_ICON } from '../constants.js'; // Import STRINGS and other constants for UI tests
+import { STRINGS } from '../constants.js'; // Import STRINGS and other constants for UI tests
 
 // Mock the constants dependency
 jest.mock('../constants.js', () => ({
@@ -45,20 +45,19 @@ jest.mock('../constants.js', () => ({
 }));
 
 describe('utils', () => {
-    const mockStorage = global.browser.storage.local;
-    const mockSyncStorage = global.browser.storage.sync;
-
-    // --- Console Spies ---
+    let mockStorage;
+    let mockSyncStorage;
     let consoleErrorSpy, consoleWarnSpy, consoleLogSpy;
 
-    beforeEach(async () => {
-        jest.clearAllMocks();
-        
+    beforeEach(async () => {   
+        mockStorage = global.browser.storage.local;
+        mockSyncStorage = global.browser.storage.sync;
+
         // Reset platformInfo cache
         if (mockStorage._getStore) {
             delete mockStorage._getStore().platformInfo;
         }
-        global.browser.runtime.getPlatformInfo.mockResolvedValue({ os: 'win' });
+        // global.browser.runtime.getPlatformInfo.mockResolvedValue({ os: 'win' });
         
         // Suppress console output during tests unless needed for debugging
         consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
@@ -504,6 +503,9 @@ describe('utils', () => {
                 }
             });
             await mockStorage.set({ processedTaskIds: { [taskId]: true } }); // Also marked locally
+
+            mockSyncStorage.set.mockClear();
+            mockStorage.set.mockClear();
 
             const openTabFn = jest.fn();
             const updateProcessedFn = jest.fn();

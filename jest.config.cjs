@@ -2,7 +2,7 @@
 // Removed custom testEnvironment; using default jsdom environment.
 module.exports = {
   testEnvironment: 'jsdom',
-  transform: {},
+  transform:{},
   moduleFileExtensions: ['js', 'mjs', 'json', 'node'],
   testMatch: ["**/test/**/*.test.js"],
   setupFilesAfterEnv: ["./test/setup.js"]
