@@ -4,13 +4,10 @@ import {
   SYNC_STORAGE_KEYS,
   LOCAL_STORAGE_KEYS,
   MAX_DEVICES_PER_GROUP,
-  getStorage,
   mergeSyncStorage,
   getInstanceId,
   getInstanceName,
   deepMerge,
-  getFromStorage,
-  setInStorage,
   performHeartbeat,
   performStaleDeviceCheck,
   performTimeBasedTaskCleanup,
@@ -67,24 +64,24 @@ async function initializeExtension() {
     // Fetch local data first
     let localInstanceId = await getInstanceId();
     let localInstanceName = await getInstanceName();
-    let localGroupBits = await getFromStorage(
+    let localGroupBits = await storage.get(
       browser.storage.local,
       LOCAL_STORAGE_KEYS.GROUP_BITS,
       {}
     );
 
     // Only read from sync storage, do not write defaults
-    let cachedDefinedGroups = await getFromStorage(
+    let cachedDefinedGroups = await storage.get(
       browser.storage.sync,
       SYNC_STORAGE_KEYS.DEFINED_GROUPS,
       undefined
     );
-    let cachedGroupState = await getFromStorage(
+    let cachedGroupState = await storage.get(
       browser.storage.sync,
       SYNC_STORAGE_KEYS.GROUP_STATE,
       undefined
     );
-    let cachedDeviceRegistry = await getFromStorage(
+    let cachedDeviceRegistry = await storage.get(
       browser.storage.sync,
       SYNC_STORAGE_KEYS.DEVICE_REGISTRY,
       undefined
@@ -133,32 +130,32 @@ browser.alarms.onAlarm.addListener(async (alarm) => {
   // Always fetch latest state from storage
   let localInstanceId = await getInstanceId();
   let localInstanceName = await getInstanceName();
-  let localSubscriptions = await getFromStorage(
+  let localSubscriptions = await storage.get(
     browser.storage.local,
     LOCAL_STORAGE_KEYS.SUBSCRIPTIONS,
     []
   );
-  let localGroupBits = await getFromStorage(
+  let localGroupBits = await storage.get(
     browser.storage.local,
     LOCAL_STORAGE_KEYS.GROUP_BITS,
     {}
   );
-  let localProcessedTasks = await getFromStorage(
+  let localProcessedTasks = await storage.get(
     browser.storage.local,
     LOCAL_STORAGE_KEYS.PROCESSED_TASKS,
     {}
   );
-  let cachedDefinedGroups = await getFromStorage(
+  let cachedDefinedGroups = await storage.get(
     browser.storage.sync,
     SYNC_STORAGE_KEYS.DEFINED_GROUPS,
     []
   );
-  let cachedGroupState = await getFromStorage(
+  let cachedGroupState = await storage.get(
     browser.storage.sync,
     SYNC_STORAGE_KEYS.GROUP_STATE,
     {}
   );
-  let cachedDeviceRegistry = await getFromStorage(
+  let cachedDeviceRegistry = await storage.get(
     browser.storage.sync,
     SYNC_STORAGE_KEYS.DEVICE_REGISTRY,
     {}
@@ -190,7 +187,7 @@ async function updateContextMenu(cachedDefinedGroups) {
   // Use cache if available, otherwise fetch
   const groups =
     cachedDefinedGroups ??
-    (await getFromStorage(
+    (await storage.get(
       browser.storage.sync,
       SYNC_STORAGE_KEYS.DEFINED_GROUPS,
       []
@@ -272,7 +269,7 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
 
   const taskId = crypto.randomUUID();
   // --- Get sender's bit for processedMask ---
-  let localGroupBits = await getFromStorage(
+  let localGroupBits = await storage.get(
     browser.storage.local,
     LOCAL_STORAGE_KEYS.GROUP_BITS,
     {}
@@ -343,7 +340,7 @@ browser.storage.onChanged.addListener(async (changes, areaName) => {
     // Trigger actions based on changes
     if (contextMenuNeedsUpdate) {
         // Fetch the latest definedGroups right before updating the menu
-        const groupsForMenu = await getFromStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []);
+        const groupsForMenu = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []);
         await updateContextMenu(groupsForMenu); // Pass the freshly fetched groups
     }
 
@@ -363,17 +360,17 @@ async function processIncomingTasks(allGroupTasks) {
     return;
   }
 
-  let localSubscriptions = await getFromStorage(
+  let localSubscriptions = await storage.get(
     browser.storage.local,
     LOCAL_STORAGE_KEYS.SUBSCRIPTIONS,
     []
   );
-  let localGroupBits = await getFromStorage(
+  let localGroupBits = await storage.get(
     browser.storage.local,
     LOCAL_STORAGE_KEYS.GROUP_BITS,
     {}
   );
-  let localProcessedTasks = await getFromStorage(
+  let localProcessedTasks = await storage.get(
     browser.storage.local,
     LOCAL_STORAGE_KEYS.PROCESSED_TASKS,
     {}
@@ -415,7 +412,7 @@ async function processIncomingTasks(allGroupTasks) {
 
   if (localProcessedTasksUpdated) {
     localProcessedTasks = currentProcessedTasks;
-    await setInStorage(
+    await storage.set(
       browser.storage.local,
       LOCAL_STORAGE_KEYS.PROCESSED_TASKS,
       localProcessedTasks
@@ -425,7 +422,7 @@ async function processIncomingTasks(allGroupTasks) {
   if (tasksToProcess.length > 0) {
     console.log(`Processing ${tasksToProcess.length} new tasks...`);
     // Use cached groupState if available, fetch otherwise
-    const cachedGroupState = await getFromStorage(
+    const cachedGroupState = await storage.get(
       browser.storage.sync,
       SYNC_STORAGE_KEYS.GROUP_STATE,
       {}
@@ -478,7 +475,7 @@ async function processIncomingTasks(allGroupTasks) {
         ...localProcessedTasks,
         ...processedTasksUpdateBatch,
       };
-      await setInStorage(
+      await storage.set(
         browser.storage.local,
         LOCAL_STORAGE_KEYS.PROCESSED_TASKS,
         localProcessedTasks
@@ -501,32 +498,32 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
   // Fetch state needed for multiple actions (can be optimized later if needed)
   let localInstanceId = await getInstanceId();
   let localInstanceName = await getInstanceName();
-  let localSubscriptions = await getFromStorage(
+  let localSubscriptions = await storage.get(
     browser.storage.local,
     LOCAL_STORAGE_KEYS.SUBSCRIPTIONS,
     []
   );
-  let localGroupBits = await getFromStorage(
+  let localGroupBits = await storage.get(
     browser.storage.local,
     LOCAL_STORAGE_KEYS.GROUP_BITS,
     {}
   );
-  let localProcessedTasks = await getFromStorage(
+  let localProcessedTasks = await storage.get(
     browser.storage.local,
     LOCAL_STORAGE_KEYS.PROCESSED_TASKS,
     []
   );
-  let cachedDefinedGroups = await getFromStorage(
+  let cachedDefinedGroups = await storage.get(
     browser.storage.sync,
     SYNC_STORAGE_KEYS.DEFINED_GROUPS,
     []
   );
-  let cachedGroupState = await getFromStorage(
+  let cachedGroupState = await storage.get(
     browser.storage.sync,
     SYNC_STORAGE_KEYS.GROUP_STATE,
     {}
   );
-  let cachedDeviceRegistry = await getFromStorage(
+  let cachedDeviceRegistry = await storage.get(
     browser.storage.sync,
     SYNC_STORAGE_KEYS.DEVICE_REGISTRY,
     {}
@@ -555,7 +552,7 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
         response = { success: false, message: "Invalid name provided." };
       } else {
         localInstanceName = request.name.trim();
-        await setInStorage(
+        await storage.set(
           browser.storage.local,
           LOCAL_STORAGE_KEYS.INSTANCE_NAME,
           localInstanceName
@@ -654,13 +651,13 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
 
       // try {
       //     const deviceId = msg.deviceId;
-      //     const deviceRegistry = await getFromStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
+      //     const deviceRegistry = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
       //     if (!deviceRegistry[deviceId]) return sendResponse({ success: false, message: 'Device not found.' });
       //     const groupBits = deviceRegistry[deviceId].groupBits || {};
       //     delete deviceRegistry[deviceId];
-      //     await setInStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, deviceRegistry);
+      //     await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, deviceRegistry);
       //     // Remove device's bit from all groupState.assignedMask
-      //     const groupState = await getFromStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {});
+      //     const groupState = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {});
       //     let groupStateChanged = false;
       //     for (const groupName in groupBits) {
       //         const bit = groupBits[groupName];
@@ -674,13 +671,13 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
       //         }
       //     }
       //     if (groupStateChanged) {
-      //         await setInStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, groupState);
+      //         await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, groupState);
       //     }
       //     // Remove local data if this is the current device
-      //     const localId = await getFromStorage(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID);
+      //     const localId = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID);
       //     if (deviceId === localId) {
-      //         await setInStorage(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
-      //         await setInStorage(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {});
+      //         await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
+      //         await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {});
       //     }
       //     sendResponse({ success: true });
       // } catch (e) {
@@ -706,12 +703,12 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
           localSubscriptions.push(groupToSubscribe);
           localSubscriptions.sort();
           localGroupBits[groupToSubscribe] = assignedBit;
-          await setInStorage(
+          await storage.set(
             browser.storage.local,
             LOCAL_STORAGE_KEYS.SUBSCRIPTIONS,
             localSubscriptions
           );
-          await setInStorage(
+          await storage.set(
             browser.storage.local,
             LOCAL_STORAGE_KEYS.GROUP_BITS,
             localGroupBits
@@ -749,12 +746,12 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
             (g) => g !== groupToUnsubscribe
           );
           delete localGroupBits[groupToUnsubscribe];
-          await setInStorage(
+          await storage.set(
             browser.storage.local,
             LOCAL_STORAGE_KEYS.SUBSCRIPTIONS,
             localSubscriptions
           );
-          await setInStorage(
+          await storage.set(
             browser.storage.local,
             LOCAL_STORAGE_KEYS.GROUP_BITS,
             localGroupBits
@@ -772,7 +769,7 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
 
             const groupState =
               cachedGroupState ??
-              (await getFromStorage(
+              (await storage.get(
                 browser.storage.sync,
                 SYNC_STORAGE_KEYS.GROUP_STATE,
                 {}
@@ -880,7 +877,7 @@ async function assignBitForGroup(
     try {
       const groupState =
         cachedGroupState ??
-        (await getFromStorage(
+        (await storage.get(
           browser.storage.sync,
           SYNC_STORAGE_KEYS.GROUP_STATE,
           {}
@@ -902,7 +899,7 @@ async function assignBitForGroup(
       }
       const myBit = 1 << bitPosition;
       // Optimistic Lock Check (fetch fresh state for check)
-      const checkGroupState = await getFromStorage(
+      const checkGroupState = await storage.get(
         browser.storage.sync,
         SYNC_STORAGE_KEYS.GROUP_STATE,
         {}
@@ -999,12 +996,12 @@ async function playNotificationSound(sound) {
 
 // Enhanced notification for tab send/receive
 async function showTabNotification({ title, url, groupName, faviconUrl }) {
-  const sound = await getFromStorage(
+  const sound = await storage.get(
     browser.storage.local,
     "notifSound",
     "default"
   );
-  const duration = await getFromStorage(
+  const duration = await storage.get(
     browser.storage.local,
     "notifDuration",
     5

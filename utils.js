@@ -107,20 +107,44 @@ export const isObject = item => !!item && typeof item === 'object' && !Array.isA
 // Store device name and ID in both local and sync storage for persistence
 export async function getInstanceId() {
     let id = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID);
+    let needsLocalSet = false;
+    let needsSyncSet = false;
+
     if (!id) {
         id = await storage.get(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_ID);
         if (!id) {
             id = globalThis.crypto.randomUUID();
-            await storage.set(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_ID, id);
+            console.log("Generated new instance ID:", id);
+
+            needsLocalSet = true;
+            needsSyncSet = true;
         }
+        else {
+            console.log("Retrieved instance ID from sync, saving locally:", id);
+            needsLocalSet = true;
+        }
+    } else {
+        const syncId = await storage.get(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_ID);
+        if (syncId !== id) {
+            console.log("Syncing local instance ID to sync storage:", id);
+            needsSyncSet = true;
+        }
+    }
+    
+    if (needsLocalSet) {
         await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID, id);
     }
-    await storage.set(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_ID, id);
+    if (needsSyncSet) {
+        await storage.set(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_ID, id);
+    }
     return id;
 }
 
 export async function getInstanceName() {
     let name = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_NAME);
+    let needsLocalSet = false;
+    let needsSyncSet = false;
+
     if (!name) {
         name = await storage.get(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_NAME);
         if (!name) {
@@ -133,11 +157,27 @@ export async function getInstanceName() {
             } catch (e) {
                 name = "My Device";
             }
-            await storage.set(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_NAME, name);
+            needsLocalSet = true;
+            needsSyncSet = true;
         }
+        else {
+            console.log("Retrieved instance name from sync, saving locally:", name);
+            needsLocalSet = true;
+        }
+    } else {
+        const syncName = await storage.get(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_NAME);
+        if (syncName !== name) {
+            console.log("Syncing local instance name to sync storage:", name);
+            needsSyncSet = true;
+        }
+    }
+
+    if (needsLocalSet) {
         await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_NAME, name);
     }
-    await storage.set(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_NAME, name);
+    if (needsSyncSet) {
+        await storage.set(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_NAME, name);
+    }
     return name;
 }
 

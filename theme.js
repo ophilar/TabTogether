@@ -1,12 +1,12 @@
 // theme.js
 // Shared dark mode logic for TabTogether
 // Apply dark mode based on user preference or system settings
-import { debounce, getFromStorage, setInStorage } from './utils.js';
+import { debounce } from './utils.js';
 
 // Helper to determine the effective theme based on storage and system preference
 async function determineThemePreference() {
     // Use 'auto' as the default if nothing is saved
-    const saved = await getFromStorage(browser.storage.local, 'tt_dark_mode', 'auto');
+    const saved = await storage.get(browser.storage.local, 'tt_dark_mode', 'auto');
     if (saved === 'enabled') {
         return 'dark';
     }
@@ -33,7 +33,7 @@ export async function setupThemeDropdown(dropdownId) {
     if (!select) return;
 
     // Set initial value based on current preference ('auto' is the default)
-    const currentSetting = await getFromStorage(browser.storage.local, 'tt_dark_mode', 'auto');
+    const currentSetting = await storage.get(browser.storage.local, 'tt_dark_mode', 'auto');
     select.value = currentSetting;
 
     // Apply the theme initially (ensures correct theme even if applyThemeFromStorage hasn't run)
@@ -43,7 +43,7 @@ export async function setupThemeDropdown(dropdownId) {
     select.addEventListener('change', async (e) => {
         const value = e.target.value;
         // Store the setting ('enabled', 'disabled', 'auto') only in browser.storage.local
-        await setInStorage(browser.storage.local, 'tt_dark_mode', value);
+        await storage.set(browser.storage.local, 'tt_dark_mode', value);
         // Re-determine and apply the theme based on the new setting
         setTheme(await determineThemePreference());
     });
@@ -52,7 +52,7 @@ export async function setupThemeDropdown(dropdownId) {
 // Debounced theme change listener for system preference changes
 const debouncedThemeChange = debounce(async () => {
     // Only apply system theme change if the user preference is 'auto'
-    const currentSetting = await getFromStorage(browser.storage.local, 'tt_dark_mode', 'auto');
+    const currentSetting = await storage.get(browser.storage.local, 'tt_dark_mode', 'auto');
     if (currentSetting === 'auto') {
         // Determine theme based on the *new* system preference
         const theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
