@@ -15,7 +15,6 @@
             <div class="setting-item">
                 <strong>Name:</strong>
                 <span id="deviceNameDisplay" aria-label="Device Name">Loading...</span>
-                <button id="editNameBtn" class="inline-btn" aria-label="Edit Device Name" title="Edit the name shown for this device in groups and the registry">Edit</button>
                 <button id="removeDeviceBtn" class="danger" aria-label="Remove Device" title="Remove this device from all groups and registry. This cannot be undone.">Remove</button>
             </div>
             <div class="setting-item">
@@ -36,11 +35,7 @@
                 </select>
                 <span id="deviceIconPreview" style="font-size:1.5em; margin-left:8px;">💻</span>
             </div>
-            <div id="editNameInput" class="input-group hidden">
-                <input type="text" id="newInstanceName" placeholder="Enter new device name" aria-label="New Device Name">
-                <button id="saveNameBtn" disabled aria-label="Save Device Name" title="Save device name">Save</button>
-                <button id="cancelNameBtn" class="secondary" aria-label="Cancel Edit" title="Cancel">Cancel</button>
-            </div>
+
         </fieldset>
         <fieldset>
             <legend>Device Registry</legend>

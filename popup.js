@@ -1,6 +1,5 @@
 import { STRINGS } from './constants.js';
-import { renderSubscriptions } from './utils.js';
-import { renderDeviceName, renderDeviceList, isAndroid, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, sendTabToGroupDirect, processIncomingTabs, getUnifiedState, showAndroidBanner, setLastSyncTime, getFromStorage, setInStorage, showError, storage } from './utils.js';
+import { renderDeviceName, renderDeviceList, isAndroid, LOCAL_STORAGE_KEYS, sendTabToGroupDirect, processIncomingTabs, getUnifiedState, showAndroidBanner, setLastSyncTime, showError, storage } from './utils.js';
 import { injectSharedUI } from './shared-ui.js';
 import { applyThemeFromStorage } from './theme.js';
 
@@ -65,11 +64,13 @@ dom.refreshLink.addEventListener('click', (e) => {
 // Minimalist details toggle logic
 const toggleDetailsBtn = document.getElementById('toggleDetailsBtn');
 const popupDetails = document.getElementById('popupDetails');
+
 if (toggleDetailsBtn && popupDetails) {
   toggleDetailsBtn.addEventListener('click', () => {
-    popupDetails.classList.toggle('hidden');
-    toggleDetailsBtn.setAttribute('aria-label', popupDetails.classList.contains('hidden') ? 'Show details' : 'Hide details');
-    toggleDetailsBtn.setAttribute('title', popupDetails.classList.contains('hidden') ? 'Show device info' : 'Hide device info');
+    const isHidden = popupDetails.classList.toggle('hidden');
+    toggleDetailsBtn.textContent = isHidden ? '▼' : '▲'; // Update icon
+    toggleDetailsBtn.setAttribute('aria-label', isHidden ? 'Show details' : 'Hide details');
+    toggleDetailsBtn.setAttribute('title', isHidden ? 'Show device info' : 'Hide device info');
   });
 }
 
