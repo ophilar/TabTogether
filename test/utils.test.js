@@ -583,7 +583,7 @@ describe('utils', () => {
                 }
             });
 
-            await utils.performStaleDeviceCheck({}, {}); // Pass empty caches
+            await utils.performStaleDeviceCheck(undefined, undefined); // Pass empty caches
 
             const finalRegistry = await mockSyncStorage.get('deviceRegistry');
             const finalGroupState = await mockSyncStorage.get('groupState');
