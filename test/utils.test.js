@@ -607,16 +607,22 @@ describe('utils', () => {
                     }
                 }
             });
-            await mockStorage.set({ processedTaskIds: { 'expired-task': true } }); // Mark expired as processed locally
+            const initialProcessedTasks = { 'expired-task': true };
+            await mockStorage.set({ [utils.LOCAL_STORAGE_KEYS.PROCESSED_TASKS]: initialProcessedTasks });
 
-            await utils.performTimeBasedTaskCleanup({}); // Pass empty cache
+            // Fetch the initial local state to pass to the function, like background.js does
+            const fetchedInitialProcessed = await mockStorage.get(utils.LOCAL_STORAGE_KEYS.PROCESSED_TASKS);
+            // Pass the actual object, defaulting to {} if not found (though it should be found here)
+            await utils.performTimeBasedTaskCleanup(fetchedInitialProcessed[utils.LOCAL_STORAGE_KEYS.PROCESSED_TASKS] || {});
 
             const finalGroupTasks = await mockSyncStorage.get('groupTasks');
-            const finalProcessed = await mockStorage.get('processedTaskIds');
+            // Use the constant for the key when fetching final state
+            const finalProcessed = await mockStorage.get(utils.LOCAL_STORAGE_KEYS.PROCESSED_TASKS);
 
             expect(finalGroupTasks.groupTasks.G1['expired-task']).toBeUndefined(); // Expired task removed
             expect(finalGroupTasks.groupTasks.G1['recent-task']).toBeDefined(); // Recent task kept
-            expect(finalProcessed.processedTaskIds['expired-task']).toBeUndefined(); // Local processed ID removed
+            // Access the final state correctly using the key
+            expect(finalProcessed[utils.LOCAL_STORAGE_KEYS.PROCESSED_TASKS]['expired-task']).toBeUndefined(); // Local processed ID removed
         });
     });
 

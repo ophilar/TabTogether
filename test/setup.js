@@ -43,9 +43,9 @@ const getMockStorage = () => {
             if (errorConfig.setError && Object.keys(obj).includes(errorConfig.setError)) {
                 throw new Error(`Simulated set error for key: ${errorConfig.setError}`);
             }
-            for (const key in obj) {
-                memoryStore[key] = obj[key];
-            }
+
+            Object.assign(memoryStore, obj);
+            // return Promise.resolve();
         }),
         clear: jest.fn(async () => {
             for (const k in memoryStore) delete memoryStore[k];
