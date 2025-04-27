@@ -1,4 +1,15 @@
 /* styles.css - shared styles for TabTogether */
+
+html {
+  box-sizing: border-box;
+}
+
+*,
+*:before,
+*:after {
+  box-sizing: inherit;
+}
+
 :root {
   /* Base Colors */
   --main-orange-light: #ff9400;
@@ -312,7 +323,69 @@ button.inline-btn {
 .status-message.success { /* Use .success class */
   color: var(--main-success-text);
 }
+.inline-edit-container {
+  /* Already styled inline, but you can add more here */
+  /* Example: ensure it doesn't wrap */
+  white-space: nowrap;
+}
 
+.inline-edit-input {
+  /* Style the input field */
+  /* Example: inherit font */
+  font-family: inherit;
+  font-size: 1em; /* Match surrounding text */
+  /* Add transitions if desired */
+  transition: border-color var(--transition);
+}
+.inline-edit-input:focus {
+   border-color: var(--main-orange-dark); /* Darker focus */
+   outline: none;
+}
+
+.inline-edit-save,
+.inline-edit-cancel {
+  /* Ensure minimal button styles are applied */
+  padding: 2px 6px !important;
+  font-size: 1em !important; /* Adjust as needed for icon size */
+  line-height: 1 !important;
+  min-width: auto !important;
+  box-shadow: none !important;
+  border: none; /* Ensure no border */
+  margin-top: 0 !important; /* Override potential margins */
+  margin-bottom: 0 !important;
+  transform: none !important; /* Prevent hover transform */
+}
+.inline-edit-save:hover,
+.inline-edit-cancel:hover {
+   opacity: 0.8; /* Simple hover effect */
+   transform: none !important; /* Prevent base button hover transform */
+}
+
+/* Optional: Specific colors for save/cancel */
+.inline-edit-save {
+  /* background-color: var(--main-success-bg); */
+  /* color: var(--main-success-text); */
+  color: #256029; /* Simple green */
+  background: none;
+}
+.inline-edit-cancel {
+  /* Uses .secondary, but ensure background is none if desired */
+  background: none;
+  color: var(--main-grey-light);
+}
+[data-theme="dark"] .inline-edit-save {
+    color: var(--main-success-text);
+}
+[data-theme="dark"] .inline-edit-cancel {
+    color: var(--main-grey-light);
+}
+
+/* Ensure list items accommodate the inline controls */
+#definedGroupsList li > span:first-child,
+#deviceRegistryList li > div:first-child {
+    /* Allow the name container/span to shrink if needed */
+    min-width: 50px; /* Prevent shrinking too much */
+}
 
 /* Defined Groups List */
 #definedGroupsList ul {
