@@ -339,7 +339,7 @@ function renderAll() {
 
 function renderDeviceNameUI() {
   renderDeviceName(dom.deviceNameDisplay, currentState.instanceName);
-  dom.newInstanceNameInput.value = currentState.instanceName || ""; // Pre-fill edit input
+//   dom.newInstanceNameInput.value = currentState.instanceName || ""; // Pre-fill edit input
 }
 
 function renderDeviceRegistry() {
@@ -385,7 +385,7 @@ function renderDeviceRegistry() {
             nameSpan.style.cursor = 'pointer'; // Indicate clickable
             nameSpan.title = 'Click to rename';
             // Attach the inline edit starter function
-            nameSpan.onclick = () => startRenameDeviceInline(id, device.name || '', li, nameSpan);
+            nameSpan.onclick = () => startRenameDevice(id, device.name || '', li, nameSpan);
             nameAndInfoDiv.appendChild(nameSpan);
 
             if (device.lastSeen) {
