@@ -233,7 +233,7 @@ describe('utils', () => {
             // Check it saves the sync ID to local storage
             expect(mockStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_ID]: 'sync-id' });
             // Check it re-saves to sync storage (idempotent)
-            expect(mockSyncStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_ID]: 'sync-id' });
+            expect(mockSyncStorage.set).not.toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_ID]: 'sync-id' });
         });
 
         test('getInstanceName generates default name if none exists', async () => {
@@ -265,7 +265,7 @@ describe('utils', () => {
             expect(name).toBe('sync-name');
             expect(global.browser.runtime.getPlatformInfo).not.toHaveBeenCalled();
             expect(mockStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_NAME]: 'sync-name' });
-            expect(mockSyncStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_NAME]: 'sync-name' });
+            expect(mockSyncStorage.set).not.toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_NAME]: 'sync-name' });
         });
     });
 

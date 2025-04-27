@@ -1,7 +1,7 @@
 // options.js
 
 import { STRINGS, DEFAULT_DEVICE_ICON } from './constants.js';
-import { renderDeviceName, renderGroupList, isAndroid, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, createGroupDirect, deleteGroupDirect, renameGroupDirect, deleteDeviceDirect, processIncomingTabs, getUnifiedState, subscribeToGroupUnified, unsubscribeFromGroupUnified, showAndroidBanner, setLastSyncTime, getFromStorage, setInStorage, debounce, showError, renameDeviceUnified } from './utils.js';
+import { renderDeviceName, renderGroupList, isAndroid, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, createGroupDirect, deleteGroupDirect, renameGroupDirect, deleteDeviceDirect, processIncomingTabs, getUnifiedState, subscribeToGroupUnified, unsubscribeFromGroupUnified, showAndroidBanner, setLastSyncTime, debounce, showError, renameDeviceUnified } from './utils.js';
 import { injectSharedUI } from './shared-ui.js';
 import { applyThemeFromStorage, setupThemeDropdown } from './theme.js';
 
@@ -49,7 +49,7 @@ if (manualSyncBtn) {
             await browser.runtime.sendMessage({ action: 'heartbeat' });
             const now = new Date();
             syncStatus.textContent = 'Last sync: ' + now.toLocaleString();
-            await setInStorage(browser.storage.local, 'lastSync', now.getTime());
+            await storage.set(browser.storage.local, 'lastSync', now.getTime());
         } finally {
             showLoading(false);
         }
@@ -62,16 +62,16 @@ if (syncIntervalInput) {
         if (isNaN(val) || val < 1) val = 1;
         if (val > 120) val = 120;
         syncIntervalInput.value = val;
-        await setInStorage(browser.storage.local, 'syncInterval', val);
+        await storage.set(browser.storage.local, 'syncInterval', val);
         await browser.runtime.sendMessage({ action: 'setSyncInterval', minutes: val });
     });
     // Load saved value
-    getFromStorage(browser.storage.local, 'syncInterval', 5).then(val => {
+    storage.get(browser.storage.local, 'syncInterval', 5).then(val => {
         syncIntervalInput.value = val;
     });
 }
 // Show last sync time
-getFromStorage(browser.storage.local, 'lastSync', null).then(ts => {
+storage.get(browser.storage.local, 'lastSync', null).then(ts => {
     if (ts) syncStatus.textContent = 'Last sync: ' + new Date(ts).toLocaleString();
 });
 
@@ -103,14 +103,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         deviceIconSelect.addEventListener('change', async (e) => {
             const icon = e.target.value || DEFAULT_DEVICE_ICON;
             deviceIconPreview.textContent = icon;
-            await setInStorage(browser.storage.local, 'myDeviceIcon', icon);
+            await storage.set(browser.storage.local, 'myDeviceIcon', icon);
             // Optionally, sync to registry for other devices to see
             const instanceId = currentState?.instanceId;
             if (instanceId) {
-                const deviceRegistry = await getFromStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
+                const deviceRegistry = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
                 if (deviceRegistry[instanceId]) {
                     deviceRegistry[instanceId].icon = icon;
-                    await setInStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, deviceRegistry);
+                    await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, deviceRegistry);
                 }
             }
         });
@@ -122,22 +122,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     const notifDurationInput = document.getElementById('notifDurationInput');
 
     async function loadNotificationSettings() {
-        const sound = await getFromStorage(browser.storage.local, 'notifSound', 'default');
-        const duration = await getFromStorage(browser.storage.local, 'notifDuration', 5);
+        const sound = await storage.get(browser.storage.local, 'notifSound', 'default');
+        const duration = await storage.get(browser.storage.local, 'notifDuration', 5);
         notifSoundSelect.value = sound;
         notifDurationInput.value = duration;
     }
 
     if (notifSoundSelect && notifDurationInput) {
         notifSoundSelect.addEventListener('change', async (e) => {
-            await setInStorage(browser.storage.local, 'notifSound', e.target.value);
+            await storage.set(browser.storage.local, 'notifSound', e.target.value);
         });
         notifDurationInput.addEventListener('change', async (e) => {
             let val = parseInt(e.target.value, 10);
             if (isNaN(val) || val < 1) val = 1;
             if (val > 20) val = 20;
             notifDurationInput.value = val;
-            await setInStorage(browser.storage.local, 'notifDuration', val);
+            await storage.set(browser.storage.local, 'notifDuration', val);
         });
         loadNotificationSettings();
     }
@@ -198,13 +198,13 @@ if (onboardingCloseBtn) onboardingCloseBtn.onclick = () => onboardingModal.class
 
 async function getStateDirectly() {
     const [instanceId, instanceName, subscriptions, groupBits, definedGroups, groupState, deviceRegistry] = await Promise.all([
-        getFromStorage(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID),
-        getFromStorage(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_NAME),
-        getFromStorage(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS) || [],
-        getFromStorage(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS) || {},
-        getFromStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS) || [],
-        getFromStorage(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE) || {},
-        getFromStorage(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY) || {}
+        storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID),
+        storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_NAME),
+        storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS) || [],
+        storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS) || {},
+        storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS) || [],
+        storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE) || {},
+        storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY) || {}
     ]);
     return {
         instanceId,
@@ -257,7 +257,7 @@ async function processIncomingTabsAndroid(state) {
     await processIncomingTabs(
         state,
         async (url) => { await browser.tabs.create({ url, active: false }); },
-        async (updated) => { await setInStorage(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, updated); }
+        async (updated) => { await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, updated); }
     );
 }
 
@@ -474,7 +474,13 @@ async function handleDeleteDevice(deviceId, deviceName) {
         showLoading(false);
     }
 }
-
+function resetNameEditUI() {
+    dom.deviceNameDisplay.style.display = 'inline';
+    dom.editNameBtn.style.display = 'inline-block';
+    dom.editNameInputDiv.classList.add('hidden');
+    dom.editNameInputDiv.style.display = 'none'; // Keep this if class doesn't handle display
+    dom.saveNameBtn.disabled = true;
+}
 // --- UI Interaction Handlers ---
 
 dom.editNameBtn.addEventListener('click', () => {
@@ -490,12 +496,7 @@ dom.editNameBtn.addEventListener('click', () => {
 });
 
 dom.cancelNameBtn.addEventListener('click', () => {
-    dom.deviceNameDisplay.style.display = 'inline';
-    dom.editNameBtn.style.display = 'inline-block';
-    dom.editNameInputDiv.classList.add('hidden');   // *** CHANGE: Add 'hidden' class back to hide ***
-    dom.editNameInputDiv.style.display = 'none';
-    // dom.newInstanceNameInput.value = currentState.instanceName || '';
-    dom.saveNameBtn.disabled = true;
+    resetNameEditUI();
 });
 
 dom.newInstanceNameInput.addEventListener('input', () => {
@@ -536,18 +537,13 @@ dom.saveNameBtn.addEventListener('click', async () => {
         } else {
             showError(response.message || STRINGS.saveNameFailed, dom.messageArea);
             // Reset UI even on error
-            dom.cancelNameBtn.click();
         }
     } catch (error) {
         console.error("Error saving device name:", error);
         showError(STRINGS.saveNameFailed + ': ' + error.message, dom.messageArea);
-        dom.cancelNameBtn.click();
     } finally {
         // Reset the UI visibility *after* potential loadState() or error display
-        dom.deviceNameDisplay.style.display = 'inline';
-        dom.editNameBtn.style.display = 'inline-block';
-        dom.editNameInputDiv.classList.add('hidden'); // *** Use classList to hide ***
-        dom.saveNameBtn.disabled = true; // Ensure save is disabled
+        resetNameEditUI();
         showLoading(false); // Hide loading indicator
     }
 });
@@ -721,7 +717,7 @@ if (removeDeviceBtn) {
 }
 
 async function loadDeviceIcon() {
-    const icon = await getFromStorage(browser.storage.local, 'myDeviceIcon', DEFAULT_DEVICE_ICON);
+    const icon = await storage.get(browser.storage.local, 'myDeviceIcon', DEFAULT_DEVICE_ICON);
     deviceIconSelect.value = icon;
     deviceIconPreview.textContent = icon;
 }
