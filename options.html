@@ -1,17 +1,20 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="styles.css">
+    <!-- Assuming you might want specific option styles later -->
+    <!-- <link rel="stylesheet" href="options.css"> -->
     <title>TabTogether Settings</title>
 </head>
 <body>
     <div class="container">
         <div id="loadingIndicator" class="loading hidden">Loading...</div>
         <div id="messageArea" class="hidden"></div>
-        <h1>Device Settings</h1>
+        <h2>Device Settings</h2>
         <fieldset>
-            <legend>Device</legend>
+            <legend>Current Device</legend>
             <div class="setting-item">
                 <strong>Name:</strong>
                 <span id="deviceNameDisplay" aria-label="Device Name">Loading...</span>
@@ -33,17 +36,17 @@
                     <option value="📺">📺 TV</option>
                     <option value="🎮">🎮 Game Console</option>
                 </select>
-                <span id="deviceIconPreview" style="font-size:1.5em; margin-left:8px;">💻</span>
+                <!-- Replaced inline style with class -->
+                <span id="deviceIconPreview" class="device-icon-preview">💻</span>
             </div>
-
         </fieldset>
         <fieldset>
-            <legend>Device Registry</legend>
+            <legend>Devices Registry</legend>
             <div id="deviceRegistryList">Loading registry...</div>
         </fieldset>
-        <h1>Group Management</h1>
+        <h2>Group Management</h2>
         <fieldset>
-            <legend>Groups</legend>
+            <legend>Devices Groups</legend>
             <div id="definedGroupsList">Loading groups...</div>
             <div class="input-group">
                 <input type="text" id="newGroupName" placeholder="New group name" aria-label="New Group Name" title="Enter a name for a new group">
@@ -51,7 +54,22 @@
             </div>
         </fieldset>
         <fieldset>
-            <legend>Settings & Tools</legend>
+            <legend>Sync</legend>
+            <div class="setting-item">
+                <button id="manualSyncBtn" type="button" title="Manually sync device info and groups now">Manual Sync</button>
+            </div>
+            <div class="setting-item">
+                <label for="syncIntervalInput"><strong>Auto-sync interval (minutes):</strong></label>
+                <!-- Replaced inline style with class -->
+                <input type="number" id="syncIntervalInput" class="numeric-input-small" min="1" max="120" value="5" title="How often to auto-sync device info (in minutes)">
+            </div>
+            <div class="setting-item">
+                <span id="syncStatus">Last sync: never</span>
+            </div>
+        </fieldset>
+        <h2>Settings & Tools</h2>
+        <fieldset>
+            <legend>Theme</legend>
             <div class="setting-item">
                 <label for="darkModeSelect"><strong>Dark Mode:</strong></label>
                 <select id="darkModeSelect">
@@ -77,20 +95,8 @@
             </div>
             <div class="setting-item">
                 <label for="notifDurationInput"><strong>Duration (seconds):</strong></label>
-                <input type="number" id="notifDurationInput" min="1" max="20" value="5" style="width:60px;" title="How long notifications stay visible (in seconds)">
-            </div>
-        </fieldset>
-        <fieldset>
-            <legend>Sync</legend>
-            <div class="setting-item">
-                <button id="manualSyncBtn" type="button" title="Manually sync device info and groups now">Manual Sync</button>
-            </div>
-            <div class="setting-item">
-                <label for="syncIntervalInput"><strong>Auto-sync interval (minutes):</strong></label>
-                <input type="number" id="syncIntervalInput" min="1" max="120" value="5" style="width:60px;" title="How often to auto-sync device info (in minutes)">
-            </div>
-            <div class="setting-item">
-                <span id="syncStatus">Last sync: never</span>
+                <!-- Replaced inline style with class -->
+                <input type="number" id="notifDurationInput" class="numeric-input-small" min="1" max="20" value="5" title="How long notifications stay visible (in seconds)">
             </div>
         </fieldset>
         <fieldset>
@@ -105,20 +111,27 @@
                     <li>Dark mode can be toggled manually or follows your system preference.</li>
                     <li>Leaving or deleting a group is permanent and affects all devices.</li>
                 </ul>
-                <p>For more help, visit the <a href="https://github.com/ophilar/TabTogether" target="_blank">project page</a>.</p>
+                <p>For more help, visit the <a href="https://github.com/ophilar/TabTogether" target="_blank" rel="noopener noreferrer">project page</a>.</p>
             </div>
         </fieldset>
+
         <!-- Onboarding Modal -->
-        <div id="onboardingModal" class="hidden" style="position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.5);z-index:1000;display:flex;align-items:center;justify-content:center;">
-            <div style="background:#fff;padding:32px 24px 24px 24px;border-radius:12px;max-width:420px;width:90vw;box-shadow:0 2px 16px rgba(0,0,0,0.18);text-align:left;">
+        <!-- Replaced inline style with class, kept 'hidden' class -->
+        <div id="onboardingModal" class="modal-overlay hidden">
+            <!-- Replaced inline style with class -->
+            <div class="modal-content">
                 <div id="onboardingStepContent"></div>
-                <div style="margin-top:18px;text-align:right;">
-                    <button id="onboardingPrevBtn" style="margin-right:10px;">Back</button>
+                <!-- Replaced inline style with class -->
+                <div class="modal-actions">
+                    <!-- Replaced inline style with class -->
+                    <button id="onboardingPrevBtn" class="modal-button-prev">Back</button>
                     <button id="onboardingNextBtn">Next</button>
-                    <button id="onboardingCloseBtn" style="margin-left:10px;">Close</button>
+                    <!-- Replaced inline style with class -->
+                    <button id="onboardingCloseBtn" class="modal-button-close">Close</button>
                 </div>
             </div>
         </div>
+
         <!-- Help link -->
         <p class="options-link"><a href="#" id="openOnboardingLink" title="Show help and onboarding for TabTogether">Show Help / Onboarding</a></p>
     </div>
