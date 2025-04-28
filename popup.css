@@ -12,41 +12,28 @@ html {
 }
 
 body {
-  /* Use main card background for consistency */
-  /* background-color: var(--main-card); */
   margin: 0;
-  /* font-family is inherited from styles.css */
   font-size: 1em;
-  /* color: var(--main-text); */
   line-height: 1.5;
   min-width: 300px;
-  /* Slightly reduced min-width for flexibility */
   overflow: hidden;
-  /* Prevent body scrollbars */
 }
 
 .container {
   background-color: var(--main-card);
-  /* Use standard border-radius if defined, or keep moderate rounding */
   border-radius: 6px;
-  /* Reduced radius for a less stylized look */
-  /* Use standard container shadow if defined */
   box-shadow: var(--main-shadow-container, 0 8px 8px rgba(0, 0, 0, 0.08));
-  /* Using fallback */
-  /* Adjust padding for a slightly more compact feel */
-  padding: 12px 12px 12px 12px;
+  padding: 12px; /* Simplified padding */
   margin: 2px auto 0 auto;
-  /* Reduced top margin */
   border: none;
   box-sizing: border-box;
   overflow-y: auto;
-  scrollbar-width: none;
-  /* Firefox */
+  scrollbar-width: none; /* Firefox */
+  /* Removed position: relative and padding-right */
 }
 
 .container::-webkit-scrollbar {
-  display: none;
-  /* Chrome/Safari/Edge */
+  display: none; /* Chrome/Safari/Edge */
 }
 
 /* List Styling (using semantic ul/li) */
@@ -56,220 +43,187 @@ body {
   margin: 0;
 }
 
-/* Style for individual list items */
 #subscriptionsUl li {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 10px 0;
-  /* Use main border color, dashed for separation */
   transition: background-color var(--transition);
 }
 
-/* Style for the label/name within a list item */
 #subscriptionsUl li .list-item-label {
   flex-grow: 1;
   font-weight: 500;
-  /* Keep slightly bold for readability */
   color: var(--main-text);
   font-size: 1em;
-  /* Standard font size */
 }
 
-/* Highlight for the current device (Subtle) */
 #subscriptionsUl li.this-device {
-  /* font-weight: bold; is inherited from styles.css */
-  /* Optional: Add a very subtle background or rely solely on bold text */
   background-color: var(--main-blue-light);
-  /* Removed distinct background */
   padding-left: 7px;
-  /* Removed indent */
   margin-left: -7px;
-  /* Removed indent */
   border-radius: 4px;
-  /* Removed radius */
 }
 
-/* No dark theme override needed if background is removed */
-/* [data-theme="dark"] #subscriptionsUl li.this-device { ... } */
-/* Add styles for the toggle details button */
-#toggleDetailsBtn {
-  /* Override default button padding/font-size */
-  padding: 2px 6px;
-  /* Smaller padding */
-  font-size: 1.1em;
-  /* Adjust font size for the ellipsis */
+/* --- Details Section --- */
+.popup-details {
+    margin-top: 10px;
+    padding-top: 10px;
+    font-size: 0.9em;
+    color: var(--main-grey-light);
+    /* Divider appears when details are shown */
+    border-top: 1px solid var(--main-border);
+}
+/* Hide the divider when details are hidden */
+.popup-details.hidden {
+    border-top: none;
+    margin-top: 0;
+    padding-top: 0;
+}
+
+.popup-detail-row {
+    margin-bottom: 5px;
+}
+
+.popup-detail-label {
+    font-weight: bold;
+    color: var(--main-grey-dark);
+    margin-right: 5px;
+}
+
+/* --- Footer --- */
+.popup-footer {
+    display: flex; /* Use flexbox for alignment */
+    justify-content: space-around; /* Distribute items evenly */
+    align-items: center;
+    margin-top: 15px;
+    padding-top: 10px;
+    border-top: 1px solid var(--main-border); /* Always show top divider for footer */
+}
+
+/* --- Standardize Footer Links/Buttons --- */
+.popup-footer .popup-link { /* Style links and the button together */
+  font-size: 1.5em;  /* Standardized font size (adjust as needed) */
+  padding: 5px 8px; /* Standardized padding */
   line-height: 1;
-  /* Ensure tight line height */
-  /* Optionally override background/border if needed */
+  text-decoration: none;
+  color: var(--main-accent);
+  opacity: 0.8;
+  transition: opacity var(--transition), color var(--transition);
+  /* Reset button defaults if needed */
   background: none;
   border: none;
-  color: var(--main-text);
-  /* Use theme text color */
   cursor: pointer;
-  /* Position it if necessary, e.g., absolute positioning */
-  position: absolute;
-  top: 10px;
-  /* Adjust as needed */
-  right: 10px;
-  /* Adjust as needed */
-  box-shadow: none;
-  /* Remove button shadow */
-  opacity: 0.7;
-  /* Make it slightly less prominent */
-  transition: opacity var(--transition);
+  font-family: inherit; /* Ensure button inherits font */
 }
 
-#toggleDetailsBtn:hover {
+.popup-footer .popup-link:hover {
   opacity: 1;
-  background: none;
-  /* Ensure no background on hover */
-  transform: none;
-  /* Prevent base button hover transform */
+  color: var(--main-orange-dark);
+  text-decoration: none;
 }
 
-/* Adjust container padding if toggle button is absolutely positioned */
-.container {
-  /* ... other container styles ... */
-  position: relative;
-  /* Needed for absolute positioning of children */
-  padding-right: 35px;
-  /* Add padding to prevent content overlap with button */
-  /* ... */
-}
-
-
-/* Action buttons within the popup (e.g., Send Group) */
-/* Use base button styles for consistency */
-.popup-action-btn {
-  /* Inherit most styles from base 'button' in styles.css */
-  /* Apply specific padding suitable for list items */
-  padding: 6px 16px;
-  font-size: 0.95em;
-  /* Slightly smaller if needed */
-  /* Ensure it uses primary button colors */
-  background-color: var(--main-button-primary-bg);
-  color: var(--main-button-text);
-  /* Inherits hover/disabled states from base button */
-  /* Ensure shadow matches base button shadow */
-  box-shadow: var(--main-shadow-button-primary, 0 1px 2px rgba(255, 148, 0, 0.09));
-  /* Using fallback */
-}
-
-/* No need for separate :disabled or :hover styles if they match the base button */
-
-/* Status Message Styling (Using base classes) */
-.status-message {
-  font-size: 0.95em;
-  /* Consistent with other secondary text */
-  margin-top: 10px;
-  padding: 4px 0;
-  text-align: left;
-  animation: fadein var(--transition);
-  display: block;
-  /* Color is determined by adding .success or .error class from styles.css */
-}
-
-
-/* Style the links in the popup footer */
-.popup-footer .options-link { /* Target links specifically within the footer */
-  margin-top: 15px;
-  margin-left: 10px;
-  font-size: 2em;  /* Increase font size (adjust value as needed) */
-  padding: 5px;      /* Add some padding for easier clicking */
-  line-height: 1;    /* Adjust line height if necessary */
-  text-decoration: none; /* Ensure no underline */
-  color: var(--main-accent); /* Use accent color from theme */
-  opacity: 0.8;
-  transition: opacity var(--transition), color var(--transition);
-}
-.popup-footer .options-link:first-child {
-  margin-left: 0; /* No margin on the first icon */
-}
-.popup-footer .refresh-link { /* Target links specifically within the footer */
-  margin-top: 15px;
-  margin-left: 0px;
-  font-size: 2em;  /* Increase font size (adjust value as needed) */
-  padding: 5px;      /* Add some padding for easier clicking */
-  line-height: 1;    /* Adjust line height if necessary */
-  text-decoration: none; /* Ensure no underline */
-  color: var(--main-accent); /* Use accent color from theme */
-  opacity: 0.8;
-  transition: opacity var(--transition), color var(--transition);
-}
-
-.popup-footer .options-link:hover {
-  opacity: 1;
-  color: var(--main-orange-dark); /* Use darker accent for hover */
-  text-decoration: none; /* Ensure no underline on hover */
-}
-
-.popup-footer .refresh-link:hover {
-  opacity: 1;
-  color: var(--main-orange-dark); /* Use darker accent for hover */
-  text-decoration: none; /* Ensure no underline on hover */
+/* Specific style for the toggle button if needed (mostly covered by .popup-link) */
+#toggleDetailsBtn {
+  /* Removed absolute positioning and related styles */
+  /* Inherits size/color from .popup-link */
 }
 
 [data-theme="dark"] .popup-footer .popup-link:hover {
   color: var(--main-orange-light);
 }
 
-/* Adjust dark theme link hover if needed */
-[data-theme="dark"] .container a:hover {
-  color: var(--main-orange-light);
-  /* Lighter orange for dark theme hover */
+/* --- Other Styles --- */
+
+/* Action buttons (Send to Group, Sync Now) */
+.popup-action-btn {
+  padding: 8px 18px; /* Match base button size */
+  font-size: 1em; /* Match base button size */
+  background-color: var(--main-button-primary-bg);
+  color: var(--main-button-text);
+  box-shadow: var(--main-shadow-button-primary, 0 1px 2px rgba(255, 148, 0, 0.09));
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color var(--transition), box-shadow var(--transition), transform var(--transition), color var(--transition);
+}
+.popup-action-btn:hover:not(:disabled) {
+  background-color: var(--main-button-primary-hover-bg);
+  transform: translateY(-2px) scale(1.04);
+}
+.popup-action-btn:disabled {
+  background-color: var(--main-button-disabled-bg);
+  color: var(--main-button-disabled-text);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
+/* Style the "Send to [Group]" buttons */
+.send-to-group-button {
+  display: block;
+  width: 100%;
+  margin-bottom: 8px;
+  text-align: center;
+  /* Inherits sizing from .popup-action-btn */
+}
+.send-to-group-button:last-child {
+  margin-bottom: 0;
+}
+.send-to-group-button:hover:not(:disabled) {
+  /* Optional: override transform if too much */
+  /* transform: none; */
+}
+
+/* Style for the Sync Now button specific to the popup */
+.sync-now-button-popup {
+    margin-bottom: 10px;
+    width: 100%;
+    /* Inherits sizing from .popup-action-btn */
+}
+
+/* Status Message Styling */
+.status-message {
+  font-size: 0.95em;
+  margin-top: 10px;
+  padding: 4px 0;
+  text-align: left;
+  animation: fadein var(--transition);
+  display: block;
+  /* Color determined by .success or .error class from styles.css */
+}
 
 /* Fade-in Animation */
 @keyframes fadein {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-
-  to {
-    opacity: 1;
-    transform: none;
-  }
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
 }
 
 /* --- Responsive Adjustments --- */
-
 @media (max-width: 480px) {
   body {
     font-size: 0.98em;
     min-width: 280px;
-    /* Allow shrinking */
   }
-
   .container {
-    padding: 15px 10px;
-    /* Adjust padding */
-    margin-top: 5px;
-    /* Reduce top margin further */
+    padding: 10px; /* Further reduced padding */
+    margin-top: 2px;
     max-width: 98vw;
-    /* Allow near full width */
   }
-
-  h2 {
-    font-size: 1.05em;
-    /* Adjust heading */
-    margin-bottom: 12px;
-  }
-
-  .popup-action-btn {
+  .popup-action-btn,
+  .send-to-group-button,
+  .sync-now-button-popup {
     /* Ensure touch target size */
-    padding: 7px 15px;
-    /* Slightly larger padding vertically */
+    padding: 8px 15px; /* Consistent padding */
     font-size: 1em;
-    /* Ensure readable text */
   }
-
+  .popup-footer .popup-link {
+    font-size: 1.4em; /* Slightly smaller icons on small screens */
+    padding: 4px 6px;
+  }
   #subscriptionsUl li {
-    padding: 10px 0;
-    /* Maintain vertical padding */
-    gap: 8px;
-    /* Slightly reduce gap */
+    padding: 8px 0;
+    gap: 6px;
   }
 }
