@@ -379,7 +379,57 @@ button.inline-btn {
 [data-theme="dark"] .inline-edit-cancel {
     color: var(--main-grey-light);
 }
+.device-icon-preview {
+  font-size: 1.5em;
+  margin-left: 8px;
+  vertical-align: middle; /* Optional: Helps align the emoji better with text */
+}
 
+.numeric-input-small {
+  width: 60px;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5); /* Consider using CSS variables if you have them */
+  z-index: 1000;
+  display: flex; /* Keep display:flex here as it's needed for centering */
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-content {
+  background: var(--background-color, #fff); /* Use theme variable or fallback */
+  color: var(--text-color, #000); /* Use theme variable or fallback */
+  padding: 32px 24px 24px 24px;
+  border-radius: 12px;
+  max-width: 420px;
+  width: 90vw;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.18);
+  text-align: left;
+}
+
+.modal-actions {
+  margin-top: 18px;
+  text-align: right;
+}
+
+.modal-button-prev {
+  margin-right: 10px;
+}
+
+.modal-button-close {
+  margin-left: 10px;
+}
+
+/* Ensure the hidden class works with the modal */
+.modal-overlay.hidden {
+    display: none; /* Override the flex display when hidden */
+}
 /* Ensure list items accommodate the inline controls */
 #definedGroupsList li > span:first-child,
 #deviceRegistryList li > div:first-child {
