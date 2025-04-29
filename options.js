@@ -299,6 +299,11 @@ async function loadState() {
     }
     renderAll();
   } catch (error) {
+    console.error("!!! ERROR IN loadState:", error); // Log the error object itself
+    if (error && error.stack) {
+        console.error("!!! Stack Trace:", error.stack); // Log the stack trace if available
+    }
+    
     showError(STRINGS.loadingSettingsError(error.message), dom.messageArea);
     dom.deviceNameDisplay.textContent = STRINGS.error;
     dom.definedGroupsListDiv.innerHTML = `<p>${STRINGS.loadingGroups}</p>`;
