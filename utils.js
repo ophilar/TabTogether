@@ -531,7 +531,9 @@ export async function processIncomingTabs(state, openTabFn, updateProcessedTasks
             if (!localProcessedTasks[taskId] && !((task.processedMask & myBit) === myBit)) {
                 try {
                     await openTabFn(task.url, task.title);
-                } catch (e) {}
+                } catch (e) {
+                    console.error(`Failed to open tab for task ${taskId} (URL: ${task.url}):`, e);
+                }
                 processedTasksUpdateBatch[taskId] = true;
                 // Mark as processed in sync
                 const newProcessedMask = task.processedMask | myBit;
