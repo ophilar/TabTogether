@@ -49,7 +49,24 @@ syncNowBtn.className = "send-group-btn";
 syncNowBtn.style.marginBottom = "10px";
 syncNowBtn.style.width = "100%"; // Ensure unit is present
 syncNowBtn.addEventListener("click", async () => {
-  await loadState();
+  syncNowBtn.disabled = true; // Disable button
+  showLoading(true);
+  clearMessage();
+
+  try { // Add try block
+    await loadState(); // This already calls processIncomingTabsAndroid
+    // loadState handles its own internal errors/messages, but we catch errors calling it
+    showMessage('Sync complete.', false);
+  } catch (error) { // Add catch block
+    console.error("Manual sync failed:", error);
+    showError(`Sync failed: ${error.message || 'Unknown error'}`, dom.messageArea);
+  } finally { // Add finally block
+    showLoading(false);
+    // Check if button still exists before trying to enable it
+    if (syncNowBtn.isConnected) {
+      syncNowBtn.disabled = false; // Re-enable button
+    }
+  }
 });
 
 const manualSyncBtn = document.getElementById("manualSyncBtn");
@@ -301,9 +318,9 @@ async function loadState() {
   } catch (error) {
     console.error("!!! ERROR IN loadState:", error); // Log the error object itself
     if (error && error.stack) {
-        console.error("!!! Stack Trace:", error.stack); // Log the stack trace if available
+      console.error("!!! Stack Trace:", error.stack); // Log the stack trace if available
     }
-    
+
     showError(STRINGS.loadingSettingsError(error.message), dom.messageArea);
     dom.deviceNameDisplay.textContent = STRINGS.error;
     dom.definedGroupsListDiv.innerHTML = `<p>${STRINGS.loadingGroups}</p>`;
@@ -344,91 +361,91 @@ function renderAll() {
 
 function renderDeviceNameUI() {
   renderDeviceName(dom.deviceNameDisplay, currentState.instanceName);
-//   dom.newInstanceNameInput.value = currentState.instanceName || ""; // Pre-fill edit input
+  //   dom.newInstanceNameInput.value = currentState.instanceName || ""; // Pre-fill edit input
 }
 
 function renderDeviceRegistry() {
-    const devices = currentState.deviceRegistry;
-    dom.deviceRegistryListDiv.innerHTML = ''; // Clear previous content
+  const devices = currentState.deviceRegistry;
+  dom.deviceRegistryListDiv.innerHTML = ''; // Clear previous content
 
-    if (!devices || Object.keys(devices).length === 0) {
-        dom.deviceRegistryListDiv.textContent = STRINGS.noDevices;
-        return;
-    }
+  if (!devices || Object.keys(devices).length === 0) {
+    dom.deviceRegistryListDiv.textContent = STRINGS.noDevices;
+    return;
+  }
 
-    const localId = currentState.instanceId;
-    const ul = document.createElement('ul');
-    ul.setAttribute('role', 'list');
-    // Apply styling similar to #definedGroupsList ul from styles.css
-    ul.style.listStyle = 'none';
-    ul.style.padding = '0';
-    ul.style.margin = '0';
+  const localId = currentState.instanceId;
+  const ul = document.createElement('ul');
+  ul.setAttribute('role', 'list');
+  // Apply styling similar to #definedGroupsList ul from styles.css
+  ul.style.listStyle = 'none';
+  ul.style.padding = '0';
+  ul.style.margin = '0';
 
-    Object.entries(devices)
-        .sort((a, b) => (a[1]?.name || '').localeCompare(b[1]?.name || ''))
-        .forEach(([id, device]) => {
-            const li = document.createElement('li');
-            li.setAttribute('role', 'listitem');
-            // Apply styling similar to #definedGroupsList li
-            li.style.display = 'flex';
-            li.style.justifyContent = 'space-between';
-            li.style.alignItems = 'center';
-            li.style.padding = '10px 0';
-            li.style.borderBottom = '1px solid var(--main-border)';
+  Object.entries(devices)
+    .sort((a, b) => (a[1]?.name || '').localeCompare(b[1]?.name || ''))
+    .forEach(([id, device]) => {
+      const li = document.createElement('li');
+      li.setAttribute('role', 'listitem');
+      // Apply styling similar to #definedGroupsList li
+      li.style.display = 'flex';
+      li.style.justifyContent = 'space-between';
+      li.style.alignItems = 'center';
+      li.style.padding = '10px 0';
+      li.style.borderBottom = '1px solid var(--main-border)';
 
-            if (id === localId) li.classList.add('this-device');
+      if (id === localId) li.classList.add('this-device');
 
-            // Container for name and last seen (allows inline edit controls to fit)
-            const nameAndInfoDiv = document.createElement('div');
-            nameAndInfoDiv.style.flexGrow = '1'; // Take up available space
-            nameAndInfoDiv.style.marginRight = '10px'; // Space before action buttons
-            nameAndInfoDiv.style.display = 'flex';
-            nameAndInfoDiv.style.flexDirection = 'column'; // Stack name and last seen
+      // Container for name and last seen (allows inline edit controls to fit)
+      const nameAndInfoDiv = document.createElement('div');
+      nameAndInfoDiv.style.flexGrow = '1'; // Take up available space
+      nameAndInfoDiv.style.marginRight = '10px'; // Space before action buttons
+      nameAndInfoDiv.style.display = 'flex';
+      nameAndInfoDiv.style.flexDirection = 'column'; // Stack name and last seen
 
-            const nameSpan = document.createElement('span');
-            nameSpan.textContent = device.name || STRINGS.deviceNameNotSet; // Use constant
-            nameSpan.style.cursor = 'pointer'; // Indicate clickable
-            nameSpan.title = 'Click to rename';
-            // Attach the inline edit starter function
-            nameSpan.onclick = () => startRenameDevice(id, device.name || '', li, nameSpan);
-            nameAndInfoDiv.appendChild(nameSpan);
+      const nameSpan = document.createElement('span');
+      nameSpan.textContent = device.name || STRINGS.deviceNameNotSet; // Use constant
+      nameSpan.style.cursor = 'pointer'; // Indicate clickable
+      nameSpan.title = 'Click to rename';
+      // Attach the inline edit starter function
+      nameSpan.onclick = () => startRenameDevice(id, device.name || '', li, nameSpan);
+      nameAndInfoDiv.appendChild(nameSpan);
 
-            if (device.lastSeen) {
-                const lastSeenSpan = document.createElement('span');
-                lastSeenSpan.className = 'small-text';
-                lastSeenSpan.style.fontSize = '0.9em';
-                lastSeenSpan.style.opacity = '0.8';
-                lastSeenSpan.textContent = `Last seen: ${new Date(device.lastSeen).toLocaleString()}`;
-                nameAndInfoDiv.appendChild(lastSeenSpan);
-            }
+      if (device.lastSeen) {
+        const lastSeenSpan = document.createElement('span');
+        lastSeenSpan.className = 'small-text';
+        lastSeenSpan.style.fontSize = '0.9em';
+        lastSeenSpan.style.opacity = '0.8';
+        lastSeenSpan.textContent = `Last seen: ${new Date(device.lastSeen).toLocaleString()}`;
+        nameAndInfoDiv.appendChild(lastSeenSpan);
+      }
 
-            li.appendChild(nameAndInfoDiv);
+      li.appendChild(nameAndInfoDiv);
 
-            // Action buttons container
-            const actionsDiv = document.createElement('div');
-            actionsDiv.className = 'device-actions'; // For potential styling
+      // Action buttons container
+      const actionsDiv = document.createElement('div');
+      actionsDiv.className = 'device-actions'; // For potential styling
 
-            // --- Rename button REMOVED ---
+      // --- Rename button REMOVED ---
 
-            // Delete button
-            const deleteBtn = document.createElement('button');
-            deleteBtn.textContent = 'Delete';
-            deleteBtn.className = 'inline-btn danger'; // Use existing style
-            deleteBtn.disabled = id === localId;
-            deleteBtn.title = id === localId ? 'Cannot delete this device from itself' : 'Delete device';
-            deleteBtn.onclick = () => handleDeleteDevice(id, device.name);
-            actionsDiv.appendChild(deleteBtn);
+      // Delete button
+      const deleteBtn = document.createElement('button');
+      deleteBtn.textContent = 'Delete';
+      deleteBtn.className = 'inline-btn danger'; // Use existing style
+      deleteBtn.disabled = id === localId;
+      deleteBtn.title = id === localId ? 'Cannot delete this device from itself' : 'Delete device';
+      deleteBtn.onclick = () => handleDeleteDevice(id, device.name);
+      actionsDiv.appendChild(deleteBtn);
 
-            li.appendChild(actionsDiv);
-            ul.appendChild(li);
-        });
+      li.appendChild(actionsDiv);
+      ul.appendChild(li);
+    });
 
-    // Remove border from last item
-    if (ul.lastChild) {
-        ul.lastChild.style.borderBottom = 'none';
-    }
+  // Remove border from last item
+  if (ul.lastChild) {
+    ul.lastChild.style.borderBottom = 'none';
+  }
 
-    dom.deviceRegistryListDiv.appendChild(ul);
+  dom.deviceRegistryListDiv.appendChild(ul);
 }
 
 function renderDefinedGroups() {
@@ -450,136 +467,136 @@ function renderSubscriptionsUI() {
 
 // --- Group Rename ---
 function startRenameGroup(oldName, nameSpan) {
-    // Prevent starting another edit if one is already active in this list item
-    const listItem = nameSpan.closest('li');
-    if (!listItem || listItem.querySelector('.inline-edit-container')) {
-        return;
-    }
+  // Prevent starting another edit if one is already active in this list item
+  const listItem = nameSpan.closest('li');
+  if (!listItem || listItem.querySelector('.inline-edit-container')) {
+    return;
+  }
 
-    const onSave = (newName) => {
-        // Pass the controls container to finishRenameGroup for cleanup
-        finishRenameGroup(oldName, newName, nameSpan, inlineControls.element);
-    };
+  const onSave = (newName) => {
+    // Pass the controls container to finishRenameGroup for cleanup
+    finishRenameGroup(oldName, newName, nameSpan, inlineControls.element);
+  };
 
-    const onCancel = () => {
-        cancelInlineEdit(nameSpan, inlineControls.element);
-    };
+  const onCancel = () => {
+    cancelInlineEdit(nameSpan, inlineControls.element);
+  };
 
-    // Create the inline controls
-    const inlineControls = createInlineEditControls(oldName, onSave, onCancel);
+  // Create the inline controls
+  const inlineControls = createInlineEditControls(oldName, onSave, onCancel);
 
-    nameSpan.style.display = 'none'; // Hide original span
-    // Insert controls *after* the hidden span, within the list item
-    nameSpan.parentNode.insertBefore(inlineControls.element, nameSpan.nextSibling);
-    inlineControls.focusInput(); // Focus the input field
+  nameSpan.style.display = 'none'; // Hide original span
+  // Insert controls *after* the hidden span, within the list item
+  nameSpan.parentNode.insertBefore(inlineControls.element, nameSpan.nextSibling);
+  inlineControls.focusInput(); // Focus the input field
 }
 
 // Modify finishRenameGroup to accept the controls container for cleanup
 async function finishRenameGroup(oldName, newName, nameSpan, inlineControlsContainer) {
-    // Basic validation (already handled in save handler, but good practice)
-    newName = newName.trim();
-    if (!newName || newName === oldName) {
-        cancelInlineEdit(nameSpan, inlineControlsContainer);
-        return;
+  // Basic validation (already handled in save handler, but good practice)
+  newName = newName.trim();
+  if (!newName || newName === oldName) {
+    cancelInlineEdit(nameSpan, inlineControlsContainer);
+    return;
+  }
+
+  // Confirmation is optional for inline editing, remove if desired
+  // if (!confirm(STRINGS.confirmRenameGroup(oldName, newName))) {
+  //     cancelInlineEdit(nameSpan, inlineControlsContainer);
+  //     return;
+  // }
+
+  showLoading(true);
+  let success = false;
+  try {
+    let response;
+    if (await isAndroid()) {
+      response = await renameGroupDirect(oldName, newName);
+    } else {
+      response = await browser.runtime.sendMessage({ action: 'renameGroup', oldName, newName });
     }
 
-    // Confirmation is optional for inline editing, remove if desired
-    // if (!confirm(STRINGS.confirmRenameGroup(oldName, newName))) {
-    //     cancelInlineEdit(nameSpan, inlineControlsContainer);
-    //     return;
-    // }
-
-    showLoading(true);
-    let success = false;
-    try {
-        let response;
-        if (await isAndroid()) {
-            response = await renameGroupDirect(oldName, newName);
-        } else {
-            response = await browser.runtime.sendMessage({ action: 'renameGroup', oldName, newName });
-        }
-
-        if (response.success) {
-            showMessage(STRINGS.groupRenameSuccess(newName), false);
-            success = true;
-            // Reload state which will re-render the list, removing the inline controls
-            await loadState();
-        } else {
-            showError(response.message || STRINGS.groupRenameFailed, dom.messageArea);
-            // Explicitly cancel edit UI on failure if loadState doesn't happen
-            cancelInlineEdit(nameSpan, inlineControlsContainer);
-        }
-    } catch (e) {
-        showError(STRINGS.groupRenameFailed + ": " + e.message, dom.messageArea);
-        // Explicitly cancel edit UI on error
-        cancelInlineEdit(nameSpan, inlineControlsContainer);
-    } finally {
-        showLoading(false);
-        // If loadState was successful, controls are gone. If not, cancelInlineEdit was called above.
+    if (response.success) {
+      showMessage(STRINGS.groupRenameSuccess(newName), false);
+      success = true;
+      // Reload state which will re-render the list, removing the inline controls
+      await loadState();
+    } else {
+      showError(response.message || STRINGS.groupRenameFailed, dom.messageArea);
+      // Explicitly cancel edit UI on failure if loadState doesn't happen
+      cancelInlineEdit(nameSpan, inlineControlsContainer);
     }
+  } catch (e) {
+    showError(STRINGS.groupRenameFailed + ": " + e.message, dom.messageArea);
+    // Explicitly cancel edit UI on error
+    cancelInlineEdit(nameSpan, inlineControlsContainer);
+  } finally {
+    showLoading(false);
+    // If loadState was successful, controls are gone. If not, cancelInlineEdit was called above.
+  }
 }
 
 // Device rename UI
 function startRenameDevice(deviceId, oldName, listItem, nameSpan) {
-    // Prevent starting another edit if one is already active in this row
-    if (listItem.querySelector('.inline-edit-container')) {
-        return;
-    }
+  // Prevent starting another edit if one is already active in this row
+  if (listItem.querySelector('.inline-edit-container')) {
+    return;
+  }
 
-    const onSave = (newName) => {
-        finishRenameDevice(deviceId, newName, listItem, nameSpan, inlineControls.element);
-    };
+  const onSave = (newName) => {
+    finishRenameDevice(deviceId, newName, listItem, nameSpan, inlineControls.element);
+  };
 
-    const onCancel = () => {
-        cancelInlineEdit(nameSpan, inlineControls.element);
-    };
+  const onCancel = () => {
+    cancelInlineEdit(nameSpan, inlineControls.element);
+  };
 
-    // Create the inline controls
-    const inlineControls = createInlineEditControls(oldName, onSave, onCancel);
+  // Create the inline controls
+  const inlineControls = createInlineEditControls(oldName, onSave, onCancel);
 
-    nameSpan.style.display = 'none'; // Hide original span
-    // Insert controls *after* the hidden span, before other action buttons
-    // Find the container holding the name span to insert relative to it
-    const nameContainer = nameSpan.parentNode;
-    nameContainer.insertBefore(inlineControls.element, nameSpan.nextSibling);
-    inlineControls.focusInput();
+  nameSpan.style.display = 'none'; // Hide original span
+  // Insert controls *after* the hidden span, before other action buttons
+  // Find the container holding the name span to insert relative to it
+  const nameContainer = nameSpan.parentNode;
+  nameContainer.insertBefore(inlineControls.element, nameSpan.nextSibling);
+  inlineControls.focusInput();
 }
 
 // Modify finishRenameDevice to accept the controls container
 async function finishRenameDevice(deviceId, newName, listItem, nameSpan, inlineControlsContainer) {
-    newName = newName.trim();
-    // Allow renaming back to original, just check for empty
-    if (!newName) {
-        cancelInlineEdit(nameSpan, inlineControlsContainer);
-        return;
+  newName = newName.trim();
+  // Allow renaming back to original, just check for empty
+  if (!newName) {
+    cancelInlineEdit(nameSpan, inlineControlsContainer);
+    return;
+  }
+
+  // Optional: Remove confirmation
+  // if (!confirm(STRINGS.confirmRenameDevice(newName))) {
+  //     cancelInlineEdit(nameSpan, inlineControlsContainer);
+  //     return;
+  // }
+
+  showLoading(true);
+  let success = false;
+  try {
+    const isAndroidPlatform = await isAndroid();
+    let response = await renameDeviceUnified(deviceId, newName, isAndroidPlatform);
+
+    if (response.success) {
+      showMessage(STRINGS.deviceRenameSuccess(newName), false);
+      success = true;
+      await loadState(); // Reload state to re-render
+    } else {
+      showError(response.message || STRINGS.deviceRenameFailed, dom.messageArea);
+      cancelInlineEdit(nameSpan, inlineControlsContainer); // Clean up on failure
     }
-
-    // Optional: Remove confirmation
-    // if (!confirm(STRINGS.confirmRenameDevice(newName))) {
-    //     cancelInlineEdit(nameSpan, inlineControlsContainer);
-    //     return;
-    // }
-
-    showLoading(true);
-    let success = false;
-    try {
-        const isAndroidPlatform = await isAndroid();
-        let response = await renameDeviceUnified(deviceId, newName, isAndroidPlatform);
-
-        if (response.success) {
-            showMessage(STRINGS.deviceRenameSuccess(newName), false);
-            success = true;
-            await loadState(); // Reload state to re-render
-        } else {
-            showError(response.message || STRINGS.deviceRenameFailed, dom.messageArea);
-            cancelInlineEdit(nameSpan, inlineControlsContainer); // Clean up on failure
-        }
-    } catch (e) {
-        showError(STRINGS.deviceRenameFailed + ": " + e.message, dom.messageArea);
-        cancelInlineEdit(nameSpan, inlineControlsContainer); // Clean up on error
-    } finally {
-        showLoading(false);
-    }
+  } catch (e) {
+    showError(STRINGS.deviceRenameFailed + ": " + e.message, dom.messageArea);
+    cancelInlineEdit(nameSpan, inlineControlsContainer); // Clean up on error
+  } finally {
+    showLoading(false);
+  }
 }
 
 async function handleDeleteDevice(deviceId, deviceName) {
@@ -763,114 +780,114 @@ dom.testNotificationBtn.addEventListener("click", async () => {
 
 // Function to remove inline edit elements and restore the original span
 function cancelInlineEdit(originalSpan, inlineControlsContainer) {
-    if (inlineControlsContainer && inlineControlsContainer.parentNode) {
-        inlineControlsContainer.remove();
-    }
-    if (originalSpan) {
-        originalSpan.style.display = ''; // Make original span visible again
-        // Optionally refocus the original element or the list item for accessibility
-        // originalSpan.focus();
-    }
+  if (inlineControlsContainer && inlineControlsContainer.parentNode) {
+    inlineControlsContainer.remove();
+  }
+  if (originalSpan) {
+    originalSpan.style.display = ''; // Make original span visible again
+    // Optionally refocus the original element or the list item for accessibility
+    // originalSpan.focus();
+  }
 }
 
 // Function to create the inline input and buttons
 function createInlineEditControls(currentValue, onSaveCallback, onCancelCallback) {
-    const container = document.createElement('div');
-    container.className = 'inline-edit-container'; // Add class for styling
-    container.style.display = 'flex';
-    container.style.alignItems = 'center';
-    container.style.flexGrow = '1'; // Take up space
-    container.style.marginRight = '10px'; // Space before other buttons (like Delete)
+  const container = document.createElement('div');
+  container.className = 'inline-edit-container'; // Add class for styling
+  container.style.display = 'flex';
+  container.style.alignItems = 'center';
+  container.style.flexGrow = '1'; // Take up space
+  container.style.marginRight = '10px'; // Space before other buttons (like Delete)
 
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.value = currentValue;
-    input.className = 'inline-edit-input'; // Add class for styling
-    input.style.flexGrow = '1';
-    input.style.marginRight = '5px';
-    // Apply some basic input styling inline or use CSS class
-    input.style.padding = '4px 6px';
-    input.style.fontSize = '0.95em';
-    input.style.border = '1px solid var(--main-accent)'; // Highlight active edit
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = currentValue;
+  input.className = 'inline-edit-input'; // Add class for styling
+  input.style.flexGrow = '1';
+  input.style.marginRight = '5px';
+  // Apply some basic input styling inline or use CSS class
+  input.style.padding = '4px 6px';
+  input.style.fontSize = '0.95em';
+  input.style.border = '1px solid var(--main-accent)'; // Highlight active edit
 
-    const saveBtn = document.createElement('button');
-    saveBtn.textContent = '✓'; // Save icon/text
-    saveBtn.className = 'inline-edit-save'; // Add class for styling
-    saveBtn.title = 'Save';
-    // Minimal button styling
-    saveBtn.style.padding = '2px 6px';
-    saveBtn.style.fontSize = '1em';
-    saveBtn.style.lineHeight = '1';
-    saveBtn.style.minWidth = 'auto';
-    saveBtn.style.boxShadow = 'none';
-    // Consider using a success color
-    // saveBtn.style.backgroundColor = 'var(--main-success-bg)';
-    // saveBtn.style.color = 'var(--main-success-text)';
-
-
-    const cancelBtn = document.createElement('button');
-    cancelBtn.textContent = '✕'; // Cancel icon/text
-    cancelBtn.className = 'inline-edit-cancel secondary'; // Use secondary style
-    cancelBtn.title = 'Cancel';
-    // Minimal button styling
-    cancelBtn.style.padding = '2px 6px';
-    cancelBtn.style.fontSize = '1em';
-    cancelBtn.style.lineHeight = '1';
-    cancelBtn.style.minWidth = 'auto';
-    cancelBtn.style.marginLeft = '3px';
-    cancelBtn.style.boxShadow = 'none';
+  const saveBtn = document.createElement('button');
+  saveBtn.textContent = '✓'; // Save icon/text
+  saveBtn.className = 'inline-edit-save'; // Add class for styling
+  saveBtn.title = 'Save';
+  // Minimal button styling
+  saveBtn.style.padding = '2px 6px';
+  saveBtn.style.fontSize = '1em';
+  saveBtn.style.lineHeight = '1';
+  saveBtn.style.minWidth = 'auto';
+  saveBtn.style.boxShadow = 'none';
+  // Consider using a success color
+  // saveBtn.style.backgroundColor = 'var(--main-success-bg)';
+  // saveBtn.style.color = 'var(--main-success-text)';
 
 
-    // --- Event Handlers ---
-    const handleSave = () => {
-        const newValue = input.value.trim();
-        // Only save if non-empty and different from original
-        if (newValue && newValue !== currentValue) {
-            onSaveCallback(newValue);
-        } else {
-            onCancelCallback(); // Treat empty or unchanged as cancel
-        }
-    };
+  const cancelBtn = document.createElement('button');
+  cancelBtn.textContent = '✕'; // Cancel icon/text
+  cancelBtn.className = 'inline-edit-cancel secondary'; // Use secondary style
+  cancelBtn.title = 'Cancel';
+  // Minimal button styling
+  cancelBtn.style.padding = '2px 6px';
+  cancelBtn.style.fontSize = '1em';
+  cancelBtn.style.lineHeight = '1';
+  cancelBtn.style.minWidth = 'auto';
+  cancelBtn.style.marginLeft = '3px';
+  cancelBtn.style.boxShadow = 'none';
 
-    const handleCancel = () => {
-        onCancelCallback();
-    };
 
-    input.onkeydown = (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            handleSave();
-        } else if (e.key === 'Escape') {
-            e.preventDefault();
-            handleCancel();
-        }
-    };
+  // --- Event Handlers ---
+  const handleSave = () => {
+    const newValue = input.value.trim();
+    // Only save if non-empty and different from original
+    if (newValue && newValue !== currentValue) {
+      onSaveCallback(newValue);
+    } else {
+      onCancelCallback(); // Treat empty or unchanged as cancel
+    }
+  };
 
-    saveBtn.onclick = handleSave;
-    cancelBtn.onclick = handleCancel;
+  const handleCancel = () => {
+    onCancelCallback();
+  };
 
-    // Handle blur: Treat blur as cancel to prevent accidental saves
-    input.onblur = (e) => {
-        // Use setTimeout to allow clicks on save/cancel buttons to register first
-        setTimeout(() => {
-            // Check if focus moved to one of the inline buttons
-            const focusMovedToButton = e.relatedTarget === saveBtn || e.relatedTarget === cancelBtn;
-            // If the container is still part of the DOM and focus didn't move to save/cancel, then cancel.
-            if (container.parentNode && !focusMovedToButton) {
-                handleCancel();
-            }
-        }, 150); // Delay might need adjustment
-    };
+  input.onkeydown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleSave();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      handleCancel();
+    }
+  };
 
-    container.appendChild(input);
-    container.appendChild(saveBtn);
-    container.appendChild(cancelBtn);
+  saveBtn.onclick = handleSave;
+  cancelBtn.onclick = handleCancel;
 
-    // Return container and a function to focus the input
-    return {
-        element: container,
-        focusInput: () => input.focus()
-    };
+  // Handle blur: Treat blur as cancel to prevent accidental saves
+  input.onblur = (e) => {
+    // Use setTimeout to allow clicks on save/cancel buttons to register first
+    setTimeout(() => {
+      // Check if focus moved to one of the inline buttons
+      const focusMovedToButton = e.relatedTarget === saveBtn || e.relatedTarget === cancelBtn;
+      // If the container is still part of the DOM and focus didn't move to save/cancel, then cancel.
+      if (container.parentNode && !focusMovedToButton) {
+        handleCancel();
+      }
+    }, 150); // Delay might need adjustment
+  };
+
+  container.appendChild(input);
+  container.appendChild(saveBtn);
+  container.appendChild(cancelBtn);
+
+  // Return container and a function to focus the input
+  return {
+    element: container,
+    focusInput: () => input.focus()
+  };
 }
 
 function showLoading(isLoading) {

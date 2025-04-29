@@ -13,7 +13,7 @@ const dom = {
     openOptionsLink: document.getElementById('openOptionsLink'),
     refreshLink: document.getElementById('refreshLink'),
     loadingIndicator: document.getElementById('loadingIndicator'),
-    errorMessageDiv: document.getElementById('errorMessage'), // This might be redundant if #messageArea is used consistently
+    // errorMessageDiv: document.getElementById('errorMessage'), // This might be redundant if #messageArea is used consistently
     messageArea: document.getElementById('messageArea'), // Added for consistency
     subscriptionsUl: document.getElementById('subscriptionsUl'),
     toggleDetailsBtn: document.getElementById('toggleDetailsBtn'),
@@ -42,8 +42,27 @@ syncNowBtn.addEventListener('keydown', (e) => {
 syncNowBtn.addEventListener('click', async () => {
     // Disable button during sync
     syncNowBtn.disabled = true;
-    await loadStatus();
-    // Re-enable after loadStatus completes (handled in loadStatus finally block)
+    showLoading(true); // Show loading indicator immediately
+    clearMessage();    // Clear previous messages
+
+    try {
+        await loadStatus();
+        // Re-enable after loadStatus completes (handled in loadStatus finally block)
+        showMessage('Sync complete.', false);
+    } catch (error) { // Add catch block
+        console.error("Manual sync failed:", error);
+        // Use the standard message area for errors
+        showMessage(`Sync failed: ${error.message || 'Unknown error'}`, true);
+    } finally { // Add finally block
+        // Re-enable button and hide loading regardless of success/failure
+        // Ensure loading is hidden *after* potential error message is shown
+        showLoading(false);
+        // Check if button still exists before trying to enable it
+        if (syncNowBtn.isConnected) {
+            syncNowBtn.disabled = false;
+        }
+        syncing = false; // Ensure syncing flag is reset (if loadStatus didn't already)
+    }
 });
 
 // --- Initialization ---
@@ -77,12 +96,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Setup details toggle
     if (dom.toggleDetailsBtn && dom.popupDetails) {
-      dom.toggleDetailsBtn.addEventListener('click', () => {
-        const isHidden = dom.popupDetails.classList.toggle('hidden');
-        dom.toggleDetailsBtn.textContent = isHidden ? '▼' : '▲'; // Update icon
-        dom.toggleDetailsBtn.setAttribute('aria-label', isHidden ? 'Show details' : 'Hide details');
-        dom.toggleDetailsBtn.setAttribute('title', isHidden ? 'Show device info' : 'Hide device info');
-      });
+        dom.toggleDetailsBtn.addEventListener('click', () => {
+            const isHidden = dom.popupDetails.classList.toggle('hidden');
+            dom.toggleDetailsBtn.textContent = isHidden ? '▼' : '▲'; // Update icon
+            dom.toggleDetailsBtn.setAttribute('aria-label', isHidden ? 'Show details' : 'Hide details');
+            dom.toggleDetailsBtn.setAttribute('title', isHidden ? 'Show device info' : 'Hide device info');
+        });
     }
 
     // Initial load of status
@@ -325,10 +344,10 @@ function clearMessage() {
         messageArea.className = 'message-area hidden'; // Add hidden class
     }
     // Also clear the specific error message div if it exists and is used
-    if (dom.errorMessageDiv) {
-        dom.errorMessageDiv.classList.add('hidden');
-        dom.errorMessageDiv.textContent = '';
-    }
+    // if (dom.errorMessageDiv) {
+    //     dom.errorMessageDiv.classList.add('hidden');
+    //     dom.errorMessageDiv.textContent = '';
+    // }
 }
 
 // Toggles the visibility of the loading indicator
@@ -345,6 +364,6 @@ function showLoading(isLoading) {
         loader.prepend(spinnerSpan); // Add spinner
         loader.append(' Loading...'); // Add text after spinner
     } else if (!isLoading && loader.querySelector('.spinner')) {
-         loader.innerHTML = ''; // Clear content when not loading
+        loader.innerHTML = ''; // Clear content when not loading
     }
 }
