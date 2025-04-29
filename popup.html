@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,24 +9,30 @@
     <link rel="stylesheet" href="popup.css">
     <title>TabTogether</title>
 </head>
+
 <body>
     <div class="container">
         <div id="loadingIndicator" class="loading hidden">Loading...</div>
         <div id="messageArea" class="hidden"></div>
         <div id="sendTabGroupsList" class="popup-groups">Loading...</div>
         <div id="sendTabStatus" class="status-message hidden"></div>
-        
+
         <div id="popupDetails" class="popup-details hidden">
-            <div class="popup-detail-row"><span class="popup-detail-label">Device:</span> <span id="deviceName">Loading...</span></div>
-            <div class="popup-detail-row"><span class="popup-detail-label">Subscriptions:</span> <span id="mySubscriptionsList" class="small-text"><ul id="subscriptionsUl"></ul></span></div>
+            <div class="popup-detail-row"><span class="popup-detail-label">Device:</span> <span
+                    id="deviceName">Loading...</span></div>
+            <div class="popup-detail-row"><span class="popup-detail-label">Subscriptions:</span> <span
+                    id="mySubscriptionsList" class="small-text">
+                    <ul id="subscriptionsUl"></ul>
+                </span></div>
         </div>
 
-        <div id="errorMessage" class="error hidden"></div>
-        
+        <!-- <div id="errorMessage" class="error hidden"></div> -->
+
         <div class="popup-footer">
             <a href="#" id="openOptionsLink" class="popup-link" title="Settings">⚙️</a>
             <a href="#" id="refreshLink" class="popup-link" title="Sync">⟳</a>
-            <button id="toggleDetailsBtn" class="details-toggle" aria-label="Show details" title="Show device info">▼</button>
+            <button id="toggleDetailsBtn" class="details-toggle" aria-label="Show details"
+                title="Show device info">▼</button>
         </div>
     </div>
     <script type="module" src="constants.js"></script>
@@ -34,4 +41,5 @@
     <script type="module" src="shared-ui.js"></script>
     <script type="module" src="popup.js"></script>
 </body>
+
 </html>
