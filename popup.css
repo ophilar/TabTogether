@@ -28,7 +28,7 @@ body {
   border: none;
   box-sizing: border-box;
   overflow-y: auto;
-  scrollbar-width: none; /* Firefox */
+  /* scrollbar-width: none; Firefox */
   /* Removed position: relative and padding-right */
 }
 
@@ -124,10 +124,10 @@ body {
 }
 
 /* Specific style for the toggle button if needed (mostly covered by .popup-link) */
-#toggleDetailsBtn {
+/* #toggleDetailsBtn { */
   /* Removed absolute positioning and related styles */
   /* Inherits size/color from .popup-link */
-}
+/* } */
 
 [data-theme="dark"] .popup-footer .popup-link:hover {
   color: var(--main-orange-light);
@@ -171,10 +171,10 @@ body {
 .send-to-group-button:last-child {
   margin-bottom: 0;
 }
-.send-to-group-button:hover:not(:disabled) {
+/* .send-to-group-button:hover:not(:disabled) { */
   /* Optional: override transform if too much */
   /* transform: none; */
-}
+/* } */
 
 /* Style for the Sync Now button specific to the popup */
 .sync-now-button-popup {
