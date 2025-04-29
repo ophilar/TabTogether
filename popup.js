@@ -1,5 +1,5 @@
 import { STRINGS } from './constants.js';
-import { renderDeviceName, renderDeviceList, isAndroid, LOCAL_STORAGE_KEYS, sendTabToGroupDirect, processIncomingTabs, getUnifiedState, showAndroidBanner, setLastSyncTime, showError, storage } from './utils.js';
+import { renderDeviceName, renderDeviceList, isAndroid, LOCAL_STORAGE_KEYS, sendTabToGroupDirect, processIncomingTabs, getUnifiedState, showAndroidBanner, setLastSyncTime, showError, storagem, showLoadingIndicator } from './utils.js';
 import { injectSharedUI } from './shared-ui.js';
 import { applyThemeFromStorage } from './theme.js';
 
@@ -42,7 +42,7 @@ syncNowBtn.addEventListener('keydown', (e) => {
 syncNowBtn.addEventListener('click', async () => {
     // Disable button during sync
     syncNowBtn.disabled = true;
-    showLoading(true); // Show loading indicator immediately
+    showLoadingIndicator(dom.loadingIndicator, true); // Show loading indicator immediately
     clearMessage();    // Clear previous messages
 
     try {
@@ -56,7 +56,7 @@ syncNowBtn.addEventListener('click', async () => {
     } finally { // Add finally block
         // Re-enable button and hide loading regardless of success/failure
         // Ensure loading is hidden *after* potential error message is shown
-        showLoading(false);
+        showLoadingIndicator(dom.loadingIndicator, false);
         // Check if button still exists before trying to enable it
         if (syncNowBtn.isConnected) {
             syncNowBtn.disabled = false;
@@ -116,7 +116,7 @@ async function loadStatus() {
     if (syncing) return; // Prevent concurrent runs
 
     syncing = true;
-    showLoading(true);
+    showLoadingIndicator(dom.loadingIndicator, true);
     clearMessage(); // Clear previous messages
 
     // Disable sync button if it exists
@@ -161,7 +161,7 @@ async function loadStatus() {
         if (dom.subscriptionsUl) dom.subscriptionsUl.innerHTML = `<li>${STRINGS.error}</li>`;
 
     } finally {
-        showLoading(false); // Hide loading indicator
+        showLoadingIndicator(dom.loadingIndicator, false); // Hide loading indicator
         syncing = false; // Allow syncing again
 
         // Re-enable sync button if it exists
@@ -351,19 +351,19 @@ function clearMessage() {
 }
 
 // Toggles the visibility of the loading indicator
-function showLoading(isLoading) {
-    const loader = dom.loadingIndicator;
-    if (!loader) return;
+// function showLoading(isLoading) {
+//     const loader = dom.loadingIndicator;
+//     if (!loader) return;
 
-    loader.classList.toggle('hidden', !isLoading);
+//     loader.classList.toggle('hidden', !isLoading);
 
-    // Ensure spinner is managed correctly (assuming spinner span is inside)
-    if (isLoading && !loader.querySelector('.spinner')) {
-        const spinnerSpan = document.createElement('span');
-        spinnerSpan.className = 'spinner';
-        loader.prepend(spinnerSpan); // Add spinner
-        loader.append(' Loading...'); // Add text after spinner
-    } else if (!isLoading && loader.querySelector('.spinner')) {
-        loader.innerHTML = ''; // Clear content when not loading
-    }
-}
+//     // Ensure spinner is managed correctly (assuming spinner span is inside)
+//     if (isLoading && !loader.querySelector('.spinner')) {
+//         const spinnerSpan = document.createElement('span');
+//         spinnerSpan.className = 'spinner';
+//         loader.prepend(spinnerSpan); // Add spinner
+//         loader.append(' Loading...'); // Add text after spinner
+//     } else if (!isLoading && loader.querySelector('.spinner')) {
+//         loader.innerHTML = ''; // Clear content when not loading
+//     }
+// }

@@ -896,3 +896,41 @@ export function debounce(fn, delay) {
         timer = setTimeout(() => fn.apply(this, args), delay);
     };
 }
+
+// --- UI Helper Functions ---
+
+/**
+ * Toggles the visibility and content of a loading indicator element.
+ * @param {HTMLElement} indicatorElement - The DOM element for the loading indicator.
+ * @param {boolean} isLoading - True to show loading, false to hide.
+ * @param {string} loadingText - Text to display when loading (defaults to 'Loading...').
+ */
+export function showLoadingIndicator(indicatorElement, isLoading, loadingText = 'Loading...') {
+    if (!indicatorElement) {
+        console.warn("showLoadingIndicator: Indicator element not found.");
+        return;
+    }
+
+    indicatorElement.classList.toggle('hidden', !isLoading);
+
+    if (isLoading) {
+        // Ensure spinner span exists and set text
+        let spinner = indicatorElement.querySelector('.spinner');
+        if (!spinner) {
+            spinner = document.createElement('span');
+            spinner.className = 'spinner';
+            indicatorElement.prepend(spinner); // Add spinner at the beginning
+        }
+        // Add text content after the spinner
+        // Clear existing text nodes first to avoid duplication
+        indicatorElement.childNodes.forEach(node => {
+            if (node.nodeType === Node.TEXT_NODE) {
+                node.remove();
+            }
+        });
+        indicatorElement.appendChild(document.createTextNode(` ${loadingText}`)); // Add space before text
+    } else {
+        // Clear content when not loading
+        indicatorElement.innerHTML = '';
+    }
+}

@@ -21,6 +21,7 @@ import {
   showError,
   renameDeviceUnified,
   storage,
+  showLoadingIndicator,
 } from "./utils.js";
 import { injectSharedUI } from "./shared-ui.js";
 import { applyThemeFromStorage, setupThemeDropdown } from "./theme.js";
@@ -50,7 +51,7 @@ syncNowBtn.style.marginBottom = "10px";
 syncNowBtn.style.width = "100%"; // Ensure unit is present
 syncNowBtn.addEventListener("click", async () => {
   syncNowBtn.disabled = true; // Disable button
-  showLoading(true);
+  showLoadingIndicator(dom.loadingIndicator, true);
   clearMessage();
 
   try { // Add try block
@@ -61,7 +62,7 @@ syncNowBtn.addEventListener("click", async () => {
     console.error("Manual sync failed:", error);
     showError(`Sync failed: ${error.message || 'Unknown error'}`, dom.messageArea);
   } finally { // Add finally block
-    showLoading(false);
+    showLoadingIndicator(dom.loadingIndicator, false);
     // Check if button still exists before trying to enable it
     if (syncNowBtn.isConnected) {
       syncNowBtn.disabled = false; // Re-enable button
@@ -76,14 +77,14 @@ const syncStatus = document.getElementById("syncStatus");
 // Manual sync handler
 if (manualSyncBtn) {
   manualSyncBtn.addEventListener("click", async () => {
-    showLoading(true);
+    showLoadingIndicator(dom.loadingIndicator, true);
     try {
       await browser.runtime.sendMessage({ action: "heartbeat" });
       const now = new Date();
       syncStatus.textContent = "Last sync: " + now.toLocaleString();
       await storage.set(browser.storage.local, "lastSync", now.getTime());
     } finally {
-      showLoading(false);
+      showLoadingIndicator(dom.loadingIndicator, false);
     }
   });
 }
@@ -294,7 +295,7 @@ async function getStateDirectly() {
 }
 
 async function loadState() {
-  showLoading(true);
+  showLoadingIndicator(dom.loadingIndicator, true);
   clearMessage();
   try {
     const isAndroidPlatform = await isAndroid();
@@ -332,7 +333,7 @@ async function loadState() {
       }
     }
   } finally {
-    showLoading(false);
+    showLoadingIndicator(dom.loadingIndicator, false);
   }
 }
 
@@ -506,7 +507,7 @@ async function finishRenameGroup(oldName, newName, nameSpan, inlineControlsConta
   //     return;
   // }
 
-  showLoading(true);
+  showLoadingIndicator(dom.loadingIndicator, true);
   let success = false;
   try {
     let response;
@@ -531,7 +532,7 @@ async function finishRenameGroup(oldName, newName, nameSpan, inlineControlsConta
     // Explicitly cancel edit UI on error
     cancelInlineEdit(nameSpan, inlineControlsContainer);
   } finally {
-    showLoading(false);
+    showLoadingIndicator(dom.loadingIndicator, false);
     // If loadState was successful, controls are gone. If not, cancelInlineEdit was called above.
   }
 }
@@ -577,7 +578,7 @@ async function finishRenameDevice(deviceId, newName, listItem, nameSpan, inlineC
   //     return;
   // }
 
-  showLoading(true);
+  showLoadingIndicator(dom.loadingIndicator, true);
   let success = false;
   try {
     const isAndroidPlatform = await isAndroid();
@@ -595,7 +596,7 @@ async function finishRenameDevice(deviceId, newName, listItem, nameSpan, inlineC
     showError(STRINGS.deviceRenameFailed + ": " + e.message, dom.messageArea);
     cancelInlineEdit(nameSpan, inlineControlsContainer); // Clean up on error
   } finally {
-    showLoading(false);
+    showLoadingIndicator(dom.loadingIndicator, false);
   }
 }
 
@@ -603,7 +604,7 @@ async function handleDeleteDevice(deviceId, deviceName) {
   if (!confirm(STRINGS.confirmDeleteDevice(deviceName))) {
     return;
   }
-  showLoading(true);
+  showLoadingIndicator(dom.loadingIndicator, true);
   try {
     let response;
     if (await isAndroid()) {
@@ -626,7 +627,7 @@ async function handleDeleteDevice(deviceId, deviceName) {
   } catch (e) {
     showError(STRINGS.deviceDeleteFailed + ": " + e.message, dom.messageArea);
   } finally {
-    showLoading(false);
+    showLoadingIndicator(dom.loadingIndicator, false);
   }
 }
 
@@ -644,7 +645,7 @@ dom.newGroupNameInput.addEventListener(
 dom.createGroupBtn.addEventListener("click", async () => {
   const groupName = dom.newGroupNameInput.value.trim();
   if (groupName === "") return;
-  showLoading(true);
+  showLoadingIndicator(dom.loadingIndicator, true);
   clearMessage();
   try {
     let response;
@@ -670,13 +671,13 @@ dom.createGroupBtn.addEventListener("click", async () => {
       dom.messageArea
     );
   } finally {
-    showLoading(false);
+    showLoadingIndicator(dom.loadingIndicator, false);
   }
 });
 
 async function handleSubscribe(event) {
   const groupName = event.target.dataset.group;
-  showLoading(true);
+  showLoadingIndicator(dom.loadingIndicator, true);
   clearMessage();
   try {
     const isAndroidPlatform = await isAndroid();
@@ -694,13 +695,13 @@ async function handleSubscribe(event) {
   } catch (error) {
     showError(`Error subscribing: ${error.message}`, dom.messageArea);
   } finally {
-    showLoading(false);
+    showLoadingIndicator(dom.loadingIndicator, false);
   }
 }
 
 async function handleUnsubscribe(event) {
   const groupName = event.target.dataset.group;
-  showLoading(true);
+  showLoadingIndicator(dom.loadingIndicator, true);
   clearMessage();
   try {
     const isAndroidPlatform = await isAndroid();
@@ -720,7 +721,7 @@ async function handleUnsubscribe(event) {
   } catch (error) {
     showError(`Error unsubscribing: ${error.message}`, dom.messageArea);
   } finally {
-    showLoading(false);
+    showLoadingIndicator(dom.loadingIndicator, false);
   }
 }
 
@@ -729,7 +730,7 @@ async function handleDeleteGroup(event) {
   if (!confirm(STRINGS.confirmDeleteGroup(groupName))) {
     return;
   }
-  showLoading(true);
+  showLoadingIndicator(dom.loadingIndicator, true);
   clearMessage();
   try {
     let response;
@@ -759,20 +760,20 @@ async function handleDeleteGroup(event) {
       dom.messageArea
     );
   } finally {
-    showLoading(false);
+    showLoadingIndicator(dom.loadingIndicator, false);
   }
 }
 
 // --- Test Notification ---
 dom.testNotificationBtn.addEventListener("click", async () => {
-  showLoading(true);
+  showLoadingIndicator(dom.loadingIndicator, true);
   try {
     await browser.runtime.sendMessage({ action: "testNotification" });
     showMessage(STRINGS.testNotificationSent, false);
   } catch (e) {
     showError(STRINGS.testNotificationFailed(e.message), dom.messageArea);
   } finally {
-    showLoading(false);
+    showLoadingIndicator(dom.loadingIndicator, false);
   }
 });
 
@@ -890,15 +891,15 @@ function createInlineEditControls(currentValue, onSaveCallback, onCancelCallback
   };
 }
 
-function showLoading(isLoading) {
-  if (isLoading) {
-    dom.loadingIndicator.classList.remove("hidden");
-    dom.loadingIndicator.innerHTML = '<span class="spinner"></span> Loading...';
-  } else {
-    dom.loadingIndicator.classList.add("hidden");
-    dom.loadingIndicator.innerHTML = "";
-  }
-}
+// function showLoading(isLoading) {
+//   if (isLoading) {
+//     dom.loadingIndicator.classList.remove("hidden");
+//     dom.loadingIndicator.innerHTML = '<span class="spinner"></span> Loading...';
+//   } else {
+//     dom.loadingIndicator.classList.add("hidden");
+//     dom.loadingIndicator.innerHTML = "";
+//   }
+// }
 
 function showMessage(message, isError = false) {
   dom.messageArea.textContent = message;
@@ -921,7 +922,7 @@ if (removeDeviceBtn) {
       )
     )
       return;
-    showLoading(true);
+    showLoadingIndicator(dom.loadingIndicator, true);
     clearMessage();
     try {
       const instanceId = currentState?.instanceId;
@@ -940,7 +941,7 @@ if (removeDeviceBtn) {
     } catch (e) {
       showError("Error removing device: " + e.message, dom.messageArea);
     } finally {
-      showLoading(false);
+      showLoadingIndicator(dom.loadingIndicator, false);
     }
   });
 }
