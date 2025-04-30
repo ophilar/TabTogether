@@ -22,48 +22,8 @@ const dom = {
 
 let localInstanceId = null; // Cache instance ID locally if needed
 
-// Add a Sync Now button for Android users at the top of the popup
-const syncNowBtn = document.createElement('button');
-syncNowBtn.textContent = 'Sync Now';
-// Apply appropriate classes instead of inline styles
-// Use 'popup-action-btn' for consistency or a specific class like 'sync-now-button-popup'
-syncNowBtn.className = 'popup-action-btn sync-now-button-popup';
-// Removed inline styles: syncNowBtn.style.marginBottom = '10px';
-// Removed inline styles: syncNowBtn.style.width = '100%';
-syncNowBtn.setAttribute('aria-label', 'Sync extension data now');
-syncNowBtn.tabIndex = 0; // Ensure keyboard accessibility
-
-syncNowBtn.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        syncNowBtn.click();
-    }
-});
-syncNowBtn.addEventListener('click', async () => {
-    // Disable button during sync
-    syncNowBtn.disabled = true;
-    showLoadingIndicator(dom.loadingIndicator, true); // Show loading indicator immediately
-    clearMessage();    // Clear previous messages
-
-    try {
-        await loadStatus();
-        // Re-enable after loadStatus completes (handled in loadStatus finally block)
-        showMessage('Sync complete.', false);
-    } catch (error) { // Add catch block
-        console.error("Manual sync failed:", error);
-        // Use the standard message area for errors
-        showMessage(`Sync failed: ${error.message || 'Unknown error'}`, true);
-    } finally { // Add finally block
-        // Re-enable button and hide loading regardless of success/failure
-        // Ensure loading is hidden *after* potential error message is shown
-        showLoadingIndicator(dom.loadingIndicator, false);
-        // Check if button still exists before trying to enable it
-        if (syncNowBtn.isConnected) {
-            syncNowBtn.disabled = false;
-        }
-        syncing = false; // Ensure syncing flag is reset (if loadStatus didn't already)
-    }
-});
+// Note: No separate Android sync button needed here anymore.
+// The existing refreshLink triggers loadStatus which handles Android logic.
 
 // --- Initialization ---
 document.addEventListener('DOMContentLoaded', async () => {
@@ -72,10 +32,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (await isAndroid()) {
         const container = document.querySelector('.container');
-        if (container && !container.querySelector('.sync-now-button-popup')) { // Check for the specific class
-            container.insertBefore(syncNowBtn, container.firstChild);
-        }
-        // Use utils functions, assuming they use CSS classes now
         showAndroidBanner(container, 'Note: On Firefox for Android, background processing is not available. Open this popup and tap "Sync Now" to process new tabs or changes.');
         setLastSyncTime(container, Date.now()); // Show initial time
     }
@@ -89,11 +45,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (dom.refreshLink) {
         dom.refreshLink.addEventListener('click', (e) => {
+            const syncIcon = dom.refreshLink.querySelector('.sync-icon-svg'); // Select the icon
             e.preventDefault();
+            if (syncIcon) syncIcon.classList.add('syncing-icon'); // Start animation immediately for responsiveness
             loadStatus(); // Trigger a refresh/sync
         });
     }
-
+    
     // Setup details toggle
     if (dom.toggleDetailsBtn && dom.popupDetails) {
         dom.toggleDetailsBtn.addEventListener('click', () => {
@@ -101,6 +59,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             dom.toggleDetailsBtn.textContent = isHidden ? '▼' : '▲'; // Update icon
             dom.toggleDetailsBtn.setAttribute('aria-label', isHidden ? 'Show details' : 'Hide details');
             dom.toggleDetailsBtn.setAttribute('title', isHidden ? 'Show device info' : 'Hide device info');
+            // --- Chevron Animation ---
+            const chevronIcon = dom.toggleDetailsBtn.querySelector('.details-toggle-icon');
+            if (chevronIcon) {
+                chevronIcon.classList.toggle('details-open', !isHidden);
+            }
         });
     }
 
@@ -115,14 +78,10 @@ let syncing = false; // Prevent multiple syncs at once, especially on Android
 async function loadStatus() {
     if (syncing) return; // Prevent concurrent runs
 
+    const syncIcon = dom.refreshLink?.querySelector('.sync-icon-svg'); // Select icon if refreshLink exists
     syncing = true;
     showLoadingIndicator(dom.loadingIndicator, true);
     clearMessage(); // Clear previous messages
-
-    // Disable sync button if it exists
-    if (syncNowBtn.isConnected) { // Check if button is in the DOM
-        syncNowBtn.disabled = true;
-    }
 
     try {
         const isAndroidPlatform = await isAndroid();
@@ -162,12 +121,8 @@ async function loadStatus() {
 
     } finally {
         showLoadingIndicator(dom.loadingIndicator, false); // Hide loading indicator
+        if (syncIcon) syncIcon.classList.remove('syncing-icon'); // Stop animation
         syncing = false; // Allow syncing again
-
-        // Re-enable sync button if it exists
-        if (syncNowBtn.isConnected) {
-            syncNowBtn.disabled = false;
-        }
     }
 }
 

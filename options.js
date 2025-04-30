@@ -42,49 +42,39 @@ const deviceIconSelect = document.getElementById("deviceIconSelect");
 const deviceIconPreview = document.getElementById("deviceIconPreview");
 
 let currentState = null; // Cache for state fetched from background
-
-// Add a Sync Now button for Android users at the top of the options page
-const syncNowBtn = document.createElement("button");
-syncNowBtn.textContent = "Sync Now";
-syncNowBtn.className = "send-group-btn";
-syncNowBtn.style.marginBottom = "10px";
-syncNowBtn.style.width = "100%"; // Ensure unit is present
-syncNowBtn.addEventListener("click", async () => {
-  syncNowBtn.disabled = true; // Disable button
-  showLoadingIndicator(dom.loadingIndicator, true);
-  clearMessage();
-
-  try { // Add try block
-    await loadState(); // This already calls processIncomingTabsAndroid
-    // loadState handles its own internal errors/messages, but we catch errors calling it
-    showMessage('Sync complete.', false);
-  } catch (error) { // Add catch block
-    console.error("Manual sync failed:", error);
-    showError(`Sync failed: ${error.message || 'Unknown error'}`, dom.messageArea);
-  } finally { // Add finally block
-    showLoadingIndicator(dom.loadingIndicator, false);
-    // Check if button still exists before trying to enable it
-    if (syncNowBtn.isConnected) {
-      syncNowBtn.disabled = false; // Re-enable button
-    }
-  }
-});
-
-const manualSyncBtn = document.getElementById("manualSyncBtn");
+const manualSyncBtn = document.getElementById("manualSyncBtn"); // Or rename ID to syncNowBtn if you change HTML
 const syncIntervalInput = document.getElementById("syncIntervalInput");
 const syncStatus = document.getElementById("syncStatus");
 
 // Manual sync handler
 if (manualSyncBtn) {
   manualSyncBtn.addEventListener("click", async () => {
+    const syncIcon = manualSyncBtn.querySelector('.sync-icon-svg'); // Select the icon
     showLoadingIndicator(dom.loadingIndicator, true);
+    manualSyncBtn.disabled = true; // Disable button during operation
+    if (syncIcon) syncIcon.classList.add('syncing-icon'); // Start animation
+    clearMessage();
     try {
-      await browser.runtime.sendMessage({ action: "heartbeat" });
-      const now = new Date();
-      syncStatus.textContent = "Last sync: " + now.toLocaleString();
-      await storage.set(browser.storage.local, "lastSync", now.getTime());
+      if (await isAndroid()) {
+
+        // On Android, perform the direct foreground sync
+        await loadState(); // This handles UI updates and messages internally
+        showMessage('Sync complete.', false); // Show success message after loadState finishes
+      } else {
+        // On Desktop, trigger background sync via heartbeat
+        await browser.runtime.sendMessage({ action: "heartbeat" });
+        const now = new Date();
+        syncStatus.textContent = "Last sync: " + now.toLocaleString();
+        await storage.set(browser.storage.local, "lastSync", now.getTime());
+        showMessage('Background sync triggered.', false); // Inform user
+      }
+    } catch (error) { // Catch errors from loadState or sendMessage
+      console.error("Manual sync failed:", error);
+      showError(`Sync failed: ${error.message || 'Unknown error'}`, dom.messageArea);
     } finally {
       showLoadingIndicator(dom.loadingIndicator, false);
+      if (syncIcon) syncIcon.classList.remove('syncing-icon'); // Stop animation
+      manualSyncBtn.disabled = false; // Re-enable button
     }
   });
 }
@@ -118,22 +108,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   injectSharedUI();
   applyThemeFromStorage();
   setupThemeDropdown("darkModeSelect");
+
   if (await isAndroid()) {
-    // Insert Sync Now button at the top of the container
     const container = document.querySelector(".container");
-    if (container && !container.querySelector(".send-group-btn")) {
-      container.insertBefore(syncNowBtn, container.firstChild);
-    }
-    // Add Android limitation message
-    const androidMsg = document.createElement("div");
-    androidMsg.className = "small-text";
-    androidMsg.style.color = "#b71c1c";
-    androidMsg.style.marginBottom = "10px";
-    androidMsg.textContent =
-      'Note: On Firefox for Android, background processing is not available. Open this page and tap "Sync Now" to process new tabs or changes.';
-    container.insertBefore(androidMsg, syncNowBtn.nextSibling);
     showAndroidBanner(
-      container,
       'Note: On Firefox for Android, background processing is not available. Open this page and tap "Sync Now" to process new tabs or changes.'
     );
     setLastSyncTime(container, Date.now());
