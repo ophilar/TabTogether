@@ -1,6 +1,6 @@
 /* popup.css */
 /* Styles for the popup UI, aiming for functional consistency with styles.css */
-
+/* 
 html {
   box-sizing: border-box;
 }
@@ -9,7 +9,7 @@ html {
 *:before,
 *:after {
   box-sizing: inherit;
-}
+} */
 
 body {
   margin: 0;
@@ -23,17 +23,17 @@ body {
   background-color: var(--main-card);
   border-radius: 6px;
   box-shadow: var(--main-shadow-container, 0 8px 8px rgba(0, 0, 0, 0.08));
-  padding: 12px; /* Simplified padding */
+  padding: 12px;
+  /* Simplified padding */
   margin: 2px auto 0 auto;
   border: none;
   box-sizing: border-box;
   overflow-y: auto;
-  /* scrollbar-width: none; Firefox */
-  /* Removed position: relative and padding-right */
 }
 
 .container::-webkit-scrollbar {
-  display: none; /* Chrome/Safari/Edge */
+  display: none;
+  /* Chrome/Safari/Edge */
 }
 
 /* List Styling (using semantic ul/li) */
@@ -67,44 +67,51 @@ body {
 
 /* --- Details Section --- */
 .popup-details {
-    margin-top: 10px;
-    padding-top: 10px;
-    font-size: 0.9em;
-    color: var(--main-grey-light);
-    /* Divider appears when details are shown */
-    border-top: 1px solid var(--main-border);
+  margin-top: 10px;
+  padding-top: 10px;
+  font-size: 0.9em;
+  color: var(--main-grey-light);
+  /* Divider appears when details are shown */
+  border-top: 1px solid var(--main-border);
 }
+
 /* Hide the divider when details are hidden */
 .popup-details.hidden {
-    border-top: none;
-    margin-top: 0;
-    padding-top: 0;
+  border-top: none;
+  margin-top: 0;
+  padding-top: 0;
 }
 
 .popup-detail-row {
-    margin-bottom: 5px;
+  margin-bottom: 5px;
 }
 
 .popup-detail-label {
-    font-weight: bold;
-    color: var(--main-grey-dark);
-    margin-right: 5px;
+  font-weight: bold;
+  color: var(--main-grey-dark);
+  margin-right: 5px;
 }
 
 /* --- Footer --- */
 .popup-footer {
-    display: flex; /* Use flexbox for alignment */
-    justify-content: space-around; /* Distribute items evenly */
-    align-items: center;
-    margin-top: 15px;
-    padding-top: 10px;
-    border-top: 1px solid var(--main-border); /* Always show top divider for footer */
+  display: flex;
+  /* Use flexbox for alignment */
+  justify-content: space-around;
+  /* Distribute items evenly */
+  align-items: center;
+  margin-top: 15px;
+  padding-top: 10px;
+  border-top: 1px solid var(--main-border);
+  /* Always show top divider for footer */
 }
 
 /* --- Standardize Footer Links/Buttons --- */
-.popup-footer .popup-link { /* Style links and the button together */
-  font-size: 1.5em;  /* Standardized font size (adjust as needed) */
-  padding: 5px 8px; /* Standardized padding */
+.popup-footer .popup-link {
+  /* Style links and the button together */
+  font-size: 1.5em;
+  /* Standardized font size (adjust as needed) */
+  padding: 5px 8px;
+  /* Standardized padding */
   line-height: 1;
   text-decoration: none;
   color: var(--main-accent);
@@ -114,7 +121,8 @@ body {
   background: none;
   border: none;
   cursor: pointer;
-  font-family: inherit; /* Ensure button inherits font */
+  font-family: inherit;
+  /* Ensure button inherits font */
 }
 
 .popup-footer .popup-link:hover {
@@ -122,12 +130,6 @@ body {
   color: var(--main-orange-dark);
   text-decoration: none;
 }
-
-/* Specific style for the toggle button if needed (mostly covered by .popup-link) */
-/* #toggleDetailsBtn { */
-  /* Removed absolute positioning and related styles */
-  /* Inherits size/color from .popup-link */
-/* } */
 
 [data-theme="dark"] .popup-footer .popup-link:hover {
   color: var(--main-orange-light);
@@ -137,21 +139,29 @@ body {
 
 /* Action buttons (Send to Group, Sync Now) */
 .popup-action-btn {
-  padding: 8px 18px; /* Match base button size */
-  font-size: 1em; /* Match base button size */
+  padding: 8px 18px;
+  /* Match base button size */
+  font-size: 1em;
+  /* Match base button size */
   background-color: var(--main-button-primary-bg);
   color: var(--main-button-text);
-  box-shadow: var(--main-shadow-button-primary, 0 1px 2px rgba(255, 148, 0, 0.09));
+  box-shadow: var(
+    --main-shadow-button-primary,
+    0 1px 2px rgba(255, 148, 0, 0.09)
+  );
   border: none;
   border-radius: 5px;
   cursor: pointer;
   font-weight: 500;
-  transition: background-color var(--transition), box-shadow var(--transition), transform var(--transition), color var(--transition);
+  transition: background-color var(--transition), box-shadow var(--transition),
+    transform var(--transition), color var(--transition);
 }
+
 .popup-action-btn:hover:not(:disabled) {
   background-color: var(--main-button-primary-hover-bg);
   transform: translateY(-2px) scale(1.04);
 }
+
 .popup-action-btn:disabled {
   background-color: var(--main-button-disabled-bg);
   color: var(--main-button-disabled-text);
@@ -168,19 +178,16 @@ body {
   text-align: center;
   /* Inherits sizing from .popup-action-btn */
 }
+
 .send-to-group-button:last-child {
   margin-bottom: 0;
 }
-/* .send-to-group-button:hover:not(:disabled) { */
-  /* Optional: override transform if too much */
-  /* transform: none; */
-/* } */
 
 /* Style for the Sync Now button specific to the popup */
 .sync-now-button-popup {
-    margin-bottom: 10px;
-    width: 100%;
-    /* Inherits sizing from .popup-action-btn */
+  margin-bottom: 10px;
+  width: 100%;
+  /* Inherits sizing from .popup-action-btn */
 }
 
 /* Status Message Styling */
@@ -191,13 +198,19 @@ body {
   text-align: left;
   animation: fadein var(--transition);
   display: block;
-  /* Color determined by .success or .error class from styles.css */
 }
 
 /* Fade-in Animation */
 @keyframes fadein {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: none; }
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* --- Responsive Adjustments --- */
@@ -206,22 +219,29 @@ body {
     font-size: 0.98em;
     min-width: 280px;
   }
+
   .container {
-    padding: 10px; /* Further reduced padding */
+    padding: 10px;
+    /* Further reduced padding */
     margin-top: 2px;
     max-width: 98vw;
   }
+
   .popup-action-btn,
   .send-to-group-button,
   .sync-now-button-popup {
     /* Ensure touch target size */
-    padding: 8px 15px; /* Consistent padding */
+    padding: 8px 15px;
+    /* Consistent padding */
     font-size: 1em;
   }
+
   .popup-footer .popup-link {
-    font-size: 1.4em; /* Slightly smaller icons on small screens */
+    font-size: 1.4em;
+    /* Slightly smaller icons on small screens */
     padding: 4px 6px;
   }
+
   #subscriptionsUl li {
     padding: 8px 0;
     gap: 6px;

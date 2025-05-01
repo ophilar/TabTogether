@@ -22,6 +22,8 @@ import {
   renameDeviceUnified,
   storage,
   showLoadingIndicator,
+  showMessage,
+  clearMessage,
 } from "./utils.js";
 import { injectSharedUI } from "./shared-ui.js";
 import { applyThemeFromStorage, setupThemeDropdown } from "./theme.js";
@@ -53,20 +55,20 @@ if (manualSyncBtn) {
     showLoadingIndicator(dom.loadingIndicator, true);
     manualSyncBtn.disabled = true; // Disable button during operation
     if (syncIcon) syncIcon.classList.add('syncing-icon'); // Start animation
-    clearMessage();
+    clearmessage(dom.messageArea);
     try {
       if (await isAndroid()) {
 
         // On Android, perform the direct foreground sync
         await loadState(); // This handles UI updates and messages internally
-        showMessage('Sync complete.', false); // Show success message after loadState finishes
+        showmessage(dom.messageArea, 'Sync complete.', false); // Show success message after loadState finishes
       } else {
         // On Desktop, trigger background sync via heartbeat
         await browser.runtime.sendMessage({ action: "heartbeat" });
         const now = new Date();
         syncStatus.textContent = "Last sync: " + now.toLocaleString();
         await storage.set(browser.storage.local, "lastSync", now.getTime());
-        showMessage('Background sync triggered.', false); // Inform user
+        showmessage(dom.messageArea, 'Background sync triggered.', false); // Inform user
       }
     } catch (error) { // Catch errors from loadState or sendMessage
       console.error("Manual sync failed:", error);
@@ -274,7 +276,7 @@ async function getStateDirectly() {
 
 async function loadState() {
   showLoadingIndicator(dom.loadingIndicator, true);
-  clearMessage();
+  clearmessage(dom.messageArea);
   try {
     const isAndroidPlatform = await isAndroid();
     let state = await getUnifiedState(isAndroidPlatform);
@@ -340,7 +342,6 @@ function renderAll() {
 
 function renderDeviceNameUI() {
   renderDeviceName(dom.deviceNameDisplay, currentState.instanceName);
-  //   dom.newInstanceNameInput.value = currentState.instanceName || ""; // Pre-fill edit input
 }
 
 function renderDeviceRegistry() {
@@ -496,7 +497,7 @@ async function finishRenameGroup(oldName, newName, nameSpan, inlineControlsConta
     }
 
     if (response.success) {
-      showMessage(STRINGS.groupRenameSuccess(newName), false);
+      showmessage(dom.messageArea, STRINGS.groupRenameSuccess(newName), false);
       success = true;
       // Reload state which will re-render the list, removing the inline controls
       await loadState();
@@ -563,7 +564,7 @@ async function finishRenameDevice(deviceId, newName, listItem, nameSpan, inlineC
     let response = await renameDeviceUnified(deviceId, newName, isAndroidPlatform);
 
     if (response.success) {
-      showMessage(STRINGS.deviceRenameSuccess(newName), false);
+      showmessage(dom.messageArea, STRINGS.deviceRenameSuccess(newName), false);
       success = true;
       await loadState(); // Reload state to re-render
     } else {
@@ -594,7 +595,7 @@ async function handleDeleteDevice(deviceId, deviceName) {
       });
     }
     if (response.success) {
-      showMessage(STRINGS.deviceDeleteSuccess(deviceName), false);
+      showmessage(dom.messageArea, STRINGS.deviceDeleteSuccess(deviceName), false);
       await loadState();
     } else {
       showError(
@@ -624,7 +625,7 @@ dom.createGroupBtn.addEventListener("click", async () => {
   const groupName = dom.newGroupNameInput.value.trim();
   if (groupName === "") return;
   showLoadingIndicator(dom.loadingIndicator, true);
-  clearMessage();
+  clearmessage(dom.messageArea);
   try {
     let response;
     if (await isAndroid()) {
@@ -637,7 +638,7 @@ dom.createGroupBtn.addEventListener("click", async () => {
     }
     if (response.success) {
       await loadState(); // Always reload state after group creation
-      showMessage(STRINGS.groupCreateSuccess(response.newGroup), false);
+      showmessage(dom.messageArea, STRINGS.groupCreateSuccess(response.newGroup), false);
       dom.newGroupNameInput.value = "";
       dom.createGroupBtn.disabled = true;
     } else {
@@ -656,7 +657,7 @@ dom.createGroupBtn.addEventListener("click", async () => {
 async function handleSubscribe(event) {
   const groupName = event.target.dataset.group;
   showLoadingIndicator(dom.loadingIndicator, true);
-  clearMessage();
+  clearmessage(dom.messageArea);
   try {
     const isAndroidPlatform = await isAndroid();
     let response = await subscribeToGroupUnified(groupName, isAndroidPlatform);
@@ -666,7 +667,7 @@ async function handleSubscribe(event) {
         currentState.subscriptions.sort();
       }
       renderDefinedGroups();
-      showMessage(`Subscribed to "${response.subscribedGroup}".`, false);
+      showmessage(dom.messageArea, `Subscribed to "${response.subscribedGroup}".`, false);
     } else {
       showError(response.message || "Failed to subscribe.", dom.messageArea);
     }
@@ -680,7 +681,7 @@ async function handleSubscribe(event) {
 async function handleUnsubscribe(event) {
   const groupName = event.target.dataset.group;
   showLoadingIndicator(dom.loadingIndicator, true);
-  clearMessage();
+  clearmessage(dom.messageArea);
   try {
     const isAndroidPlatform = await isAndroid();
     let response = await unsubscribeFromGroupUnified(
@@ -692,7 +693,7 @@ async function handleUnsubscribe(event) {
         (g) => g !== response.unsubscribedGroup
       );
       renderDefinedGroups();
-      showMessage(`Unsubscribed from "${response.unsubscribedGroup}".`, false);
+      showmessage(dom.messageArea, `Unsubscribed from "${response.unsubscribedGroup}".`, false);
     } else {
       showError(response.message || "Failed to unsubscribe.", dom.messageArea);
     }
@@ -709,7 +710,7 @@ async function handleDeleteGroup(event) {
     return;
   }
   showLoadingIndicator(dom.loadingIndicator, true);
-  clearMessage();
+  clearmessage(dom.messageArea);
   try {
     let response;
     if (await isAndroid()) {
@@ -728,7 +729,7 @@ async function handleDeleteGroup(event) {
         (g) => g !== response.deletedGroup
       );
       renderDefinedGroups();
-      showMessage(STRINGS.groupDeleteSuccess(response.deletedGroup), false);
+      showmessage(dom.messageArea, STRINGS.groupDeleteSuccess(response.deletedGroup), false);
     } else {
       showError(response.message || STRINGS.groupDeleteFailed, dom.messageArea);
     }
@@ -747,7 +748,7 @@ dom.testNotificationBtn.addEventListener("click", async () => {
   showLoadingIndicator(dom.loadingIndicator, true);
   try {
     await browser.runtime.sendMessage({ action: "testNotification" });
-    showMessage(STRINGS.testNotificationSent, false);
+    showmessage(dom.messageArea, STRINGS.testNotificationSent, false);
   } catch (e) {
     showError(STRINGS.testNotificationFailed(e.message), dom.messageArea);
   } finally {
@@ -847,28 +848,6 @@ function createInlineEditControls(currentValue, onSaveCallback, onCancelCallback
   };
 }
 
-// function showLoading(isLoading) {
-//   if (isLoading) {
-//     dom.loadingIndicator.classList.remove("hidden");
-//     dom.loadingIndicator.innerHTML = '<span class="spinner"></span> Loading...';
-//   } else {
-//     dom.loadingIndicator.classList.add("hidden");
-//     dom.loadingIndicator.innerHTML = "";
-//   }
-// }
-
-function showMessage(message, isError = false) {
-  dom.messageArea.textContent = message;
-  dom.messageArea.className = isError ? "error" : "success";
-  dom.messageArea.classList.remove("hidden");
-  if (!isError) setTimeout(clearMessage, 4000);
-}
-
-function clearMessage() {
-  dom.messageArea.textContent = "";
-  dom.messageArea.className = "hidden";
-}
-
 const removeDeviceBtn = document.getElementById("removeDeviceBtn");
 if (removeDeviceBtn) {
   removeDeviceBtn.addEventListener("click", async () => {
@@ -879,7 +858,7 @@ if (removeDeviceBtn) {
     )
       return;
     showLoadingIndicator(dom.loadingIndicator, true);
-    clearMessage();
+    clearmessage(dom.messageArea);
     try {
       const instanceId = currentState?.instanceId;
       if (!instanceId) throw new Error("Device ID not found.");
@@ -889,7 +868,7 @@ if (removeDeviceBtn) {
         deviceId: instanceId,
       });
       if (res.success) {
-        showMessage("Device removed from all groups and registry.", false);
+        showmessage(dom.messageArea, "Device removed from all groups and registry.", false);
         await loadState();
       } else {
         showError(res.message || "Failed to remove device.", dom.messageArea);
