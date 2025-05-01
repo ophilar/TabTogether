@@ -11,8 +11,6 @@
 </head>
 <body>
     <div class="container">
-        <div id="loadingIndicator" class="loading hidden">Loading...</div>
-        <div id="messageArea" class="hidden"></div>
         <h2>Device Settings</h2>
         <fieldset>
             <legend>Current Device</legend>
@@ -21,25 +19,6 @@
                 <span id="deviceNameDisplay" aria-label="Device Name">Loading...</span>
                 <button id="removeDeviceBtn" class="danger inline-btn" aria-label="Remove Device" title="Remove this device from all groups and registry. This cannot be undone.">Remove</button>
             </div>
-            <!-- <div class="setting-item">
-                <strong>Icon:</strong>
-                <select id="deviceIconSelect" aria-label="Device Icon" title="Choose an icon to represent this device on all your devices">
-                    <option value="💻">💻 Laptop</option>
-                    <option value="🖥️">🖥️ Desktop</option>
-                    <option value="📱">📱 Phone</option>
-                    <option value="📲">📲 Smartphone</option>
-                    <option value="🧑‍💻">🧑‍💻 User</option>
-                    <option value="🕹️">🕹️ Gaming</option>
-                    <option value="🗄️">🗄️ Server</option>
-                    <option value="🔒">🔒 Secure</option>
-                    <option value="⭐">⭐ Star</option>
-                    <option value=" tablet"> Tablet</option>
-                    <option value="📺">📺 TV</option>
-                    <option value="🎮">🎮 Game Console</option>
-                </select>
-                <!-- Replaced inline style with class -->
-                <!-- <span id="deviceIconPreview" class="device-icon-preview">💻</span> -->
-            <!-- </div> -->
         </fieldset>
         <fieldset>
             <legend>Devices Registry</legend>
@@ -67,9 +46,8 @@
                 <!-- Replaced inline style with class -->
                 <input type="number" id="syncIntervalInput" class="numeric-input-small" min="1" max="120" value="5" title="How often to auto-sync device info (in minutes)">
             </div>
-            <!-- <div class="setting-item"> -->
+            <div id="loadingIndicator" class="loading hidden">Loading...</div>
                 
-            <!-- </div> -->
         </fieldset>
         <h2>Settings & Tools</h2>
         <fieldset>
@@ -103,6 +81,7 @@
                 <button id="testNotificationBtn" type="button">Test Notification</button>
             </div>
         </fieldset>
+        <div id="messageArea" class="hidden"></div>
         <fieldset>
             <legend>Help / About</legend>
             <div class="help-section">

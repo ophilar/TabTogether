@@ -28,15 +28,4 @@ export function injectSharedUI(containerSelector = '.container') {
         loadingDiv.innerHTML = '<span class="spinner"></span> Loading...';
         container.prepend(loadingDiv); // Prepend second (will end up below header)
     }
-
-    // Inject header but without h1/hr ---
-    if (!container.querySelector('header#sharedHeader')) {
-        const header = document.createElement('header');
-        header.id = 'sharedHeader';
-        const h1 = document.createElement('h1'); // REMOVED
-        h1.id = 'mainTitle';                 // REMOVED
-        h1.textContent = 'TabTogether';        // REMOVED
-        header.appendChild(h1);                // REMOVED
-        container.prepend(header);             // REMOVED (or just prepend an empty header if needed for structure)
-    }
 }
