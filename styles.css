@@ -430,6 +430,13 @@ button.inline-btn {
 .modal-overlay.hidden {
     display: none; /* Override the flex display when hidden */
 }
+
+
+.sync-icon-svg {
+  vertical-align: middle;
+  /* Add any other styles specific to this icon if needed */
+}
+
 /* Ensure list items accommodate the inline controls */
 #definedGroupsList li > span:first-child,
 #deviceRegistryList li > div:first-child {
