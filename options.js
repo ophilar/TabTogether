@@ -773,49 +773,27 @@ function cancelInlineEdit(originalSpan, inlineControlsContainer) {
 function createInlineEditControls(currentValue, onSaveCallback, onCancelCallback) {
   const container = document.createElement('div');
   container.className = 'inline-edit-container'; // Add class for styling
-  container.style.display = 'flex';
-  container.style.alignItems = 'center';
-  container.style.flexGrow = '1'; // Take up space
-  container.style.marginRight = '10px'; // Space before other buttons (like Delete)
 
   const input = document.createElement('input');
   input.type = 'text';
   input.value = currentValue;
   input.className = 'inline-edit-input'; // Add class for styling
-  input.style.flexGrow = '1';
-  input.style.marginRight = '5px';
-  // Apply some basic input styling inline or use CSS class
-  input.style.padding = '4px 6px';
-  input.style.fontSize = '0.95em';
-  input.style.border = '1px solid var(--main-accent)'; // Highlight active edit
 
   const saveBtn = document.createElement('button');
   saveBtn.textContent = '✓'; // Save icon/text
   saveBtn.className = 'inline-edit-save'; // Add class for styling
   saveBtn.title = 'Save';
   // Minimal button styling
-  saveBtn.style.padding = '2px 6px';
-  saveBtn.style.fontSize = '1em';
-  saveBtn.style.lineHeight = '1';
-  saveBtn.style.minWidth = 'auto';
-  saveBtn.style.boxShadow = 'none';
+  // Apply base button styles via CSS if needed, or inherit
   // Consider using a success color
   // saveBtn.style.backgroundColor = 'var(--main-success-bg)';
   // saveBtn.style.color = 'var(--main-success-text)';
 
-
   const cancelBtn = document.createElement('button');
   cancelBtn.textContent = '✕'; // Cancel icon/text
-  cancelBtn.className = 'inline-edit-cancel secondary'; // Use secondary style
+  cancelBtn.className = 'inline-edit-cancel secondary'; // Use secondary style from base CSS
   cancelBtn.title = 'Cancel';
   // Minimal button styling
-  cancelBtn.style.padding = '2px 6px';
-  cancelBtn.style.fontSize = '1em';
-  cancelBtn.style.lineHeight = '1';
-  cancelBtn.style.minWidth = 'auto';
-  cancelBtn.style.marginLeft = '3px';
-  cancelBtn.style.boxShadow = 'none';
-
 
   // --- Event Handlers ---
   const handleSave = () => {
