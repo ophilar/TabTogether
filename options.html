@@ -21,7 +21,7 @@
                 <span id="deviceNameDisplay" aria-label="Device Name">Loading...</span>
                 <button id="removeDeviceBtn" class="danger inline-btn" aria-label="Remove Device" title="Remove this device from all groups and registry. This cannot be undone.">Remove</button>
             </div>
-            <div class="setting-item">
+            <!-- <div class="setting-item">
                 <strong>Icon:</strong>
                 <select id="deviceIconSelect" aria-label="Device Icon" title="Choose an icon to represent this device on all your devices">
                     <option value="💻">💻 Laptop</option>
@@ -30,8 +30,6 @@
                     <option value="📲">📲 Smartphone</option>
                     <option value="🧑‍💻">🧑‍💻 User</option>
                     <option value="🕹️">🕹️ Gaming</option>
-
-                    
                     <option value="🗄️">🗄️ Server</option>
                     <option value="🔒">🔒 Secure</option>
                     <option value="⭐">⭐ Star</option>
@@ -40,8 +38,8 @@
                     <option value="🎮">🎮 Game Console</option>
                 </select>
                 <!-- Replaced inline style with class -->
-                <span id="deviceIconPreview" class="device-icon-preview">💻</span>
-            </div>
+                <!-- <span id="deviceIconPreview" class="device-icon-preview">💻</span> -->
+            <!-- </div> -->
         </fieldset>
         <fieldset>
             <legend>Devices Registry</legend>
@@ -50,11 +48,11 @@
         <h2>Group Management</h2>
         <fieldset>
             <legend>Devices Groups</legend>
-            <div id="definedGroupsList">Loading groups...</div>
             <div class="input-group">
                 <input type="text" id="newGroupName" placeholder="New group name" aria-label="New Group Name" title="Enter a name for a new group">
                 <button id="createGroupBtn" disabled title="Create a new group with the entered name">Create Group</button>
             </div>
+            <div id="definedGroupsList">Loading groups...</div>
         </fieldset>
         <fieldset>
             <legend>Sync</legend>
@@ -62,15 +60,16 @@
                 <button id="manualSyncBtn" type="button">
                     <img src="icons/sync_arrows.svg" alt="Sync" class="sync-icon-svg" width="16" height="16" style="vertical-align: middle;"/>
                 </button>
+                <span id="syncStatus">Last sync: never</span>
             </div>
             <div class="setting-item">
                 <label for="syncIntervalInput"><strong>Auto-sync interval (minutes):</strong></label>
                 <!-- Replaced inline style with class -->
                 <input type="number" id="syncIntervalInput" class="numeric-input-small" min="1" max="120" value="5" title="How often to auto-sync device info (in minutes)">
             </div>
-            <div class="setting-item">
-                <span id="syncStatus">Last sync: never</span>
-            </div>
+            <!-- <div class="setting-item"> -->
+                
+            <!-- </div> -->
         </fieldset>
         <h2>Settings & Tools</h2>
         <fieldset>
@@ -82,9 +81,6 @@
                     <option value="enabled">Enabled</option>
                     <option value="disabled">Disabled</option>
                 </select>
-            </div>
-            <div class="setting-item">
-                <button id="testNotificationBtn" type="button">Test Notification</button>
             </div>
         </fieldset>
         <fieldset>
@@ -102,6 +98,9 @@
                 <label for="notifDurationInput"><strong>Duration (seconds):</strong></label>
                 <!-- Replaced inline style with class -->
                 <input type="number" id="notifDurationInput" class="numeric-input-small" min="1" max="20" value="5" title="How long notifications stay visible (in seconds)">
+            </div>
+            <div class="setting-item">
+                <button id="testNotificationBtn" type="button">Test Notification</button>
             </div>
         </fieldset>
         <fieldset>
