@@ -56,7 +56,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (dom.toggleDetailsBtn && dom.popupDetails) {
         dom.toggleDetailsBtn.addEventListener('click', () => {
             const isHidden = dom.popupDetails.classList.toggle('hidden');
-            dom.toggleDetailsBtn.textContent = isHidden ? '▼' : '▲'; // Update icon
+            dom.toggleDetailsBtn.textContent = isHidden ? '▼' : '▲'; // REMOVED: This overwrites the image
             dom.toggleDetailsBtn.setAttribute('aria-label', isHidden ? 'Show details' : 'Hide details');
             dom.toggleDetailsBtn.setAttribute('title', isHidden ? 'Show device info' : 'Hide device info');
             // --- Chevron Animation ---
