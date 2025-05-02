@@ -11,92 +11,97 @@
 </head>
 <body>
     <div class="container">
-        <h2>Device Settings</h2>
-        <fieldset>
-            <legend>Current Device</legend>
-            <div class="setting-item">
-                <strong>Name:</strong>
-                <span id="deviceNameDisplay" aria-label="Device Name">Loading...</span>
-                <button id="removeDeviceBtn" class="danger inline-btn" aria-label="Remove Device" title="Remove this device from all groups and registry. This cannot be undone.">Remove</button>
-            </div>
-        </fieldset>
-        <fieldset>
-            <legend>Devices Registry</legend>
-            <div id="deviceRegistryList">Loading registry...</div>
-        </fieldset>
-        <h2>Group Management</h2>
-        <fieldset>
-            <legend>Devices Groups</legend>
-            <div class="input-group">
-                <input type="text" id="newGroupName" placeholder="New group name" aria-label="New Group Name" title="Enter a name for a new group">
-                <button id="createGroupBtn" disabled title="Create a new group with the entered name">Create Group</button>
-            </div>
-            <div id="definedGroupsList">Loading groups...</div>
-        </fieldset>
-        <fieldset>
-            <legend>Sync</legend>
-            <div class="setting-item">
-                <button id="manualSyncBtn" type="button">
-                    <img src="icons/sync_arrows.svg" alt="Sync" class="sync-icon-svg" width="16" height="16"/>
-                </button>
-                <span id="syncStatus">Last sync: never</span>
-            </div>
-            <div class="setting-item">
-                <label for="syncIntervalInput"><strong>Auto-sync interval (minutes):</strong></label>
-                <!-- Replaced inline style with class -->
-                <input type="number" id="syncIntervalInput" class="numeric-input-small" min="1" max="120" value="5" title="How often to auto-sync device info (in minutes)">
-            </div>
-            <div id="loadingIndicator" class="loading hidden">Loading...</div>
-                
-        </fieldset>
-        <h2>Settings & Tools</h2>
-        <fieldset>
-            <legend>Theme</legend>
-            <div class="setting-item">
-                <label for="darkModeSelect"><strong>Dark Mode:</strong></label>
-                <select id="darkModeSelect">
-                    <option value="auto">Auto</option>
-                    <option value="enabled">Enabled</option>
-                    <option value="disabled">Disabled</option>
-                </select>
-            </div>
-        </fieldset>
-        <fieldset>
-            <legend>Notifications</legend>
-            <div class="setting-item">
-                <label for="notifSoundSelect"><strong>Sound:</strong></label>
-                <select id="notifSoundSelect" aria-label="Notification Sound" title="Choose a sound to play for notifications">
-                    <option value="default">Default</option>
-                    <option value="none">None</option>
-                    <option value="chime">Chime</option>
-                    <option value="ding">Ding</option>
-                </select>
-            </div>
-            <div class="setting-item">
-                <label for="notifDurationInput"><strong>Duration (seconds):</strong></label>
-                <!-- Replaced inline style with class -->
-                <input type="number" id="notifDurationInput" class="numeric-input-small" min="1" max="20" value="5" title="How long notifications stay visible (in seconds)">
-            </div>
-            <div class="setting-item">
-                <button id="testNotificationBtn" type="button">Test Notification</button>
-            </div>
-        </fieldset>
-        <div id="messageArea" class="hidden"></div>
-        <fieldset>
-            <legend>Help / About</legend>
-            <div class="help-section">
-                <p><strong>TabTogether</strong> lets you send tabs to groups of devices instantly. <br>To use:</p>
-                <ul>
-                    <li>Use the popup to send the current tab to any group.</li>
-                    <li>Manage device name, groups, and subscriptions here in settings.</li>
-                    <li>Rename groups by clicking their name.</li>
-                    <li>Use the test notification to check if notifications work.</li>
-                    <li>Dark mode can be toggled manually or follows your system preference.</li>
-                    <li>Leaving or deleting a group is permanent and affects all devices.</li>
-                </ul>
-                <p>For more help, visit the <a href="https://github.com/ophilar/TabTogether" target="_blank" rel="noopener noreferrer">project page</a>.</p>
-            </div>
-        </fieldset>
+        <details class="options-section" open>
+            <summary><span class="summary-marker"></span><h2>Device Registry</h2></summary>
+            <fieldset>
+                <!-- Removed legend -->
+                <div id="deviceRegistryList">Loading registry...</div>
+            </fieldset>
+        </details>
+
+        <details class="options-section" open>
+            <summary><span class="summary-marker"></span><h2>Group Management</h2></summary>
+            <fieldset>
+                <div class="input-group">
+                    <input type="text" id="newGroupName" placeholder="New group name" aria-label="New Group Name" title="Enter a name for a new group">
+                    <button id="createGroupBtn" disabled title="Create a new group with the entered name">Create Group</button>
+                </div>
+                <div id="definedGroupsList">Loading groups...</div>
+            </fieldset>
+        </details>
+
+        <details class="options-section">
+            <summary><span class="summary-marker"></span><h2>Sync & Settings</h2></summary>
+            <fieldset>
+                <legend>Sync</legend>
+                <div class="setting-item">
+                    <button id="manualSyncBtn" type="button" aria-label="Manual Sync" title="Trigger a manual sync now">
+                        <img class="sync-icon-svg" style="--icon-url: url('icons/sync_arrows.svg');" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="" width="16" height="16"/>
+                    </button>
+                    <span id="syncStatus">Last sync: never</span>
+                </div>
+                <div class="setting-item">
+                    <label for="syncIntervalInput"><strong>Auto-sync interval (minutes):</strong></label>
+                    <input type="number" id="syncIntervalInput" class="numeric-input-small" min="1" max="120" value="5" title="How often to auto-sync device info (in minutes)">
+                </div>
+                <div id="loadingIndicator" class="loading hidden">Loading...</div>
+            </fieldset>
+
+            <fieldset>
+                <legend>Theme</legend>
+                <div class="setting-item">
+                    <label for="darkModeSelect"><strong>Dark Mode:</strong></label>
+                    <select id="darkModeSelect">
+                        <option value="auto">Auto</option>
+                        <option value="enabled">Enabled</option>
+                        <option value="disabled">Disabled</option>
+                    </select>
+                </div>
+            </fieldset>
+
+            <fieldset>
+                <legend>Notifications</legend>
+                <div class="setting-item">
+                    <label for="notifSoundSelect"><strong>Sound:</strong></label>
+                    <select id="notifSoundSelect" aria-label="Notification Sound" title="Choose a sound to play for notifications">
+                        <option value="default">Default</option>
+                        <option value="none">None</option>
+                        <option value="chime">Chime</option>
+                        <option value="ding">Ding</option>
+                    </select>
+                </div>
+                <div class="setting-item">
+                    <label for="notifDurationInput"><strong>Duration (seconds):</strong></label>
+                    <input type="number" id="notifDurationInput" class="numeric-input-small" min="1" max="20" value="5" title="How long notifications stay visible (in seconds)">
+                </div>
+                <div class="setting-item">
+                    <button id="testNotificationBtn" type="button">Test Notification</button>
+                </div>
+            </fieldset>
+        </details>
+        
+        <details class="options-section">
+            <summary><span class="summary-marker"></span><h2>Help / About</h2></summary>
+            <fieldset>
+                <div class="help-section">
+                    <p><strong>TabTogether</strong> lets you send tabs to groups of devices instantly. <br>To use:</p>
+                    <ul>
+                        <li>Use the popup to send the current tab to any group.</li>
+                        <li>Manage device name, groups, and subscriptions here in settings.</li>
+                        <li>Rename groups by clicking their name.</li>
+                        <li>Use the test notification to check if notifications work.</li>
+                        <li>Dark mode can be toggled manually or follows your system preference.</li>
+                        <li>Leaving or deleting a group is permanent and affects all devices.</li>
+                    </ul>
+                    <p>For more help, visit the <a href="https://github.com/ophilar/TabTogether" target="_blank" rel="noopener noreferrer">project page</a>.</p>
+                </div>
+                            <!-- Help link -->
+            <p class="options-link"><a href="#" id="openOnboardingLink" title="Show help and onboarding for TabTogether">Show Help / Onboarding</a></p>
+
+            </fieldset>
+
+
+        </details>
 
         <!-- Onboarding Modal -->
         <!-- Replaced inline style with class, kept 'hidden' class -->
@@ -115,8 +120,7 @@
             </div>
         </div>
 
-        <!-- Help link -->
-        <p class="options-link"><a href="#" id="openOnboardingLink" title="Show help and onboarding for TabTogether">Show Help / Onboarding</a></p>
+        <div id="messageArea" class="hidden"></div>
     </div>
     <script type="module" src="constants.js"></script>
     <script type="module" src="theme.js"></script>

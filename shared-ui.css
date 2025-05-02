@@ -1,0 +1,22 @@
+/* shared-ui.css */
+/* Styles shared between popup.html and options.html */
+
+/* Add other shared styles here, e.g., .loading, .message-area if identical */
+
+.sync-icon-svg {
+  vertical-align: middle;
+  /* --- New Mask Styling --- */
+  display: inline-block; /* Needed for mask properties */
+  background-color: var(--main-accent); /* Use a theme-aware color */
+  -webkit-mask-image: var(--icon-url);
+  mask-image: var(--icon-url);
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  /* Set width/height via CSS or keep on img tag */
+  width: 16px;
+  height: 16px;
+}
