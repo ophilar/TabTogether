@@ -1124,8 +1124,8 @@ export const storage = {
       return { success: true, mergedData: mergedData };
     } catch (error) {
       console.error(`Error merging ${key}:`, error, "Updates:", updates);
-      // Return failure status and potentially the original data or null
-      return { success: false, mergedData: currentDataObj };
+      // Return failure status. Avoid using currentDataObj as it might be undefined.
+      return { success: false, mergedData: null }; // Or return updates? null seems safer.
     }
   },
 };
