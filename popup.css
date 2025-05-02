@@ -11,19 +11,12 @@ body {
 
 .container {
   background-color: var(--main-card);
-  border-radius: 6px;
-  box-shadow: var(--main-shadow-container, 0 8px 8px rgba(0, 0, 0, 0.08));
+  border-radius: 6px; /* Keep popup-specific radius */
+  box-shadow: var(--main-shadow-container); /* Use variable, remove fallback */
   padding: 12px;
-  /* Simplified padding */
   margin: 2px auto 0 auto;
-  border: none;
-  box-sizing: border-box;
+  border: none; /* Popups often don't need borders */
   overflow-y: auto;
-}
-
-.container::-webkit-scrollbar {
-  display: none;
-  /* Chrome/Safari/Edge */
 }
 
 /* List Styling (using semantic ul/li) */
@@ -45,8 +38,8 @@ body {
 
 #subscriptionsUl li .list-item-label {
   flex-grow: 1;
-  font-weight: 500;
-  color: var(--main-text, #333); /* Ensure primary text color has good contrast */
+  font-weight: 500; /* Use main text color, remove fallback */
+  color: var(--main-text);
   font-size: 1em;
 }
 
@@ -62,8 +55,7 @@ body {
   margin-top: 10px; /* Keep margin */
   padding: 10px 0 5px 0; /* Adjust padding (top, sides, bottom) */
   font-size: 0.95em; /* Slightly larger base font for details */
-  /* Use a more legible text color, ensure good contrast */
-  color: var(--main-grey-dark, #44444482);
+  color: var(--main-grey-dark); /* Use variable, remove fallback */
   /* line-height is handled by list items now */
   /* Divider appears when details are shown */
   border-top: 1px solid var(--main-border);
@@ -115,18 +107,18 @@ body {
 }
 
 [data-theme="dark"] .popup-footer .popup-link:hover {
-  color: var(--main-orange-light);
+  color: var(--main-accent); /* Use accent or main-orange for dark hover */
 }
 
 /* --- Dark Theme Adjustments for List Items --- */
 [data-theme="dark"] #subscriptionsUl li .list-item-label {
-  color: var(--main-text-dark, #eee); /* Use light text color for dark theme */
+  color: var(--main-text); /* Use main-text which is updated for dark theme */
 }
 
 /* --- Dark Theme Adjustments for Details --- */
 [data-theme="dark"] .popup-details {
-  color: var(--main-grey-light, #ccc); /* Lighter text for dark background */
-  border-top-color: var(--main-border-dark, #555); /* Adjust border color if needed */
+  color: var(--main-grey-light); /* Use variable, remove fallback */
+  border-top-color: var(--main-border); /* Use main-border which is updated for dark theme */
   /* Background is inherited from .container */
 }
 
@@ -140,10 +132,7 @@ body {
   /* Match base button size */
   background-color: var(--main-button-primary-bg);
   color: var(--main-button-text);
-  box-shadow: var(
-    --main-shadow-button-primary,
-    0 1px 2px rgba(255, 148, 0, 0.09)
-  );
+  box-shadow: var(--main-shadow-button-primary); /* Use variable, remove fallback */
   border: none;
   border-radius: 5px;
   cursor: pointer;
