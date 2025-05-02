@@ -7,7 +7,7 @@
   vertical-align: middle;
   /* --- New Mask Styling --- */
   display: inline-block; /* Needed for mask properties */
-  background-color: var(--main-accent); /* Use a theme-aware color */
+  background-color: var(--main-text); /* Use main text color (black/white) */
   -webkit-mask-image: var(--icon-url);
   mask-image: var(--icon-url);
   -webkit-mask-size: contain;

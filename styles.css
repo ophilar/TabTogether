@@ -17,8 +17,8 @@ html {
   --main-blue-light: #eaf3fb;
   --main-blue-dark: #b3cbe6;
   --main-blue-dark-hover: #9cb0c7;
-  --main-grey-light: #6c757d; /* For secondary actions */
-  --main-grey-dark: #495057;
+  --main-grey-light: #6c757d55; /* For secondary actions */
+  --main-grey-dark: #4950577d;
   --main-red-light: #dc3545; /* For danger actions */
   --main-red-dark: #b71c1c;
 
