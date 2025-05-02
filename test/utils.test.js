@@ -175,7 +175,7 @@ describe('utils', () => {
         test('storage.merge performs deep merge', async () => {
             await mockSyncStorage.set({ mergeKey: { a: 1, b: { x: 10 } } });
             const success = await utils.storage.merge(mockSyncStorage, 'mergeKey', { b: { y: 20 }, c: 3 });
-            expect(success).toBe(true);
+            expect(success.success).toBe(true);
             const stored = await mockSyncStorage.get('mergeKey');
             expect(stored.mergeKey).toEqual({ a: 1, b: { x: 10, y: 20 }, c: 3 });
         });
@@ -183,7 +183,7 @@ describe('utils', () => {
         test('storage.merge handles null for deletion', async () => {
             await mockSyncStorage.set({ mergeKey: { a: 1, b: 2 } });
             const success = await utils.storage.merge(mockSyncStorage, 'mergeKey', { b: null });
-            expect(success).toBe(true);
+            expect(success.success).toBe(true);
             const stored = await mockSyncStorage.get('mergeKey');
             expect(stored.mergeKey).toEqual({ a: 1 });
         });
@@ -200,8 +200,12 @@ describe('utils', () => {
             mockSyncStorage._simulateError('set', 'key');
             const result = await utils.mergeSyncStorage('key', { a: 1 });
             expect(result).toBe(false);
-            // Error should have been logged by mergeSyncStorage
-            expect(console.error).toHaveBeenCalledWith('Failed to set merged data for key "key"');
+            // Error should have been logged by storage.merge (which mergeSyncStorage calls)
+            expect(console.error).toHaveBeenCalledWith(
+                'Error merging key:', // Match the actual log format
+                expect.any(Error),    // Match the error object
+                'Updates:',           // Match the actual log format
+                { a: 1 });            // Match the updates object
         });
     });
 
