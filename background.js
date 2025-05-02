@@ -910,7 +910,7 @@ async function assignBitForGroup(
   cachedDeviceRegistry
 ) {
   const MAX_RETRIES = 5;
-  const BASE_DELAY_MS = 100;
+  const BASE_DELAY_MS = 250; // Increased base delay slightly
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
       const groupState =
