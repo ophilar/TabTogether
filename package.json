@@ -15,7 +15,7 @@
 
     "build:prod": "npm run prepare-dist && npm run minify",
 
-    "build": "npm run build:prod && web-ext build --source-dir dist --artifacts-dir web-ext-artifacts --overwrite-dest --no-source-maps",
+    "build": "npm run build:prod && web-ext build --source-dir dist --artifacts-dir web-ext-artifacts --overwrite-dest",
 
     "package": "echo 'Use GitHub Actions workflow for packaging.'",
     "start": "web-ext run",
