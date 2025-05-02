@@ -30,7 +30,6 @@ import { applyThemeFromStorage, setupThemeDropdown } from "./theme.js";
 
 // Cache DOM elements at the top for repeated use
 const dom = {
-  deviceNameDisplay: document.getElementById("deviceNameDisplay"),
   deviceRegistryListDiv: document.getElementById("deviceRegistryList"),
   definedGroupsListDiv: document.getElementById("definedGroupsList"),
   newGroupNameInput: document.getElementById("newGroupName"),
@@ -39,9 +38,6 @@ const dom = {
   messageArea: document.getElementById("messageArea"),
   testNotificationBtn: document.getElementById("testNotificationBtn"),
 };
-
-const deviceIconSelect = document.getElementById("deviceIconSelect");
-const deviceIconPreview = document.getElementById("deviceIconPreview");
 
 let currentState = null; // Cache for state fetched from background
 const manualSyncBtn = document.getElementById("manualSyncBtn"); // Or rename ID to syncNowBtn if you change HTML
@@ -55,20 +51,20 @@ if (manualSyncBtn) {
     showLoadingIndicator(dom.loadingIndicator, true);
     manualSyncBtn.disabled = true; // Disable button during operation
     if (syncIcon) syncIcon.classList.add('syncing-icon'); // Start animation
-    clearmessage(dom.messageArea);
+    clearMessage(dom.messageArea);
     try {
       if (await isAndroid()) {
 
         // On Android, perform the direct foreground sync
         await loadState(); // This handles UI updates and messages internally
-        showmessage(dom.messageArea, 'Sync complete.', false); // Show success message after loadState finishes
+        showMessage(dom.messageArea, 'Sync complete.', false); // Show success message after loadState finishes
       } else {
         // On Desktop, trigger background sync via heartbeat
         await browser.runtime.sendMessage({ action: "heartbeat" });
         const now = new Date();
         syncStatus.textContent = "Last sync: " + now.toLocaleString();
         await storage.set(browser.storage.local, "lastSync", now.getTime());
-        showmessage(dom.messageArea, 'Background sync triggered.', false); // Inform user
+        showMessage(dom.messageArea, 'Background sync triggered.', false); // Inform user
       }
     } catch (error) { // Catch errors from loadState or sendMessage
       console.error("Manual sync failed:", error);
@@ -119,33 +115,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     setLastSyncTime(container, Date.now());
     showDebugInfo(container, currentState);
   }
-  loadState();
-  if (deviceIconSelect && deviceIconPreview) {
-    deviceIconSelect.addEventListener("change", async (e) => {
-      const icon = e.target.value || DEFAULT_DEVICE_ICON;
-      deviceIconPreview.textContent = icon;
-      await storage.set(browser.storage.local, "myDeviceIcon", icon);
-      // Optionally, sync to registry for other devices to see
-      const instanceId = currentState?.instanceId;
-      if (instanceId) {
-        const deviceRegistry = await storage.get(
-          browser.storage.sync,
-          SYNC_STORAGE_KEYS.DEVICE_REGISTRY,
-          {}
-        );
-        if (deviceRegistry[instanceId]) {
-          deviceRegistry[instanceId].icon = icon;
-          await storage.set(
-            browser.storage.sync,
-            SYNC_STORAGE_KEYS.DEVICE_REGISTRY,
-            deviceRegistry
-          );
-        }
-      }
-    });
-    deviceIconSelect.value = DEFAULT_DEVICE_ICON;
-    loadDeviceIcon();
-  }
   // Notification settings logic
   const notifSoundSelect = document.getElementById("notifSoundSelect");
   const notifDurationInput = document.getElementById("notifDurationInput");
@@ -178,6 +147,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
     loadNotificationSettings();
   }
+  loadState(); // Load initial state after setting up listeners
 });
 
 // Onboarding steps content
@@ -243,40 +213,9 @@ if (onboardingNextBtn)
 if (onboardingCloseBtn)
   onboardingCloseBtn.onclick = () => onboardingModal.classList.add("hidden");
 
-// --- State Loading and Rendering ---
-
-async function getStateDirectly() {
-  const [
-    instanceId,
-    instanceName,
-    subscriptions,
-    groupBits,
-    definedGroups,
-    groupState,
-    deviceRegistry,
-  ] = await Promise.all([
-    storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID),
-    storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_NAME),
-    storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS) || [],
-    storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS) || {},
-    storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS) || [],
-    storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE) || {},
-    storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY) || {},
-  ]);
-  return {
-    instanceId,
-    instanceName,
-    subscriptions,
-    groupBits,
-    definedGroups,
-    groupState,
-    deviceRegistry,
-  };
-}
-
 async function loadState() {
   showLoadingIndicator(dom.loadingIndicator, true);
-  clearmessage(dom.messageArea);
+  clearMessage(dom.messageArea);
   try {
     const isAndroidPlatform = await isAndroid();
     let state = await getUnifiedState(isAndroidPlatform);
@@ -335,18 +274,13 @@ async function processIncomingTabsAndroid(state) {
 
 function renderAll() {
   if (!currentState) return;
-  renderDeviceNameUI();
   renderDeviceRegistry();
   renderDefinedGroups();
 }
 
-function renderDeviceNameUI() {
-  renderDeviceName(dom.deviceNameDisplay, currentState.instanceName);
-}
-
 function renderDeviceRegistry() {
   const devices = currentState.deviceRegistry;
-  dom.deviceRegistryListDiv.innerHTML = ''; // Clear previous content
+  dom.deviceRegistryListDiv.innerHTML = ''; // Clear previous content first
 
   if (!devices || Object.keys(devices).length === 0) {
     dom.deviceRegistryListDiv.textContent = STRINGS.noDevices;
@@ -357,9 +291,7 @@ function renderDeviceRegistry() {
   const ul = document.createElement('ul');
   ul.setAttribute('role', 'list');
   // Apply styling similar to #definedGroupsList ul from styles.css
-  ul.style.listStyle = 'none';
-  ul.style.padding = '0';
-  ul.style.margin = '0';
+  ul.className = 'registry-list'; // Add class for styling
 
   Object.entries(devices)
     .sort((a, b) => (a[1]?.name || '').localeCompare(b[1]?.name || ''))
@@ -367,34 +299,31 @@ function renderDeviceRegistry() {
       const li = document.createElement('li');
       li.setAttribute('role', 'listitem');
       // Apply styling similar to #definedGroupsList li
-      li.style.display = 'flex';
-      li.style.justifyContent = 'space-between';
-      li.style.alignItems = 'center';
-      li.style.padding = '10px 0';
-      li.style.borderBottom = '1px solid var(--main-border)';
+      li.className = 'registry-list-item'; // Add class for styling
 
-      if (id === localId) li.classList.add('this-device');
+      if (id === localId) {
+          li.classList.add('this-device');
+          // Optionally add "(This Device)" text or an icon
+          // nameSpan.textContent += ' (This Device)';
+      }
 
       // Container for name and last seen (allows inline edit controls to fit)
       const nameAndInfoDiv = document.createElement('div');
-      nameAndInfoDiv.style.flexGrow = '1'; // Take up available space
-      nameAndInfoDiv.style.marginRight = '10px'; // Space before action buttons
-      nameAndInfoDiv.style.display = 'flex';
-      nameAndInfoDiv.style.flexDirection = 'column'; // Stack name and last seen
+      nameAndInfoDiv.className = 'registry-item-info'; // Add class for styling
 
       const nameSpan = document.createElement('span');
       nameSpan.textContent = device.name || STRINGS.deviceNameNotSet; // Use constant
-      nameSpan.style.cursor = 'pointer'; // Indicate clickable
-      nameSpan.title = 'Click to rename';
-      // Attach the inline edit starter function
-      nameSpan.onclick = () => startRenameDevice(id, device.name || '', li, nameSpan);
+      // Only allow renaming for the current device within this list
+      if (id === localId) {
+          nameSpan.style.cursor = 'pointer'; // Indicate clickable
+          nameSpan.title = 'Click to rename this device';
+          nameSpan.onclick = () => startRenameDevice(id, device.name || '', li, nameSpan);
+      }
       nameAndInfoDiv.appendChild(nameSpan);
 
       if (device.lastSeen) {
         const lastSeenSpan = document.createElement('span');
-        lastSeenSpan.className = 'small-text';
-        lastSeenSpan.style.fontSize = '0.9em';
-        lastSeenSpan.style.opacity = '0.8';
+        lastSeenSpan.className = 'small-text registry-item-lastseen'; // Add classes for styling
         lastSeenSpan.textContent = `Last seen: ${new Date(device.lastSeen).toLocaleString()}`;
         nameAndInfoDiv.appendChild(lastSeenSpan);
       }
@@ -403,16 +332,23 @@ function renderDeviceRegistry() {
 
       // Action buttons container
       const actionsDiv = document.createElement('div');
-      actionsDiv.className = 'device-actions'; // For potential styling
+      actionsDiv.className = 'registry-item-actions'; // Add class for styling
 
-      // --- Rename button REMOVED ---
-
-      // Delete button
+      // Delete/Remove button
       const deleteBtn = document.createElement('button');
-      deleteBtn.textContent = 'Delete';
       deleteBtn.className = 'inline-btn danger'; // Use existing style
-      deleteBtn.disabled = id === localId;
-      deleteBtn.title = id === localId ? 'Cannot delete this device from itself' : 'Delete device';
+
+      if (id === localId) {
+          deleteBtn.textContent = 'Remove';
+          deleteBtn.title = 'Remove this device from all groups and registry. This cannot be undone.';
+          deleteBtn.setAttribute('aria-label', 'Remove this device from registry');
+          // Attach the specific handler for removing self
+          deleteBtn.onclick = handleRemoveSelfDevice; // Use a dedicated handler
+      } else {
+          deleteBtn.textContent = 'Delete';
+          deleteBtn.title = 'Delete this device from the registry';
+          deleteBtn.setAttribute('aria-label', `Delete device ${device.name || 'Unnamed'} from registry`);
+      } // Note: The onclick handler below gets overwritten by handleRemoveSelfDevice if id === localId
       deleteBtn.onclick = () => handleDeleteDevice(id, device.name);
       actionsDiv.appendChild(deleteBtn);
 
@@ -421,9 +357,9 @@ function renderDeviceRegistry() {
     });
 
   // Remove border from last item
-  if (ul.lastChild) {
-    ul.lastChild.style.borderBottom = 'none';
-  }
+  // if (ul.lastChild) { // Let CSS handle this with :last-child selector
+  //   ul.lastChild.style.borderBottom = 'none';
+  // }
 
   dom.deviceRegistryListDiv.appendChild(ul);
 }
@@ -497,7 +433,7 @@ async function finishRenameGroup(oldName, newName, nameSpan, inlineControlsConta
     }
 
     if (response.success) {
-      showmessage(dom.messageArea, STRINGS.groupRenameSuccess(newName), false);
+      showMessage(dom.messageArea, STRINGS.groupRenameSuccess(newName), false);
       success = true;
       // Reload state which will re-render the list, removing the inline controls
       await loadState();
@@ -564,7 +500,7 @@ async function finishRenameDevice(deviceId, newName, listItem, nameSpan, inlineC
     let response = await renameDeviceUnified(deviceId, newName, isAndroidPlatform);
 
     if (response.success) {
-      showmessage(dom.messageArea, STRINGS.deviceRenameSuccess(newName), false);
+      showMessage(dom.messageArea, STRINGS.deviceRenameSuccess(newName), false);
       success = true;
       await loadState(); // Reload state to re-render
     } else {
@@ -595,7 +531,7 @@ async function handleDeleteDevice(deviceId, deviceName) {
       });
     }
     if (response.success) {
-      showmessage(dom.messageArea, STRINGS.deviceDeleteSuccess(deviceName), false);
+      showMessage(dom.messageArea, STRINGS.deviceDeleteSuccess(deviceName), false);
       await loadState();
     } else {
       showError(
@@ -625,7 +561,7 @@ dom.createGroupBtn.addEventListener("click", async () => {
   const groupName = dom.newGroupNameInput.value.trim();
   if (groupName === "") return;
   showLoadingIndicator(dom.loadingIndicator, true);
-  clearmessage(dom.messageArea);
+  clearMessage(dom.messageArea);
   try {
     let response;
     if (await isAndroid()) {
@@ -638,7 +574,7 @@ dom.createGroupBtn.addEventListener("click", async () => {
     }
     if (response.success) {
       await loadState(); // Always reload state after group creation
-      showmessage(dom.messageArea, STRINGS.groupCreateSuccess(response.newGroup), false);
+      showMessage(dom.messageArea, STRINGS.groupCreateSuccess(response.newGroup), false);
       dom.newGroupNameInput.value = "";
       dom.createGroupBtn.disabled = true;
     } else {
@@ -657,7 +593,7 @@ dom.createGroupBtn.addEventListener("click", async () => {
 async function handleSubscribe(event) {
   const groupName = event.target.dataset.group;
   showLoadingIndicator(dom.loadingIndicator, true);
-  clearmessage(dom.messageArea);
+  clearMessage(dom.messageArea);
   try {
     const isAndroidPlatform = await isAndroid();
     let response = await subscribeToGroupUnified(groupName, isAndroidPlatform);
@@ -667,7 +603,7 @@ async function handleSubscribe(event) {
         currentState.subscriptions.sort();
       }
       renderDefinedGroups();
-      showmessage(dom.messageArea, `Subscribed to "${response.subscribedGroup}".`, false);
+      showMessage(dom.messageArea, `Subscribed to "${response.subscribedGroup}".`, false);
     } else {
       showError(response.message || "Failed to subscribe.", dom.messageArea);
     }
@@ -681,7 +617,7 @@ async function handleSubscribe(event) {
 async function handleUnsubscribe(event) {
   const groupName = event.target.dataset.group;
   showLoadingIndicator(dom.loadingIndicator, true);
-  clearmessage(dom.messageArea);
+  clearMessage(dom.messageArea);
   try {
     const isAndroidPlatform = await isAndroid();
     let response = await unsubscribeFromGroupUnified(
@@ -693,7 +629,7 @@ async function handleUnsubscribe(event) {
         (g) => g !== response.unsubscribedGroup
       );
       renderDefinedGroups();
-      showmessage(dom.messageArea, `Unsubscribed from "${response.unsubscribedGroup}".`, false);
+      showMessage(dom.messageArea, `Unsubscribed from "${response.unsubscribedGroup}".`, false);
     } else {
       showError(response.message || "Failed to unsubscribe.", dom.messageArea);
     }
@@ -710,7 +646,7 @@ async function handleDeleteGroup(event) {
     return;
   }
   showLoadingIndicator(dom.loadingIndicator, true);
-  clearmessage(dom.messageArea);
+  clearMessage(dom.messageArea);
   try {
     let response;
     if (await isAndroid()) {
@@ -729,7 +665,7 @@ async function handleDeleteGroup(event) {
         (g) => g !== response.deletedGroup
       );
       renderDefinedGroups();
-      showmessage(dom.messageArea, STRINGS.groupDeleteSuccess(response.deletedGroup), false);
+      showMessage(dom.messageArea, STRINGS.groupDeleteSuccess(response.deletedGroup), false);
     } else {
       showError(response.message || STRINGS.groupDeleteFailed, dom.messageArea);
     }
@@ -748,7 +684,7 @@ dom.testNotificationBtn.addEventListener("click", async () => {
   showLoadingIndicator(dom.loadingIndicator, true);
   try {
     await browser.runtime.sendMessage({ action: "testNotification" });
-    showmessage(dom.messageArea, STRINGS.testNotificationSent, false);
+    showMessage(dom.messageArea, STRINGS.testNotificationSent, false);
   } catch (e) {
     showError(STRINGS.testNotificationFailed(e.message), dom.messageArea);
   } finally {
@@ -848,37 +784,38 @@ function createInlineEditControls(currentValue, onSaveCallback, onCancelCallback
   };
 }
 
-const removeDeviceBtn = document.getElementById("removeDeviceBtn");
-if (removeDeviceBtn) {
-  removeDeviceBtn.addEventListener("click", async () => {
-    if (
-      !confirm(
-        "Are you sure you want to remove this device from all groups and the registry? This cannot be undone."
-      )
+// Handler specifically for the "Remove" button next to the current device
+async function handleRemoveSelfDevice() {
+  if (
+    !confirm(
+      "Are you sure you want to remove THIS device from all groups and the registry? This cannot be undone."
     )
-      return;
-    showLoadingIndicator(dom.loadingIndicator, true);
-    clearmessage(dom.messageArea);
-    try {
-      const instanceId = currentState?.instanceId;
-      if (!instanceId) throw new Error("Device ID not found.");
-      // Remove from registry and all groups
-      const res = await browser.runtime.sendMessage({
-        action: "deleteDevice",
-        deviceId: instanceId,
-      });
-      if (res.success) {
-        showmessage(dom.messageArea, "Device removed from all groups and registry.", false);
-        await loadState();
-      } else {
-        showError(res.message || "Failed to remove device.", dom.messageArea);
-      }
-    } catch (e) {
-      showError("Error removing device: " + e.message, dom.messageArea);
-    } finally {
-      showLoadingIndicator(dom.loadingIndicator, false);
+  )
+    return;
+
+  showLoadingIndicator(dom.loadingIndicator, true);
+  clearMessage(dom.messageArea);
+  try {
+    const instanceId = currentState?.instanceId;
+    if (!instanceId) throw new Error("Current Device ID not found.");
+
+    // Call the background script action to delete the device
+    const res = await browser.runtime.sendMessage({
+      action: "deleteDevice",
+      deviceId: instanceId,
+    });
+
+    if (res.success) {
+      showMessage(dom.messageArea, "This device removed from all groups and registry.", false);
+      await loadState(); // Reload to reflect the change (device should disappear or be marked differently)
+    } else {
+      showError(res.message || "Failed to remove this device.", dom.messageArea);
     }
-  });
+  } catch (e) {
+    showError("Error removing this device: " + e.message, dom.messageArea);
+  } finally {
+    showLoadingIndicator(dom.loadingIndicator, false);
+  }
 }
 
 async function loadDeviceIcon() {

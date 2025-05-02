@@ -40,8 +40,8 @@ html {
   --main-button-danger-bg: var(--main-red-light);
   --main-button-danger-hover-bg: var(--main-red-dark);
   --main-button-disabled-bg: #ffe0b2;
-  --main-button-text: #000000; /* Default text for primary button */
-  --main-button-secondary-text: #ffffff;
+  --main-button-text: #000000; /* Default text for ALL buttons */
+  --main-button-secondary-text: var(--main-button-text); /* Use main text color */
   --main-button-danger-text: #ffffff;
   --main-button-disabled-text: #a0a0a0;
 
@@ -69,21 +69,21 @@ html {
   --main-card: #232323;
   --main-border: #333;
   --main-text: #f7f7f7;
-  --main-accent: #ffb84d;
-  --main-blue: #b3cbe6;
-  --main-orange-bg: #e6a96b;
+  --main-accent: #ffb84d44;
+  --main-blue: #b3cbe659;
+  --main-orange-bg: #e6a86b52;
   --main-orange: #c75c00; /* Darker orange for dark theme */
 
   /* Button States - Dark */
-  --main-button-primary-bg: var(--main-accent); /* Use accent for dark theme primary */
-  --main-button-primary-hover-bg: var(--main-orange-light);
+  --main-button-primary-bg: #4a4a4a; /* Darker grey for better contrast */
+  --main-button-primary-hover-bg: #5a5a5a; /* Slightly lighter grey for hover */
   --main-button-secondary-bg: var(--main-grey-dark);
   --main-button-secondary-hover-bg: var(--main-grey-light);
   --main-button-danger-bg: var(--main-red-dark);
   --main-button-danger-hover-bg: var(--main-red-light);
   --main-button-disabled-bg: #333;
-  --main-button-text: #ffffff; /* Default text for primary button */
-  --main-button-secondary-text: #ffffff;
+  --main-button-text: #ffffff; /* Default text for ALL buttons in dark mode */
+  --main-button-secondary-text: var(--main-button-text); /* Use main text color */
   --main-button-danger-text: #ffffff;
   --main-button-disabled-text: #777;
 
@@ -363,23 +363,20 @@ button.inline-btn {
 
 /* Optional: Specific colors for save/cancel */
 .inline-edit-save {
-  /* background-color: var(--main-success-bg); */
-  /* color: var(--main-success-text); */
-  color: #256029; /* Simple green */
+  color: var(--main-button-text); /* Use standard button text color */
   background: none;
 }
 .inline-edit-cancel {
   /* Uses .secondary, but ensure background is none if desired */
   background: none;
-  color: var(--main-grey-light);
+  color: var(--main-button-text); /* Use standard button text color */
 }
 [data-theme="dark"] .inline-edit-save {
-    color: var(--main-success-text);
+    color: var(--main-button-text); /* Ensure dark mode also uses standard text color */
 }
 [data-theme="dark"] .inline-edit-cancel {
-    color: var(--main-grey-light);
-}
-.device-icon-preview {
+    color: var(--main-button-text); /* Ensure dark mode also uses standard text color */
+} .device-icon-preview {
   font-size: 1.5em;
   margin-left: 8px;
   vertical-align: middle; /* Optional: Helps align the emoji better with text */
@@ -469,6 +466,82 @@ button.inline-btn {
   margin-left: 7px;
   padding: 6px 13px;
   font-size: 1.0em;
+}
+/* Ensure Subscribe/Unsubscribe buttons have consistent width */
+#definedGroupsList li .group-actions .subscribe-btn,
+#definedGroupsList li .group-actions .unsubscribe-btn {
+    min-width: 110px; /* Adjust this value as needed */
+}
+
+/* Device Registry List */
+.registry-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.registry-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--main-border);
+  transition: background-color var(--transition), border-color var(--transition);
+}
+.registry-list-item:last-child {
+  border-bottom: none;
+}
+.registry-item-info {
+  flex-grow: 1;
+  margin-right: 10px;
+  display: flex;
+  flex-direction: column;
+}
+.registry-item-lastseen {
+  font-size: 0.9em;
+  opacity: 0.8;
+}
+.registry-item-actions button { /* Style action buttons in the registry */
+  margin-left: 7px; /* Consistent with group actions */
+}
+/* Inline Confirmation Buttons */
+.confirm-delete-container button {
+  margin-left: 5px;
+  padding: 4px 8px; /* Smaller padding for inline confirm */
+  font-size: 0.9em; /* Slightly smaller text */
+}
+
+/* Collapsible Sections */
+.options-section {
+  margin-bottom: 20px; /* Space between sections */
+  border: 1px solid var(--main-border); /* Optional border around the whole section */
+  border-radius: 7px;
+  overflow: hidden; /* Prevents content overflow when closed */
+}
+
+.options-section summary {
+  cursor: pointer;
+  padding: 10px 15px;
+  background-color: var(--main-bg); /* Match fieldset background */
+  border-bottom: 1px solid var(--main-border); /* Separator line */
+  list-style: none; /* Remove default marker */
+  transition: background-color var(--transition);
+}
+.options-section summary:hover {
+  background-color: var(--main-card); /* Slightly different hover */
+}
+.options-section summary h2 { /* Style the heading inside summary */
+  display: inline; /* Keep it inline with potential marker */
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+.options-section[open] summary {
+  border-bottom: 1px solid var(--main-border); /* Keep border when open */
+}
+.options-section fieldset {
+  border: none; /* Remove border from fieldsets inside details */
+  margin-bottom: 0; /* Remove bottom margin */
+  background-color: transparent; /* Inherit background */
 }
 
 /* Responsive */
