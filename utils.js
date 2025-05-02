@@ -6,6 +6,8 @@ export const SYNC_STORAGE_KEYS = {
   DEFINED_GROUPS: "definedGroups", // string[]
   GROUP_STATE: "groupState", // { [groupName: string]: { assignedMask: number } }
   GROUP_TASKS: "groupTasks", // { [groupName: string]: { [taskId: string]: { url: string, title: string, processedMask: number, creationTimestamp: number } } }
+  STALE_DEVICE_THRESHOLD_DAYS: "staleDeviceThresholdDays", // number (days) - Moved to sync
+  TASK_EXPIRY_DAYS: "taskExpiryDays", // number (days) - Moved to sync
   DEVICE_REGISTRY: "deviceRegistry", // { [deviceUUID: string]: { name: string, lastSeen: number, groupBits: { [groupName: string]: number } } }
 };
 
@@ -114,49 +116,23 @@ export const isObject = (item) =>
 
 // --- Instance ID/Name ---
 // Store device name and ID in both local and sync storage for persistence
+// Refactored: INSTANCE_ID is local only. INSTANCE_NAME's source of truth is deviceRegistry (sync).
 export async function getInstanceId() {
   let id = await storage.get(
     browser.storage.local,
     LOCAL_STORAGE_KEYS.INSTANCE_ID
   );
-  let needsLocalSet = false;
-  let needsSyncSet = false;
 
   if (!id) {
-    id = await storage.get(
-      browser.storage.sync,
-      LOCAL_STORAGE_KEYS.INSTANCE_ID
-    );
-    if (!id) {
-      id = globalThis.crypto.randomUUID();
-      console.log("Generated new instance ID:", id);
-
-      needsLocalSet = true;
-      needsSyncSet = true;
-    } else {
-      console.log("Retrieved instance ID from sync, saving locally:", id);
-      needsLocalSet = true;
-    }
-  } else {
-    const syncId = await storage.get(
-      browser.storage.sync,
-      LOCAL_STORAGE_KEYS.INSTANCE_ID
-    );
-    if (syncId !== id) {
-      console.log("Syncing local instance ID to sync storage:", id);
-      needsSyncSet = true;
-    }
-  }
-
-  if (needsLocalSet) {
+    id = globalThis.crypto.randomUUID();
+    console.log("Generated new instance ID:", id);
     await storage.set(
       browser.storage.local,
       LOCAL_STORAGE_KEYS.INSTANCE_ID,
       id
     );
-  }
-  if (needsSyncSet) {
-    await storage.set(browser.storage.sync, LOCAL_STORAGE_KEYS.INSTANCE_ID, id);
+  } else {
+    console.log("Retrieved instance ID from local storage:", id);
   }
   return id;
 }
@@ -166,55 +142,40 @@ export async function getInstanceName() {
     browser.storage.local,
     LOCAL_STORAGE_KEYS.INSTANCE_NAME
   );
-  let needsLocalSet = false;
-  let needsSyncSet = false;
 
   if (!name) {
-    name = await storage.get(
-      browser.storage.sync,
-      LOCAL_STORAGE_KEYS.INSTANCE_NAME
-    );
-    if (!name) {
-      try {
-        const platformInfo = await browser.runtime.getPlatformInfo();
-        let osName =
-          platformInfo.os.charAt(0).toUpperCase() + platformInfo.os.slice(1);
-        if (osName === "Mac") osName = "Mac";
-        if (osName === "Win") osName = "Windows";
-        name = `${osName} Device`;
-      } catch (e) {
-        name = "My Device";
-      }
-      needsLocalSet = true;
-      needsSyncSet = true;
-    } else {
-      console.log("Retrieved instance name from sync, saving locally:", name);
-      needsLocalSet = true;
+    // Generate a default name if none exists locally
+    try {
+      const platformInfo = await getPlatformInfoCached(); // Use cached version
+      let osName =
+        platformInfo.os.charAt(0).toUpperCase() + platformInfo.os.slice(1);
+      // Simplify OS naming
+      if (osName === "Mac") osName = "Mac";
+      else if (osName === "Win") osName = "Windows";
+      else if (osName === "Linux") osName = "Linux";
+      else if (osName === "Android") osName = "Android";
+      // Add more OS mappings if needed
+      name = `${osName} Device`;
+    } catch (e) {
+      console.warn("Could not get platform info for default name:", e);
+      name = "My Device"; // Fallback default
     }
-  } else {
-    const syncName = await storage.get(
-      browser.storage.sync,
-      LOCAL_STORAGE_KEYS.INSTANCE_NAME
-    );
-    if (syncName !== name) {
-      console.log("Syncing local instance name to sync storage:", name);
-      needsSyncSet = true;
-    }
-  }
-
-  if (needsLocalSet) {
+    console.log("Generated default instance name:", name);
     await storage.set(
       browser.storage.local,
       LOCAL_STORAGE_KEYS.INSTANCE_NAME,
       name
     );
-  }
-  if (needsSyncSet) {
-    await storage.set(
-      browser.storage.sync,
-      LOCAL_STORAGE_KEYS.INSTANCE_NAME,
-      name
-    );
+    // Also attempt to set it in the device registry immediately if possible
+    // Note: This might race with initial heartbeat, but is generally safe.
+    const instanceId = await getInstanceId(); // Ensure ID is available
+    if (instanceId) {
+      await mergeSyncStorage(SYNC_STORAGE_KEYS.DEVICE_REGISTRY, { [instanceId]: { name } });
+    }
+  } else {
+    console.log("Retrieved instance name from local storage:", name);
+    // Optional: Could add a check here against deviceRegistry and update local if needed,
+    // but heartbeat/sync changes should handle this eventually.
   }
   return name;
 }
@@ -758,6 +719,28 @@ export async function processIncomingTabs(
   }
 }
 
+// Helper to process tabs specifically on Android (used by popup and options)
+export async function processIncomingTabsAndroid(state) {
+  await processIncomingTabs(
+    state,
+    // Function to open tab
+    async (url, title) => {
+      // Consider adding error handling for tab creation
+      try {
+        await browser.tabs.create({ url, title, active: false });
+      } catch (e) {
+        console.error(`Failed to create tab for ${url}:`, e);
+        // Optionally notify user
+      }
+    },
+    // Function to update processed tasks in local storage
+    async (updated) => {
+      await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, updated);
+    }
+  );
+}
+
+
 export async function subscribeToGroupUnified(groupName, isAndroidPlatform) {
   if (isAndroidPlatform) {
     return await subscribeToGroupDirect(groupName);
@@ -948,7 +931,8 @@ export async function performHeartbeat(
 
 export async function performStaleDeviceCheck(
   cachedDeviceRegistry,
-  cachedGroupState
+  cachedGroupState,
+  thresholdMs // Add threshold parameter
 ) {
   console.log("Performing stale device check...");
   let registry =
@@ -971,8 +955,7 @@ export async function performStaleDeviceCheck(
   let needsRegistryUpdate = false;
   let needsGroupStateUpdate = false;
   for (const deviceId in registry) {
-    if (now - registry[deviceId].lastSeen > 1000 * 60 * 60 * 24 * 30) {
-      // 30 days
+    if (now - (registry[deviceId]?.lastSeen || 0) > thresholdMs) { // Use parameter
       console.log(
         `Device ${deviceId} (${registry[deviceId].name}) is stale. Pruning...`
       );
@@ -1020,7 +1003,10 @@ export async function performStaleDeviceCheck(
   console.log("Stale device check complete.");
 }
 
-export async function performTimeBasedTaskCleanup(localProcessedTasks) {
+export async function performTimeBasedTaskCleanup(
+  localProcessedTasks,
+  thresholdMs // Add threshold parameter
+) {
   console.log("Performing time-based task cleanup...");
   const allGroupTasks = await storage.get(
     browser.storage.sync,
@@ -1036,8 +1022,7 @@ export async function performTimeBasedTaskCleanup(localProcessedTasks) {
   for (const groupName in allGroupTasks) {
     for (const taskId in allGroupTasks[groupName]) {
       const task = allGroupTasks[groupName][taskId];
-      if (now - task.creationTimestamp > 1000 * 60 * 60 * 24 * 14) {
-        // 14 days
+      if (now - (task?.creationTimestamp || 0) > thresholdMs) { // Use parameter
         console.log(`Task ${taskId} in group ${groupName} expired. Deleting.`);
         if (!groupTasksUpdates[groupName]) groupTasksUpdates[groupName] = {};
         groupTasksUpdates[groupName][taskId] = null;
@@ -1215,7 +1200,6 @@ export function debounce(fn, delay) {
  * Toggles the visibility and content of a loading indicator element.
  * @param {HTMLElement} indicatorElement - The DOM element for the loading indicator.
  * @param {boolean} isLoading - True to show loading, false to hide.
- * @param {string} loadingText - Text to display when loading (defaults to 'Loading...').
  */
 export function showLoadingIndicator(
   indicatorElement,

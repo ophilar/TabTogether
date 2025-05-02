@@ -5,6 +5,7 @@ import {
   LOCAL_STORAGE_KEYS,
   sendTabToGroupDirect,
   processIncomingTabs,
+  processIncomingTabsAndroid, // Import the shared function
   getUnifiedState,
   showAndroidBanner,
   setLastSyncTime,
@@ -12,6 +13,7 @@ import {
   showLoadingIndicator,
   showMessage,
   clearMessage,
+  performHeartbeat,
 } from "./utils.js";
 import { injectSharedUI } from "./shared-ui.js";
 import { applyThemeFromStorage } from "./theme.js";
@@ -54,11 +56,40 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
   if (dom.refreshLink) {
-    dom.refreshLink.addEventListener("click", (e) => {
+    dom.refreshLink.addEventListener("click", async (e) => { // Make handler async
       const syncIcon = dom.refreshLink.querySelector(".sync-icon-svg"); // Select the icon
       e.preventDefault();
+
+      // Prevent multiple clicks while syncing
+      if (syncing) return;
+      syncing = true; // Set flag immediately
+      dom.refreshLink.style.pointerEvents = 'none'; // Disable clicks visually
+
       if (syncIcon) syncIcon.classList.add("syncing-icon"); // Start animation immediately for responsiveness
-      loadStatus(); // Trigger a refresh/sync
+      const startTime = Date.now(); // Record start time
+
+      try {
+        await loadStatus(); // Refresh popup view & process tabs (Android)
+
+        // After successful load/process, update local sync time.
+        // Only trigger background heartbeat on non-Android platforms.
+        if (!(await isAndroid())) {
+          await browser.runtime.sendMessage({ action: "heartbeat" });
+        } else {
+          await performHeartbeat(); // Ensure heartbeat is performed
+        }
+        const now = new Date();
+        await storage.set(browser.storage.local, "lastSync", now.getTime());
+        showMessage(dom.messageArea, 'Sync complete.', false); // Show success in popup
+      } finally {
+        const duration = Date.now() - startTime;
+        const minAnimationTime = 500; // Minimum animation time
+        if (syncIcon) {
+          setTimeout(() => syncIcon.classList.remove('syncing-icon'), Math.max(0, minAnimationTime - duration));
+        }
+        dom.refreshLink.style.pointerEvents = ''; // Re-enable clicks
+        syncing = false; // Reset syncing flag *only* in finally
+      }
     });
   }
 
@@ -96,10 +127,10 @@ async function loadStatus() {
   if (syncing) return; // Prevent concurrent runs
 
   const syncIcon = dom.refreshLink?.querySelector(".sync-icon-svg"); // Select icon if refreshLink exists
-  syncing = true;
+  // syncing = true; // Moved to click handler
   showLoadingIndicator(dom.loadingIndicator, true);
   clearMessage(dom.messageArea); // Clear previous messages
-
+  let syncError = null; // Track errors to prevent heartbeat on failure
   try {
     const isAndroidPlatform = await isAndroid();
     let state = await getUnifiedState(isAndroidPlatform);
@@ -122,6 +153,7 @@ async function loadStatus() {
     renderSubscriptionsUI(state.subscriptions);
     renderSendTabGroups(state.definedGroups); // Uses the combined button approach
   } catch (error) {
+    syncError = error; // Store error
     console.error("Error loading popup status:", error);
     // Use consistent message area
     showMessage(dom.messageArea, STRINGS.loadingSettingsError(error.message), true);
@@ -134,34 +166,13 @@ async function loadStatus() {
       dom.subscriptionsUl.innerHTML = `<li>${STRINGS.error}</li>`;
   } finally {
     showLoadingIndicator(dom.loadingIndicator, false); // Hide loading indicator
-    if (syncIcon) syncIcon.classList.remove("syncing-icon"); // Stop animation
-    syncing = false; // Allow syncing again
-  }
-}
+    // if (syncIcon) syncIcon.classList.remove("syncing-icon"); // Moved to click handler
+    // syncing = false; // Moved to click handler's finally block
 
-// Helper to process tabs specifically on Android
-async function processIncomingTabsAndroid(state) {
-  await processIncomingTabs(
-    state,
-    // Function to open tab
-    async (url, title) => {
-      // Consider adding error handling for tab creation
-      try {
-        await browser.tabs.create({ url, title, active: false });
-      } catch (e) {
-        console.error(`Failed to create tab for ${url}:`, e);
-        // Optionally notify user
-      }
-    },
-    // Function to update processed tasks in local storage
-    async (updated) => {
-      await storage.set(
-        browser.storage.local,
-        LOCAL_STORAGE_KEYS.PROCESSED_TASKS,
-        updated
-      );
-    }
-  );
+    // Re-throw error if one occurred, so the click handler's try/catch can handle it
+    // and prevent the heartbeat/local sync time update on failure.
+    if (syncError) throw syncError;
+  }
 }
 
 // Renders the device name

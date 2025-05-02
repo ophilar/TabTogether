@@ -29,8 +29,8 @@ const HEARTBEAT_INTERVAL_MIN = 5; // Every 5 minutes
 const STALE_CHECK_INTERVAL_MIN = 60 * 24; // Every day
 const TASK_CLEANUP_INTERVAL_MIN = 60 * 24 * 2; // Every 2 days
 
-const STALE_DEVICE_THRESHOLD_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
-const TASK_EXPIRY_MS = 1000 * 60 * 60 * 24 * 14; // 14 days
+const DEFAULT_STALE_DEVICE_THRESHOLD_DAYS = 30;
+const DEFAULT_TASK_EXPIRY_DAYS = 14;
 
 // --- Initialization ---
 
@@ -162,6 +162,15 @@ browser.alarms.onAlarm.addListener(async (alarm) => {
     {}
   );
 
+  // Get configurable thresholds from local storage, with defaults
+  const staleThresholdDays = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.STALE_DEVICE_THRESHOLD_DAYS, DEFAULT_STALE_DEVICE_THRESHOLD_DAYS);
+  const taskExpiryDays = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.TASK_EXPIRY_DAYS, DEFAULT_TASK_EXPIRY_DAYS);
+
+  // Convert days to milliseconds for use in functions
+  const currentStaleDeviceThresholdMs = staleThresholdDays * 24 * 60 * 60 * 1000;
+  const currentTaskExpiryMs = taskExpiryDays * 24 * 60 * 60 * 1000;
+
+
   console.log(`Alarm triggered: ${alarm.name}`);
   switch (alarm.name) {
     case ALARM_HEARTBEAT:
@@ -173,10 +182,14 @@ browser.alarms.onAlarm.addListener(async (alarm) => {
       );
       break;
     case ALARM_STALE_CHECK:
-      await performStaleDeviceCheck(cachedDeviceRegistry, cachedGroupState);
+      await performStaleDeviceCheck(
+        cachedDeviceRegistry,
+        cachedGroupState,
+        currentStaleDeviceThresholdMs // Pass dynamically loaded value
+      );
       break;
     case ALARM_TASK_CLEANUP:
-      await performTimeBasedTaskCleanup(localProcessedTasks);
+      await performTimeBasedTaskCleanup(localProcessedTasks, currentTaskExpiryMs); // Pass dynamically loaded value
       break;
   }
 });
@@ -553,12 +566,17 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
         response = { success: false, message: "Invalid name provided." };
       } else {
         localInstanceName = request.name.trim();
+        // 1. Update local storage cache
         await storage.set(
           browser.storage.local,
           LOCAL_STORAGE_KEYS.INSTANCE_NAME,
           localInstanceName
         );
-        await performHeartbeat(
+        // 2. Update the deviceRegistry in sync storage (source of truth)
+        //    performHeartbeat handles merging this into the registry.
+        //    Ensure cachedDeviceRegistry is passed so the cache can be updated too.
+        //    Make sure cachedDeviceRegistry is reliably available here.
+        await performHeartbeat( // Heartbeat updates the name in the registry
           localInstanceId,
           localInstanceName,
           localGroupBits,
