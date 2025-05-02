@@ -1,6 +1,6 @@
 // options.js
 
-import { STRINGS, DEFAULT_DEVICE_ICON } from "./constants.js";
+import { STRINGS } from "./constants.js";
 import {
   renderGroupList,
   isAndroid,
@@ -193,6 +193,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Setup and load advanced timing settings
   setupAdvancedTimingListeners();
   loadAdvancedTimingSettings();
+
+  // Listen for messages from the background script indicating data changes
+  browser.runtime.onMessage.addListener((message) => {
+    if (message.action === "syncDataChanged") {
+      console.log("Options page received syncDataChanged message, reloading state...");
+      loadState(); // Reload the state to update the UI
+    }
+  });
+
   loadState(); // Load initial state after setting up listeners
 });
 
@@ -846,14 +855,4 @@ async function handleRemoveSelfDevice() {
   } finally {
     showLoadingIndicator(dom.loadingIndicator, false);
   }
-}
-
-async function loadDeviceIcon() {
-  const icon = await storage.get(
-    browser.storage.local,
-    "myDeviceIcon",
-    DEFAULT_DEVICE_ICON
-  );
-  deviceIconSelect.value = icon;
-  deviceIconPreview.textContent = icon;
 }
