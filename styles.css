@@ -12,11 +12,7 @@ html {
 
 :root {
   /* Base Colors */
-  --main-orange-light: #ff9400;
   --main-orange-dark: #c75c00;
-  --main-blue-light: #eaf3fb;
-  --main-blue-dark: #b3cbe6;
-  --main-blue-dark-hover: #9cb0c7;
   --main-grey-light: #6c757d55; /* For secondary actions */
   --main-grey-dark: #4950577d;
   --main-red-light: #dc3545; /* For danger actions */
@@ -28,8 +24,6 @@ html {
   --main-border: #ffe0b2;
   --main-text: #2a2a2a;
   --main-accent: #ff9400; /* Primary accent/action color */
-  --main-blue: #eaf3fb; /* Often used for subtle backgrounds/borders */
-  --main-orange-bg: #f7c59f; /* Specific orange background */
   --main-orange: #ff9400; /* Specific orange text/element color */
 
   /* Button States */
@@ -55,8 +49,6 @@ html {
   --main-loading-text: #b26a00; /* Specific loading color */
 
   /* Shadows */
-  --main-shadow-popup: 0 2px 16px rgba(180, 200, 230, 0.10);
-  --main-shadow-button-small: 0 1px 2px rgba(180, 200, 230, 0.09);
   --main-shadow-button-primary: 0 1px 2px rgba(255,148,0,0.09);
   --main-shadow-container: 0 2px 16px rgba(255,148,0,0.09);
 
@@ -70,14 +62,12 @@ html {
   --main-border: #333;
   --main-text: #f7f7f7;
   --main-accent: #ffb84d44;
-  --main-blue: #b3cbe659;
-  --main-orange-bg: #e6a86b52;
   --main-orange: #c75c00; /* Darker orange for dark theme */
 
   /* Button States - Dark */
   --main-button-primary-bg: #4a4a4a; /* Darker grey for better contrast */
-  --main-button-primary-hover-bg: #5a5a5a; /* Slightly lighter grey for hover */
-  --main-button-secondary-bg: var(--main-grey-dark);
+  --main-button-primary-hover-bg: #5a5a5a;
+  --main-button-secondary-bg: #3a3a3a; /* Adjusted dark secondary */
   --main-button-secondary-hover-bg: var(--main-grey-light);
   --main-button-danger-bg: var(--main-red-dark);
   --main-button-danger-hover-bg: var(--main-red-light);
@@ -98,8 +88,6 @@ html {
 
   /* Shadows - Dark */
   /* Adjust dark theme shadows as needed, e.g., less intense */
-  --main-shadow-popup: 0 2px 10px rgba(0, 0, 0, 0.2);
-  --main-shadow-button-small: 0 1px 2px rgba(0, 0, 0, 0.2);
   --main-shadow-button-primary: 0 1px 2px rgba(0, 0, 0, 0.2);
   --main-shadow-container: 0 2px 10px rgba(0, 0, 0, 0.2);
 }
@@ -133,6 +121,16 @@ h1, h2 {
   transition: color var(--transition), border-color var(--transition);
 }
 
+a {
+  color: var(--main-accent);
+  text-decoration: none;
+  transition: color var(--transition);
+}
+a:hover {
+  color: var(--main-orange-dark);
+  text-decoration: underline;
+}
+
 hr {
   border: 0;
   border-top: 1px solid var(--main-border);
@@ -155,6 +153,9 @@ legend {
   font-size: 1.08em;
   transition: color var(--transition);
 }
+[data-theme="dark"] legend {
+  transition: color var(--transition);
+}
 
 /* Forms & Inputs */
 .setting-item {
@@ -175,7 +176,11 @@ input[type="text"] {
   border-radius: 5px;
   flex-grow: 1;
   font-size: 1em;
-  background-color: var(--main-bg);
+  background-color: var(--main-card); /* Use card background for inputs */
+  transition: border-color var(--transition), background-color var(--transition), color var(--transition);
+}
+[data-theme="dark"] input[type="text"] {
+  background-color: var(--main-card); /* Ensure dark theme uses card bg */
   transition: border-color var(--transition), background-color var(--transition), color var(--transition);
 }
 input[type="text"]:focus {
@@ -272,20 +277,6 @@ button.inline-btn {
 }
 
 /* Component-Specific Styles */
-.device-last-seen {
-  margin-left: 10px;
-  font-size: 0.95em;
-  opacity: 0.8;
-}
-
-.this-device {
-  font-weight: bold;
-}
-
-.group-name-label {
-  cursor: pointer;
-}
-
 .rename-group-input {
   margin-right: 8px;
 }
@@ -377,12 +368,6 @@ button.inline-btn {
 [data-theme="dark"] .inline-edit-cancel {
     color: var(--main-button-text); /* Ensure dark mode also uses standard text color */
 } .device-icon-preview {
-  font-size: 1.5em;
-  margin-left: 8px;
-  vertical-align: middle; /* Optional: Helps align the emoji better with text */
-}
-
-.numeric-input-small {
   width: 60px;
 }
 
@@ -400,8 +385,8 @@ button.inline-btn {
 }
 
 .modal-content {
-  background: var(--background-color, #fff); /* Use theme variable or fallback */
-  color: var(--text-color, #000); /* Use theme variable or fallback */
+  background: var(--main-card); /* Use theme variable */
+  color: var(--main-text); /* Use theme variable */
   padding: 32px 24px 24px 24px;
   border-radius: 12px;
   max-width: 420px;
@@ -409,6 +394,7 @@ button.inline-btn {
   box-shadow: 0 2px 16px rgba(0, 0, 0, 0.18);
   text-align: left;
 }
+[data-theme="dark"] .modal-content { transition: background-color var(--transition), color var(--transition); } /* Add transition */
 
 .modal-actions {
   margin-top: 18px;
@@ -428,11 +414,6 @@ button.inline-btn {
     display: none; /* Override the flex display when hidden */
 }
 
-
-.sync-icon-svg {
-  vertical-align: middle;
-  /* Add any other styles specific to this icon if needed */
-}
 
 /* Ensure list items accommodate the inline controls */
 #definedGroupsList li > span:first-child,
@@ -504,11 +485,6 @@ button.inline-btn {
   margin-left: 7px; /* Consistent with group actions */
 }
 /* Inline Confirmation Buttons */
-.confirm-delete-container button {
-  margin-left: 5px;
-  padding: 4px 8px; /* Smaller padding for inline confirm */
-  font-size: 0.9em; /* Slightly smaller text */
-}
 
 /* Collapsible Sections */
 .options-section {
@@ -544,6 +520,11 @@ button.inline-btn {
   background-color: transparent; /* Inherit background */
 }
 
+/* Link color override for dark theme if needed */
+[data-theme="dark"] a {
+  color: var(--main-orange); /* Use a lighter orange or accent */
+}
+[data-theme="dark"] a:hover { color: var(--main-accent); } /* Adjust hover if needed */
 /* Responsive */
 @media (max-width: 700px) {
   .container {
