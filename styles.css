@@ -17,6 +17,7 @@ html {
   --main-grey-dark: #4950577d;
   --main-red-light: #dc3545; /* For danger actions */
   --main-red-dark: #b71c1c;
+  --main-blue-light: #e7f5ff; /* Example light blue for highlights */
 
   /* Base Theme Variables (Defaults to Light) */
   --main-bg: #fcefe7;
@@ -73,6 +74,7 @@ html {
   --main-button-danger-hover-bg: var(--main-red-light);
   --main-button-disabled-bg: #333;
   --main-button-text: #ffffff; /* Default text for ALL buttons in dark mode */
+  --main-blue-light: #2a3a4a; /* Darker blue/grey for dark theme highlights */
   --main-button-secondary-text: var(--main-button-text); /* Use main text color */
   --main-button-danger-text: #ffffff;
   --main-button-disabled-text: #777;
