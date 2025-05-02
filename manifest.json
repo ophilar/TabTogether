@@ -15,6 +15,7 @@
     "96": "icons/icon-96.png",
     "128": "icons/icon-128.png"
   },
+  "license": "MIT",
   "background": {
     "scripts": ["utils.js", "background.js"],
     "type": "module"
