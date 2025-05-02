@@ -2,10 +2,8 @@
 
 import { STRINGS, DEFAULT_DEVICE_ICON } from "./constants.js";
 import {
-  renderDeviceName,
   renderGroupList,
   isAndroid,
-  SYNC_STORAGE_KEYS,
   LOCAL_STORAGE_KEYS,
   createGroupDirect,
   deleteGroupDirect,
@@ -47,7 +45,7 @@ const syncStatus = document.getElementById("syncStatus");
 // Manual sync handler
 if (manualSyncBtn) {
   manualSyncBtn.addEventListener("click", async () => {
-    const syncIcon = manualSyncBtn.querySelector('.sync-icon-svg'); // Select the icon
+    const syncIcon = manualSyncBtn.querySelector('.sync-icon-svg');
     showLoadingIndicator(dom.loadingIndicator, true);
     manualSyncBtn.disabled = true; // Disable button during operation
     if (syncIcon) syncIcon.classList.add('syncing-icon'); // Start animation
@@ -70,7 +68,7 @@ if (manualSyncBtn) {
       console.error("Manual sync failed:", error);
       showError(`Sync failed: ${error.message || 'Unknown error'}`, dom.messageArea);
     } finally {
-      showLoadingIndicator(dom.loadingIndicator, false);
+      showLoadingIndicator(dom.loadingIndicator, false); // Don't show/hide the separate indicator
       if (syncIcon) syncIcon.classList.remove('syncing-icon'); // Stop animation
       manualSyncBtn.disabled = false; // Re-enable button
     }
@@ -376,11 +374,6 @@ function renderDefinedGroups() {
   );
 }
 
-function renderSubscriptionsUI() {
-  // If you want to show subscriptions in options, call this with the right container
-  // renderSubscriptions(subscriptionsContainer, currentState.subscriptions);
-}
-
 // --- Group Rename ---
 function startRenameGroup(oldName, nameSpan) {
   // Prevent starting another edit if one is already active in this list item
@@ -415,12 +408,6 @@ async function finishRenameGroup(oldName, newName, nameSpan, inlineControlsConta
     cancelInlineEdit(nameSpan, inlineControlsContainer);
     return;
   }
-
-  // Confirmation is optional for inline editing, remove if desired
-  // if (!confirm(STRINGS.confirmRenameGroup(oldName, newName))) {
-  //     cancelInlineEdit(nameSpan, inlineControlsContainer);
-  //     return;
-  // }
 
   showLoadingIndicator(dom.loadingIndicator, true);
   let success = false;

@@ -20,3 +20,13 @@
   width: 16px;
   height: 16px;
 }
+
+/* Add rotation animation */
+@keyframes rotate-sync-icon {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.syncing-icon {
+  animation: rotate-sync-icon 1s linear infinite;
+}

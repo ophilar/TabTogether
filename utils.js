@@ -1220,7 +1220,6 @@ export function debounce(fn, delay) {
 export function showLoadingIndicator(
   indicatorElement,
   isLoading,
-  loadingText = "Loading..."
 ) {
   if (!indicatorElement) {
     console.warn("showLoadingIndicator: Indicator element not found.");
@@ -1237,17 +1236,8 @@ export function showLoadingIndicator(
       spinner.className = "spinner";
       indicatorElement.prepend(spinner); // Add spinner at the beginning
     }
-    // Add text content after the spinner
-    // Clear existing text nodes first to avoid duplication
-    indicatorElement.childNodes.forEach((node) => {
-      if (node.nodeType === Node.TEXT_NODE) {
-        node.remove();
-      }
-    });
-    indicatorElement.appendChild(document.createTextNode(` ${loadingText}`)); // Add space before text
   } else {
-    // Clear content when not loading
-    indicatorElement.innerHTML = "";
+    indicatorElement.innerHTML = ""; // Clear content (spinner) when not loading
   }
 }
 
