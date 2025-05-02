@@ -4,12 +4,13 @@ import { STRINGS, DEFAULT_DEVICE_ICON } from "./constants.js";
 import {
   renderGroupList,
   isAndroid,
-  LOCAL_STORAGE_KEYS,
+  SYNC_STORAGE_KEYS, // Use SYNC keys for shared settings
   createGroupDirect,
   deleteGroupDirect,
   renameGroupDirect,
   deleteDeviceDirect,
   processIncomingTabs,
+  processIncomingTabsAndroid, // Import the shared function
   getUnifiedState,
   subscribeToGroupUnified,
   unsubscribeFromGroupUnified,
@@ -34,6 +35,8 @@ const dom = {
   createGroupBtn: document.getElementById("createGroupBtn"),
   loadingIndicator: document.getElementById("loadingIndicator"),
   messageArea: document.getElementById("messageArea"),
+  staleDeviceThresholdInput: document.getElementById("staleDeviceThresholdInput"),
+  taskExpiryInput: document.getElementById("taskExpiryInput"),
   testNotificationBtn: document.getElementById("testNotificationBtn"),
 };
 
@@ -108,6 +111,37 @@ storage.get(browser.storage.local, "lastSync", null).then((ts) => {
     syncStatus.textContent = "Last sync: " + new Date(ts).toLocaleString();
 });
 
+// --- Advanced Timing Settings ---
+
+const DEFAULT_STALE_THRESHOLD_DAYS = 30;
+const DEFAULT_TASK_EXPIRY_DAYS = 14;
+
+async function loadAdvancedTimingSettings() {
+  const staleDays = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.STALE_DEVICE_THRESHOLD_DAYS, DEFAULT_STALE_THRESHOLD_DAYS);
+  const taskDays = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.TASK_EXPIRY_DAYS, DEFAULT_TASK_EXPIRY_DAYS);
+  if (dom.staleDeviceThresholdInput) dom.staleDeviceThresholdInput.value = staleDays;
+  if (dom.taskExpiryInput) dom.taskExpiryInput.value = taskDays;
+}
+
+function setupAdvancedTimingListeners() {
+  if (dom.staleDeviceThresholdInput) {
+    dom.staleDeviceThresholdInput.addEventListener('change', async (e) => {
+      let val = parseInt(e.target.value, 10);
+      if (isNaN(val) || val < 1) val = DEFAULT_STALE_THRESHOLD_DAYS; // Reset to default if invalid
+      dom.staleDeviceThresholdInput.value = val; // Update input field in case it was corrected
+      await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.STALE_DEVICE_THRESHOLD_DAYS, val);
+    });
+  }
+  if (dom.taskExpiryInput) {
+    dom.taskExpiryInput.addEventListener('change', async (e) => {
+      let val = parseInt(e.target.value, 10);
+      if (isNaN(val) || val < 1) val = DEFAULT_TASK_EXPIRY_DAYS; // Reset to default if invalid
+      dom.taskExpiryInput.value = val; // Update input field
+      await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.TASK_EXPIRY_DAYS, val);
+    });
+  }
+}
+
 // --- Initialization ---
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -155,6 +189,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
     loadNotificationSettings();
   }
+
+  // Setup and load advanced timing settings
+  setupAdvancedTimingListeners();
+  loadAdvancedTimingSettings();
   loadState(); // Load initial state after setting up listeners
 });
 
@@ -264,22 +302,6 @@ async function loadState() {
   }
 }
 
-async function processIncomingTabsAndroid(state) {
-  await processIncomingTabs(
-    state,
-    async (url) => {
-      await browser.tabs.create({ url, active: false });
-    },
-    async (updated) => {
-      await storage.set(
-        browser.storage.local,
-        LOCAL_STORAGE_KEYS.PROCESSED_TASKS,
-        updated
-      );
-    }
-  );
-}
-
 function renderAll() {
   if (!currentState) return;
   renderDeviceRegistry();
@@ -302,7 +324,15 @@ function renderDeviceRegistry() {
   ul.className = 'registry-list'; // Add class for styling
 
   Object.entries(devices)
-    .sort((a, b) => (a[1]?.name || '').localeCompare(b[1]?.name || ''))
+    .sort((a, b) => {
+      const [idA] = a;
+      const [idB] = b;
+      // Prioritize the current device
+      if (idA === localId) return -1; // a comes first
+      if (idB === localId) return 1;  // b comes first
+      // Otherwise, sort alphabetically by name
+      return (a[1]?.name || '').localeCompare(b[1]?.name || '');
+    })
     .forEach(([id, device]) => {
       const li = document.createElement('li');
       li.setAttribute('role', 'listitem');
@@ -310,9 +340,6 @@ function renderDeviceRegistry() {
       li.className = 'registry-list-item'; // Add class for styling
 
       if (id === localId) {
-          li.classList.add('this-device');
-          // Optionally add "(This Device)" text or an icon
-          // nameSpan.textContent += ' (This Device)';
       }
 
       // Container for name and last seen (allows inline edit controls to fit)
@@ -320,7 +347,13 @@ function renderDeviceRegistry() {
       nameAndInfoDiv.className = 'registry-item-info'; // Add class for styling
 
       const nameSpan = document.createElement('span');
-      nameSpan.textContent = device.name || STRINGS.deviceNameNotSet; // Use constant
+      // Make current device name bold
+      if (id === localId) {
+          nameSpan.innerHTML = `<strong>${device.name || STRINGS.deviceNameNotSet}</strong> (This Device)`;
+          li.classList.add('this-device'); // Keep highlighting the row
+      } else {
+          nameSpan.textContent = device.name || STRINGS.deviceNameNotSet; // Use constant
+      }
       // Only allow renaming for the current device within this list
       if (id === localId) {
           nameSpan.style.cursor = 'pointer'; // Indicate clickable

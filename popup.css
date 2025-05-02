@@ -38,13 +38,15 @@ body {
   align-items: center;
   gap: 10px;
   padding: 10px 0;
+  margin-bottom: 4px; /* Space out list items */
+  line-height: 1.4; /* Ensure wrapped text is readable */
   transition: background-color var(--transition);
 }
 
 #subscriptionsUl li .list-item-label {
   flex-grow: 1;
   font-weight: 500;
-  color: var(--main-text);
+  color: var(--main-text, #333); /* Ensure primary text color has good contrast */
   font-size: 1em;
 }
 
@@ -57,10 +59,12 @@ body {
 
 /* --- Details Section --- */
 .popup-details {
-  margin-top: 10px;
-  padding-top: 10px;
-  font-size: 0.9em;
-  color: var(--main-grey-light);
+  margin-top: 10px; /* Keep margin */
+  padding: 10px 0 5px 0; /* Adjust padding (top, sides, bottom) */
+  font-size: 0.95em; /* Slightly larger base font for details */
+  /* Use a more legible text color, ensure good contrast */
+  color: var(--main-grey-dark, #44444482);
+  /* line-height is handled by list items now */
   /* Divider appears when details are shown */
   border-top: 1px solid var(--main-border);
 }
@@ -71,17 +75,6 @@ body {
   margin-top: 0;
   padding-top: 0;
 }
-
-.popup-detail-row {
-  margin-bottom: 5px;
-}
-
-.popup-detail-label {
-  font-weight: bold;
-  color: var(--main-grey-dark);
-  margin-right: 5px;
-}
-
 /* --- Footer --- */
 .popup-footer {
   display: flex;
@@ -123,6 +116,18 @@ body {
 
 [data-theme="dark"] .popup-footer .popup-link:hover {
   color: var(--main-orange-light);
+}
+
+/* --- Dark Theme Adjustments for List Items --- */
+[data-theme="dark"] #subscriptionsUl li .list-item-label {
+  color: var(--main-text-dark, #eee); /* Use light text color for dark theme */
+}
+
+/* --- Dark Theme Adjustments for Details --- */
+[data-theme="dark"] .popup-details {
+  color: var(--main-grey-light, #ccc); /* Lighter text for dark background */
+  border-top-color: var(--main-border-dark, #555); /* Adjust border color if needed */
+  /* Background is inherited from .container */
 }
 
 /* --- Other Styles --- */

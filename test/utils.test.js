@@ -211,9 +211,10 @@ describe('utils', () => {
         test('getInstanceId generates new ID if none exists', async () => {
             const id = await utils.getInstanceId(); // Call without argument
             expect(id).toBe('mock-uuid-1234');
+            // Check it saves the new ID ONLY to local storage
             expect(globalThis.crypto.randomUUID).toHaveBeenCalledTimes(1);
-            expect(mockStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_ID]: 'mock-uuid-1234' });
-            expect(mockSyncStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_ID]: 'mock-uuid-1234' });
+            expect(mockStorage.set).toHaveBeenCalledWith({[utils.LOCAL_STORAGE_KEYS.INSTANCE_ID]: 'mock-uuid-1234'});
+            expect(mockSyncStorage.set).not.toHaveBeenCalled();
         });
 
         test('getInstanceId retrieves from local storage first', async () => {
@@ -221,19 +222,18 @@ describe('utils', () => {
             const id = await utils.getInstanceId(); // Call without argument
             expect(id).toBe('local-id');
             expect(globalThis.crypto.randomUUID).not.toHaveBeenCalled();
-            // Check it syncs the local ID to sync storage
-            expect(mockSyncStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_ID]: 'local-id' });
+            // Check it doesn't try to write to sync storage
+            expect(mockSyncStorage.set).not.toHaveBeenCalled();
         });
 
         test('getInstanceId retrieves from sync storage if local is empty', async () => {
-            mockSyncStorage._getStore()[utils.LOCAL_STORAGE_KEYS.INSTANCE_ID] = 'sync-id';
+            // This scenario is no longer valid - ID is local only
+            // mockSyncStorage._getStore()[utils.LOCAL_STORAGE_KEYS.INSTANCE_ID] = 'sync-id';
             const id = await utils.getInstanceId(); // Call without argument
-            expect(id).toBe('sync-id');
-            expect(globalThis.crypto.randomUUID).not.toHaveBeenCalled();
-            // Check it saves the sync ID to local storage
-            expect(mockStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_ID]: 'sync-id' });
-            // Check it re-saves to sync storage (idempotent)
-            expect(mockSyncStorage.set).not.toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_ID]: 'sync-id' });
+            expect(id).toBe('mock-uuid-1234'); // Should generate a new one if local is empty
+            expect(globalThis.crypto.randomUUID).toHaveBeenCalledTimes(1);
+            expect(mockStorage.set).toHaveBeenCalledWith({[utils.LOCAL_STORAGE_KEYS.INSTANCE_ID]: 'mock-uuid-1234'});
+            expect(mockSyncStorage.set).not.toHaveBeenCalled();
         });
 
         test('getInstanceName generates default name if none exists', async () => {
@@ -241,14 +241,19 @@ describe('utils', () => {
             const name = await utils.getInstanceName();
             expect(name).toBe('Mac Device');
             expect(global.browser.runtime.getPlatformInfo).toHaveBeenCalledTimes(1);
-            expect(mockStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_NAME]: 'Mac Device' });
-            expect(mockSyncStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_NAME]: 'Mac Device' });
+            // Check it saves to local storage
+            expect(mockStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_NAME]: 'Mac Device' }); // Expect object
+            // Check it attempts to update the deviceRegistry in sync storage
+            expect(mockSyncStorage.set).toHaveBeenCalledWith({ [utils.SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: { 'mock-uuid-1234': { name: 'Mac Device' } } }); // Expect object
         });
 
         test('getInstanceName handles windows platform name', async () => {
             global.browser.runtime.getPlatformInfo.mockResolvedValue({ os: 'win' });
             const name = await utils.getInstanceName();
             expect(name).toBe('Windows Device');
+            expect(global.browser.runtime.getPlatformInfo).toHaveBeenCalledTimes(1);
+            expect(mockStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_NAME]: 'Windows Device' }); // Expect object
+            expect(mockSyncStorage.set).toHaveBeenCalledWith({ [utils.SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: { 'mock-uuid-1234': { name: 'Windows Device' } } }); // Expect object
         });
 
         test('getInstanceName retrieves from local storage first', async () => {
@@ -256,16 +261,17 @@ describe('utils', () => {
             const name = await utils.getInstanceName();
             expect(name).toBe('local-name');
             expect(global.browser.runtime.getPlatformInfo).not.toHaveBeenCalled();
-            expect(mockSyncStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_NAME]: 'local-name' });
+            // Should not write to sync storage when retrieving from local
+            expect(mockSyncStorage.set).not.toHaveBeenCalled();
         });
 
         test('getInstanceName retrieves from sync storage if local is empty', async () => {
-            mockSyncStorage._getStore()[utils.LOCAL_STORAGE_KEYS.INSTANCE_NAME] = 'sync-name';
+            // This scenario is no longer valid - name is cached locally, source of truth is registry (handled by heartbeat)
+            // Default name generation requires platform info
+            // platformInfoSpy = jest.spyOn(utils, 'getPlatformInfoCached').mockResolvedValue({ os: 'win' });
             const name = await utils.getInstanceName();
-            expect(name).toBe('sync-name');
-            expect(global.browser.runtime.getPlatformInfo).not.toHaveBeenCalled();
-            expect(mockStorage.set).toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_NAME]: 'sync-name' });
-            expect(mockSyncStorage.set).not.toHaveBeenCalledWith({ [utils.LOCAL_STORAGE_KEYS.INSTANCE_NAME]: 'sync-name' });
+            expect(name).toBe('Windows Device'); // Should generate default if local is empty
+            expect(global.browser.runtime.getPlatformInfo).toHaveBeenCalledTimes(1); // It WILL be called to generate default
         });
     });
 
@@ -583,8 +589,8 @@ describe('utils', () => {
                 }
             });
 
-            await utils.performStaleDeviceCheck(undefined, undefined); // Pass empty caches
-
+            await utils.performStaleDeviceCheck(undefined, undefined, 1000 * 60 * 60 * 24 * 30); // Pass threshold
+            // Get the final state directly from the mock store after the operation
             const finalRegistry = await mockSyncStorage.get('deviceRegistry');
             const finalGroupState = await mockSyncStorage.get('groupState');
 
@@ -612,9 +618,9 @@ describe('utils', () => {
 
             // Fetch the initial local state to pass to the function, like background.js does
             const fetchedInitialProcessed = await mockStorage.get(utils.LOCAL_STORAGE_KEYS.PROCESSED_TASKS);
-            // Pass the actual object, defaulting to {} if not found (though it should be found here)
-            await utils.performTimeBasedTaskCleanup(fetchedInitialProcessed[utils.LOCAL_STORAGE_KEYS.PROCESSED_TASKS] || {});
-
+            // Pass the actual object and threshold
+            await utils.performTimeBasedTaskCleanup(fetchedInitialProcessed[utils.LOCAL_STORAGE_KEYS.PROCESSED_TASKS] || {}, 1000 * 60 * 60 * 24 * 14);
+            // Get the final state directly from the mock store
             const finalGroupTasks = await mockSyncStorage.get('groupTasks');
             // Use the constant for the key when fetching final state
             const finalProcessed = await mockStorage.get(utils.LOCAL_STORAGE_KEYS.PROCESSED_TASKS);
