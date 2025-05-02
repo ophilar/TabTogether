@@ -1,12 +1,8 @@
 {
   "manifest_version": 3,
   "name": "TabTogether",
-  "version": {
-    "major": 0,
-    "minor": 9,
-    "patch": 0,
+  "version": "0.9.0",
   "license": "MIT"
-  },
   "description": "Send tabs between groups of devices using Firefox Sync.",
   "permissions": [
     "storage",        
