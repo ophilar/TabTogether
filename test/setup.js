@@ -1,5 +1,7 @@
 // test/setup.js
 import { jest } from '@jest/globals';
+// Import the actual utils to use deepMerge
+import * as utils from '../utils.js';
 
 // --- Mock crypto ---
 // Directly mock the function on the global object
