@@ -1,8 +1,5 @@
 // constants.js
 // Shared UI strings and constants for TabTogether
-
-export const DEFAULT_DEVICE_ICON = '💻'; // Or '📱', '🖥️', etc.
-
 export const STRINGS = {
     deviceNameNotSet: '(Not Set)',
     noDevices: 'No devices registered.',
@@ -13,13 +10,13 @@ export const STRINGS = {
     loadingRegistry: 'Loading registry...',
     error: 'Error',
     // Centralized UI/confirmation strings
-    confirmRenameGroup: (oldName, newName) => `Rename group "${oldName}" to "${newName}"?`,
+    // confirmRenameGroup: (oldName, newName) => `Rename group "${oldName}" to "${newName}"?`, // Removed - Inline edit doesn't use confirm
     confirmDeleteGroup: groupName => `Are you sure you want to delete the group "${groupName}"? This cannot be undone and will affect all devices.`,
-    confirmRenameDevice: newName => `Rename device to "${newName}"?`,
-    confirmDeleteDevice: deviceName => `Are you sure you want to delete device "${deviceName}"? This cannot be undone and will affect all groups.`,
+    // confirmRenameDevice: newName => `Rename device to "${newName}"?`, // Removed - Inline edit doesn't use confirm
+    // confirmDeleteDevice: deviceName => `Are you sure you want to delete device "${deviceName}"? This cannot be undone and will affect all groups.`, // Removed - Using custom confirm string
     sendTabToGroup: groupName => `Send current tab to group '${groupName}'`,
     sendTabToGroupAria: groupName => `Send current tab to group ${groupName}`,
-    sendTabToGroupBtn: 'Send Tab to Group',
+    // sendTabToGroupBtn: 'Send Tab to Group', // Removed - Button text generated dynamically
     sendTabFailed: 'Send failed.',
     sendTabError: error => `Error: ${error}`,
     sendTabCannot: 'Cannot send this type of tab.',
@@ -33,8 +30,8 @@ export const STRINGS = {
     groupDeleteFailed: 'Failed to delete group.',
     deviceRenameFailed: 'Rename failed.',
     deviceDeleteFailed: 'Delete failed.',
-    saveNameFailed: 'Failed to save name.',
-    saveNameSuccess: 'Device name saved successfully.',
+    // saveNameFailed: 'Failed to save name.', // Removed - Covered by deviceRenameFailed
+    // saveNameSuccess: 'Device name saved successfully.', // Removed - Covered by deviceRenameSuccess
     loadingSettingsError: error => `Error loading settings: ${error}`,
     testNotificationSent: 'Test notification sent!',
     testNotificationFailed: error => `Failed to send notification: ${error}`,

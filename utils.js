@@ -62,10 +62,11 @@ export const ensureString = (val, fallback = "") =>
 // Avoids race conditions where concurrent updates overwrite each other.
 export async function mergeSyncStorage(key, updates) {
   try {
-    const success = await storage.merge(browser.storage.sync, key, updates);
+    const { success, mergedData } = await storage.merge(browser.storage.sync, key, updates);
 
     if (success) {
-      console.log(`Merged data for key "${key}"`, updates); // Log updates on success
+      // Log the actual merged data if the operation was considered successful (even if no change occurred)
+      console.log(`Merge operation for key "${key}" complete. Result:`, mergedData);
     } else {
       console.error(`Failed to set merged data for key "${key}"`);
       return false; // Return false if set failed
@@ -911,7 +912,7 @@ export async function performHeartbeat(
     console.warn("Heartbeat skipped: Instance ID not available yet.");
     return;
   }
-  console.log("Performing heartbeat...");
+  console.log(`Performing heartbeat for ${localInstanceId} (${localInstanceName})...`); // More specific log
   const update = {
     [localInstanceId]: {
       name: localInstanceName,
@@ -919,6 +920,7 @@ export async function performHeartbeat(
       groupBits: localGroupBits,
     },
   };
+  console.log('[Heartbeat] Attempting to merge update:', JSON.stringify(update)); // Log the data being merged
   const success = await mergeSyncStorage(
     SYNC_STORAGE_KEYS.DEVICE_REGISTRY,
     update
@@ -927,7 +929,7 @@ export async function performHeartbeat(
     cachedDeviceRegistry = deepMerge(cachedDeviceRegistry, update);
   }
   console.log("Heartbeat complete.");
-}
+} // Added closing brace that might have been missing visually
 
 export async function performStaleDeviceCheck(
   cachedDeviceRegistry,
@@ -1102,25 +1104,28 @@ export const storage = {
   async merge(area, key, updates) {
     try {
       // Ensure currentData is treated as an object for deepMerge
-      const currentDataObj = await this.get(area, key, {}); // Fetch fresh data
+      const currentDataObj = await this.get(area, key, {});
       const mergedData = deepMerge(currentDataObj, updates);
+      let dataChanged = JSON.stringify(currentDataObj) !== JSON.stringify(mergedData);
 
       // Only set if data actually changed
-      if (JSON.stringify(currentDataObj) !== JSON.stringify(mergedData)) {
+      if (dataChanged) {
         console.log(
           `[storage.merge] Data changed for key "${key}", setting...`,
           mergedData
         );
-        await area.set({ [key]: mergedData }); // Ensure await here
+        await area.set({ [key]: mergedData });
       } else {
         console.log(
           `[storage.merge] Skipped setting ${key} as merge resulted in no change.`
         );
       }
-      return true;
+      // Return success status and the final merged data
+      return { success: true, mergedData: mergedData };
     } catch (error) {
       console.error(`Error merging ${key}:`, error, "Updates:", updates);
-      return false;
+      // Return failure status and potentially the original data or null
+      return { success: false, mergedData: currentDataObj };
     }
   },
 };
@@ -1168,22 +1173,6 @@ export async function removeObjectKey(area, key, prop) {
   }
   return obj;
 }
-
-// --- Minimal State Management ---
-export const globalState = {
-  state: {},
-  listeners: [],
-  setState(partial) {
-    this.state = { ...this.state, ...partial };
-    this.listeners.forEach((fn) => fn(this.state));
-  },
-  subscribe(fn) {
-    this.listeners.push(fn);
-    return () => {
-      this.listeners = this.listeners.filter((l) => l !== fn);
-    };
-  },
-};
 
 // --- Debounce Utility ---
 export function debounce(fn, delay) {
