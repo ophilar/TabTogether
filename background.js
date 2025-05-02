@@ -276,9 +276,9 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
     titleToSend = `"${info.selectionText}" on ${tab?.title || urlToSend}`;
   } else if (info.menuItemId.startsWith("send-to-") && tab) {
     // Clicked directly on the tab context menu item OR page/frame context
-    // The 'tab' object passed to the listener IS the relevant tab
-    urlToSend = tab.url;
-    titleToSend = tab.title || urlToSend;
+    // Ensure tab exists before accessing properties
+    urlToSend = tab?.url;
+    titleToSend = tab?.title || urlToSend;
   }
 
   const taskId = crypto.randomUUID();
@@ -337,6 +337,7 @@ browser.storage.onChanged.addListener(async (changes, areaName) => {
   if (areaName !== 'sync') return; // Only care about sync changes
 
   let contextMenuNeedsUpdate = false;
+  let uiNeedsRefresh = false; // Flag for UI refresh
 
   // Check if definedGroups changed
   if (changes[SYNC_STORAGE_KEYS.DEFINED_GROUPS]) {
@@ -346,9 +347,11 @@ browser.storage.onChanged.addListener(async (changes, areaName) => {
   // Check other keys (no need to cache them here if only used elsewhere)
   if (changes[SYNC_STORAGE_KEYS.GROUP_STATE]) {
     console.log("Cache updated: groupState");
+    uiNeedsRefresh = true; // Group state changes might affect UI
   }
   if (changes[SYNC_STORAGE_KEYS.DEVICE_REGISTRY]) {
     console.log("Cache updated: deviceRegistry");
+    uiNeedsRefresh = true; // Device registry changes affect UI
   }
 
   // Trigger actions based on changes
@@ -361,6 +364,17 @@ browser.storage.onChanged.addListener(async (changes, areaName) => {
   if (changes[SYNC_STORAGE_KEYS.GROUP_TASKS]) {
     console.log("Detected change in group tasks, processing...");
     await processIncomingTasks(changes[SYNC_STORAGE_KEYS.GROUP_TASKS].newValue); // Pass only new value
+  }
+
+  // Notify UI pages if relevant data changed
+  if (uiNeedsRefresh) {
+    try {
+      // Send message to potentially open options/popup pages
+      // No specific target needed, just send to the extension runtime
+      await browser.runtime.sendMessage({ action: "syncDataChanged" });
+    } catch (error) {
+      console.warn("Could not send syncDataChanged message (maybe no UI pages open):", error.message);
+    }
   }
 });
 
@@ -405,6 +419,7 @@ async function processIncomingTasks(allGroupTasks) {
         continue;
       }
       const bitPosition = Math.log2(myBit);
+      console.log(`[ProcessTasks] Checking group: ${groupName}, My Bit: ${myBit}`);
 
       for (const taskId in allGroupTasks[groupName]) {
         if (!currentProcessedTasks[taskId]) {
@@ -412,9 +427,10 @@ async function processIncomingTasks(allGroupTasks) {
           // --- Only process if my bit is not set in processedMask ---
           if (!((task.processedMask & myBit) === myBit)) {
             tasksToProcess.push({ groupName, taskId, task, myBit });
+            console.log(`[ProcessTasks] Task ${taskId} added to processing queue. Mask: ${task.processedMask}, MyBit: ${myBit}`);
           } else {
             console.log(
-              `Task ${taskId} already processed by this device according to sync mask. Marking locally.`
+              `[ProcessTasks] Task ${taskId} already processed by this device according to sync mask (${task.processedMask} & ${myBit}). Marking locally.`
             );
             currentProcessedTasks[taskId] = true;
             localProcessedTasksUpdated = true;
@@ -445,10 +461,11 @@ async function processIncomingTasks(allGroupTasks) {
 
     for (const { groupName, taskId, task, myBit } of tasksToProcess) {
       console.log(
-        `Processing task ${taskId} for group ${groupName}: ${task.url}`
+        `[ProcessTasks] Attempting to open tab for task ${taskId} (${task.url})`
       );
       try {
         await browser.tabs.create({ url: task.url, active: false });
+        console.log(`[ProcessTasks] Successfully opened tab for task ${taskId}`);
       } catch (error) {
         console.error(`Failed to open tab for task ${taskId}:`, error);
         continue;
@@ -459,6 +476,7 @@ async function processIncomingTasks(allGroupTasks) {
       const taskUpdate = {
         [groupName]: { [taskId]: { processedMask: newProcessedMask } },
       };
+      console.log(`[ProcessTasks] Merging updated mask for task ${taskId}: ${newProcessedMask}`);
       const mergeSuccess = await mergeSyncStorage(
         SYNC_STORAGE_KEYS.GROUP_TASKS,
         taskUpdate
@@ -471,7 +489,7 @@ async function processIncomingTasks(allGroupTasks) {
           newProcessedMask === currentGroupState.assignedMask
         ) {
           console.log(
-            `Task ${taskId} fully processed by all assigned devices in group ${groupName}. Cleaning up.`
+            `[ProcessTasks] Task ${taskId} fully processed by all assigned devices in group ${groupName}. Cleaning up.`
           );
           const cleanupUpdate = { [groupName]: { [taskId]: null } };
           await mergeSyncStorage(SYNC_STORAGE_KEYS.GROUP_TASKS, cleanupUpdate);
@@ -479,7 +497,7 @@ async function processIncomingTasks(allGroupTasks) {
         }
       } else {
         console.error(
-          `Failed to merge task update for ${taskId}. It might be processed again.`
+          `[ProcessTasks] Failed to merge task update for ${taskId}. It might be processed again.`
         );
       }
     }
@@ -489,6 +507,7 @@ async function processIncomingTasks(allGroupTasks) {
         ...localProcessedTasks,
         ...processedTasksUpdateBatch,
       };
+      console.log(`[ProcessTasks] Updating local processed tasks:`, processedTasksUpdateBatch);
       await storage.set(
         browser.storage.local,
         LOCAL_STORAGE_KEYS.PROCESSED_TASKS,
@@ -496,7 +515,7 @@ async function processIncomingTasks(allGroupTasks) {
       );
     }
   } else {
-    console.log("No new tasks require processing.");
+    console.log("[ProcessTasks] No new tasks require processing.");
   }
 }
 
@@ -901,6 +920,7 @@ async function assignBitForGroup(
           SYNC_STORAGE_KEYS.GROUP_STATE,
           {}
         ));
+      console.log(`[AssignBit attempt ${attempt+1}] Fetched groupState:`, JSON.stringify(groupState));
       const currentGroupData = groupState[groupName];
       if (!currentGroupData) {
         console.error(
@@ -910,6 +930,7 @@ async function assignBitForGroup(
       }
       const currentAssignedMask = currentGroupData.assignedMask;
       const bitPosition = getNextAvailableBitPosition(currentAssignedMask);
+      console.log(`[AssignBit attempt ${attempt+1}] Current mask: ${currentAssignedMask}, Available pos: ${bitPosition}`);
       if (bitPosition === -1) {
         console.error(
           `Group ${groupName} is full (${MAX_DEVICES_PER_GROUP} devices). Cannot assign bit.`
@@ -923,6 +944,7 @@ async function assignBitForGroup(
         SYNC_STORAGE_KEYS.GROUP_STATE,
         {}
       );
+      console.log(`[AssignBit attempt ${attempt+1}] Optimistic check groupState:`, JSON.stringify(checkGroupState));
       const checkGroupData = checkGroupState[groupName];
       if (!checkGroupData) {
         console.warn(
@@ -936,7 +958,7 @@ async function assignBitForGroup(
       // If the bit is now taken, retry
       if (((checkGroupData.assignedMask >> bitPosition) & 1) !== 0) {
         console.warn(
-          `Race condition: bit ${bitPosition} for group ${groupName} is now taken. Retrying...`
+          `[AssignBit attempt ${attempt+1}] Race condition: bit ${bitPosition} for group ${groupName} is now taken (mask ${checkGroupData.assignedMask}). Retrying...`
         );
         const delay =
           BASE_DELAY_MS * Math.pow(2, attempt) + Math.random() * BASE_DELAY_MS;
@@ -946,6 +968,7 @@ async function assignBitForGroup(
       // Proceed with update
       const newAssignedMask = currentAssignedMask | myBit;
       const update = { [groupName]: { assignedMask: newAssignedMask } };
+      console.log(`[AssignBit attempt ${attempt+1}] Attempting merge for mask: ${newAssignedMask}`);
       const success = await mergeSyncStorage(
         SYNC_STORAGE_KEYS.GROUP_STATE,
         update
@@ -953,6 +976,7 @@ async function assignBitForGroup(
       if (success) {
         // Update registry immediately
         const registryUpdate = {
+          // Add name and lastSeen here too for completeness? No, heartbeat handles that.
           [localInstanceId]: { groupBits: { [groupName]: myBit } },
         };
         await mergeSyncStorage(
@@ -967,7 +991,7 @@ async function assignBitForGroup(
             registryUpdate
           );
         console.log(
-          `Assigned bit ${myBit} (pos ${bitPosition}) to device ${localInstanceId} for group ${groupName}`
+          `[AssignBit attempt ${attempt+1}] Assigned bit ${myBit} (pos ${bitPosition}) to device ${localInstanceId} for group ${groupName}`
         );
         return myBit;
       } else {
