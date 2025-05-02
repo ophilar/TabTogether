@@ -46,7 +46,8 @@ const syncStatus = document.getElementById("syncStatus");
 if (manualSyncBtn) {
   manualSyncBtn.addEventListener("click", async () => {
     const syncIcon = manualSyncBtn.querySelector('.sync-icon-svg');
-    showLoadingIndicator(dom.loadingIndicator, true);
+    // showLoadingIndicator(dom.loadingIndicator, true);
+    const startTime = Date.now(); // Record start time
     manualSyncBtn.disabled = true; // Disable button during operation
     if (syncIcon) syncIcon.classList.add('syncing-icon'); // Start animation
     clearMessage(dom.messageArea);
@@ -68,8 +69,17 @@ if (manualSyncBtn) {
       console.error("Manual sync failed:", error);
       showError(`Sync failed: ${error.message || 'Unknown error'}`, dom.messageArea);
     } finally {
-      showLoadingIndicator(dom.loadingIndicator, false); // Don't show/hide the separate indicator
-      if (syncIcon) syncIcon.classList.remove('syncing-icon'); // Stop animation
+      // showLoadingIndicator(dom.loadingIndicator, false); // Don't show/hide the separate indicator
+      const duration = Date.now() - startTime;
+      const minAnimationTime = 500; // Minimum animation time in milliseconds (0.5 seconds)
+
+      if (syncIcon) {
+        if (duration < minAnimationTime) {
+          setTimeout(() => syncIcon.classList.remove('syncing-icon'), minAnimationTime - duration);
+        } else {
+          syncIcon.classList.remove('syncing-icon'); // Stop animation immediately
+        }
+      }
       manualSyncBtn.disabled = false; // Re-enable button
     }
   });
