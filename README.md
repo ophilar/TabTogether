@@ -1,6 +1,6 @@
 # TabTogether
 
-TabTogether is a browser extension for Firefox that lets you send tabs to groups of devices using Firefox Sync. Manage groups of devices, and send tabs seamlessly between your devices.
+TabTogether is a Firefox browser extension that lets you effortlessly send tabs between pre-defined groups of your devices, leveraging the power and security of Firefox Sync.
 
 ## Features
 - Send the current tab to a pre-defined group of devices
@@ -22,6 +22,16 @@ TabTogether is a browser extension for Firefox that lets you send tabs to groups
 ### From Mozilla Add-ons (Recommended)
 1. Visit [TabTogether on AMO](https://addons.mozilla.org/) (when published).
 2. Click **Add to Firefox** and follow the prompts.
+
+### Android Installation
+1.  **From Mozilla Add-ons (Recommended):** The easiest way is to install from the [Mozilla Add-ons (AMO)](https://addons.mozilla.org/) store directly within Firefox for Android (when published).
+2.  **From Source (Developer/Temporary):**
+    *   Requires setting up [Android Debug Bridge (adb)](https://developer.android.com/studio/command-line/adb) and enabling USB debugging on your device.
+    *   Connect your device to your computer.
+    *   Run the command: `web-ext run --target=firefox-android`
+    *   **Note:** This method is primarily for development and testing.
+
+**Important Note for Android:** Firefox for Android has limitations on background script execution. TabTogether relies on background processing for automatic syncing and receiving tabs. On Android, you will need to open the extension's popup or options page and use the "Sync Now" button to manually process incoming tabs and sync changes.
 
 ## Building and Packaging
 
@@ -78,7 +88,7 @@ MIT License. See [LICENSE](LICENSE) for details.
 - Make sure you are logged into the same Firefox account on all devices.
 - Enable Sync for Add-ons and Extension Storage in Firefox settings.
 - If tabs or groups do not sync, check the browser console for errors and ensure Sync is working.
+- **Subscription Issues:** Due to Firefox Sync delays, devices might occasionally get out of sync during group subscription. If you experience issues like tabs not being received or duplicate tabs opening, try unsubscribing and then re-subscribing the affected devices to the group via the Options page.
 
 ## Contributing
 Pull requests and issues are welcome! See the [GitHub project page](https://github.com/ophilar/TabTogether) for more info.
-
