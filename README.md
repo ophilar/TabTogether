@@ -43,3 +43,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Privacy
 
 TabTogether uses Firefox Sync for communication and stores group/device information locally and within Sync's private storage. It does not send your data to any external servers. See the [SECURITY.md](SECURITY.md) for more details.
+
+## Contributing & Development Notes
+
+This extension was created to fulfill a personal need using AI assistance (Copilot, Gemini). Due to perceived limitations and latency with Firefox Sync, active development by the original author has paused. Further development, particularly around synchronizing tab states or groups, seemed challenging under these constraints.
+
+Feedback, bug reports, and contributions are still welcome! Please see the [CONTRIBUTING.md](CONTRIBUTING.md) file for more details on how to get involved and for the full original development notes.
+
+The source code is available at https://github.com/ophilar/TabTogether.
