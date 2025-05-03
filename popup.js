@@ -71,21 +71,27 @@ document.addEventListener("DOMContentLoaded", async () => {
       try {
         await loadStatus(); // Refresh popup view & process tabs (Android)
 
-        // After successful load/process, update local sync time.
-        // Only trigger background heartbeat on non-Android platforms.
+        // After successful load/process, update local sync time and trigger heartbeat.
         if (!(await isAndroid())) {
           await browser.runtime.sendMessage({ action: "heartbeat" });
         } else {
+          // Explicitly perform heartbeat on Android after processing,
+          // as background sync isn't available.
           await performHeartbeat(); // Ensure heartbeat is performed
         }
         const now = new Date();
         await storage.set(browser.storage.local, "lastSync", now.getTime());
         showMessage(dom.messageArea, 'Sync complete.', false); // Show success in popup
+      } catch (error) {
+        // Log errors that might occur during loadStatus or subsequent actions
+        console.error("Error during refresh action:", error);
       } finally {
         const duration = Date.now() - startTime;
         const minAnimationTime = 500; // Minimum animation time
         if (syncIcon) {
-          setTimeout(() => syncIcon.classList.remove('syncing-icon'), Math.max(0, minAnimationTime - duration));
+          // Use Math.max directly for conciseness
+          const delay = Math.max(0, minAnimationTime - duration);
+          setTimeout(() => syncIcon.classList.remove('syncing-icon'), delay);
         }
         dom.refreshLink.style.pointerEvents = ''; // Re-enable clicks
         syncing = false; // Reset syncing flag *only* in finally
@@ -97,7 +103,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (dom.toggleDetailsBtn && dom.popupDetails) {
     dom.toggleDetailsBtn.addEventListener("click", () => {
       const isHidden = dom.popupDetails.classList.toggle("hidden");
-      dom.toggleDetailsBtn.textContent = isHidden ? "▼" : "▲"; // REMOVED: This overwrites the image
+      dom.toggleDetailsBtn.textContent = isHidden ? "▼" : "▲"; // Update button text based on state
       dom.toggleDetailsBtn.setAttribute(
         "aria-label",
         isHidden ? "Show details" : "Hide details"
@@ -106,14 +112,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         "title",
         isHidden ? "Show device info" : "Hide device info"
       );
-      // --- Chevron Animation ---
-      const chevronIcon = dom.toggleDetailsBtn.querySelector(
-        ".details-toggle-icon"
-      );
-      if (chevronIcon) {
-        chevronIcon.classList.toggle("details-open", !isHidden);
-      }
-    });
+     });
   }
 
   // Initial load of status
@@ -129,8 +128,6 @@ async function loadStatus() {
   const syncIcon = dom.refreshLink?.querySelector(".sync-icon-svg"); // Select icon if refreshLink exists
   // syncing = true; // Moved to click handler
   showLoadingIndicator(dom.loadingIndicator, true);
-  clearMessage(dom.messageArea); // Clear previous messages
-  let syncError = null; // Track errors to prevent heartbeat on failure
   try {
     const isAndroidPlatform = await isAndroid();
     let state = await getUnifiedState(isAndroidPlatform);
@@ -153,7 +150,6 @@ async function loadStatus() {
     renderSubscriptionsUI(state.subscriptions);
     renderSendTabGroups(state.definedGroups); // Uses the combined button approach
   } catch (error) {
-    syncError = error; // Store error
     console.error("Error loading popup status:", error);
     // Use consistent message area
     showMessage(dom.messageArea, STRINGS.loadingSettingsError(error.message), true);
@@ -163,20 +159,11 @@ async function loadStatus() {
     if (dom.subscriptionsUl) {
       dom.subscriptionsUl.textContent = ''; // Clear safely first
       const li = document.createElement('li');
-      li.textContent = STRINGS.error;
-      dom.sendTabGroupsList.textContent = "Error loading groups.";
-
-      // dom.subscriptionsUl.innerHTML = ''; // Clear first
-      // dom.subscriptionsUl.innerHTML = `<li>${STRINGS.error}</li>`;
+      li.textContent = STRINGS.error; // Set error text
+      dom.subscriptionsUl.appendChild(li); // Append the error item
     }
   } finally {
     showLoadingIndicator(dom.loadingIndicator, false); // Hide loading indicator
-    // if (syncIcon) syncIcon.classList.remove("syncing-icon"); // Moved to click handler
-    // syncing = false; // Moved to click handler's finally block
-
-    // Re-throw error if one occurred, so the click handler's try/catch can handle it
-    // and prevent the heartbeat/local sync time update on failure.
-    if (syncError) throw syncError;
   }
 }
 
