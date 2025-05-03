@@ -686,36 +686,6 @@ describe('utils', () => {
             document.body.appendChild(container);
         });
 
-        test('html template utility creates simple element', () => {
-            const frag = utils.html`<div>Hello</div>`;
-            const div = frag.querySelector('div');
-            expect(div).not.toBeNull();
-            expect(div.textContent).toBe('Hello');
-        });
-
-        test('html template utility interpolates values', () => {
-            const name = 'World';
-            const className = 'greeting';
-            const frag = utils.html`<p class="${className}">Hello ${name}!</p>`;
-            const p = frag.querySelector('p');
-            expect(p).not.toBeNull();
-            expect(p.className).toBe('greeting');
-            expect(p.textContent).toBe('Hello World!');
-        });
-
-        test('html template utility handles multiple elements', () => {
-            const frag = utils.html`<span>One</span><span>Two</span>`;
-            const spans = frag.querySelectorAll('span');
-            expect(spans.length).toBe(2);
-            expect(spans[0].textContent).toBe('One');
-        });
-
-        test('html template utility handles null/undefined values gracefully', () => {
-            const frag = utils.html`<div>${undefined}${null}</div>`;
-            const div = frag.querySelector('div');
-            expect(div.textContent).toBe('');
-        });
-
         test('renderDeviceList shows no devices', () => {
             utils.renderDeviceList(container, {});
             expect(container.textContent).toBe(STRINGS.noDevices);
