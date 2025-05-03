@@ -2,9 +2,7 @@ import { STRINGS } from "./constants.js";
 import {
   renderDeviceName,
   isAndroid,
-  LOCAL_STORAGE_KEYS,
   sendTabToGroupDirect,
-  processIncomingTabs,
   processIncomingTabsAndroid, // Import the shared function
   getUnifiedState,
   showAndroidBanner,
@@ -32,7 +30,6 @@ const dom = {
 };
 
 const loadingIndicator = document.getElementById("loadingIndicator");
-let localInstanceId = null; // Cache instance ID locally if needed
 
 // --- Initialization ---
 document.addEventListener("DOMContentLoaded", async () => {
@@ -142,8 +139,6 @@ async function loadStatus() {
     // Validate state
     if (!state) throw new Error("Failed to retrieve extension state.");
     if (state.error) throw new Error(state.error); // Propagate error from background
-
-    localInstanceId = state.instanceId; // Store instance ID if needed elsewhere
 
     // Render UI components
     renderDeviceNameUI(state.instanceName);

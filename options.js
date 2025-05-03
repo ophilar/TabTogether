@@ -9,7 +9,6 @@ import {
   deleteGroupDirect,
   renameGroupDirect,
   deleteDeviceDirect,
-  processIncomingTabs,
   processIncomingTabsAndroid, // Import the shared function
   getUnifiedState,
   subscribeToGroupUnified,
@@ -37,7 +36,7 @@ const dom = {
   messageArea: document.getElementById("messageArea"),
   staleDeviceThresholdInput: document.getElementById("staleDeviceThresholdInput"),
   taskExpiryInput: document.getElementById("taskExpiryInput"),
-  testNotificationBtn: document.getElementById("testNotificationBtn"),
+  // testNotificationBtn: document.getElementById("testNotificationBtn"),
 };
 
 let currentState = null; // Cache for state fetched from background
@@ -156,38 +155,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     );
     setLastSyncTime(container, Date.now());
     showDebugInfo(container, currentState);
-  }
-  // Notification settings logic
-  const notifSoundSelect = document.getElementById("notifSoundSelect");
-  const notifDurationInput = document.getElementById("notifDurationInput");
 
-  async function loadNotificationSettings() {
-    const sound = await storage.get(
-      browser.storage.local,
-      "notifSound",
-      "default"
-    );
-    const duration = await storage.get(
-      browser.storage.local,
-      "notifDuration",
-      5
-    );
-    notifSoundSelect.value = sound;
-    notifDurationInput.value = duration;
-  }
-
-  if (notifSoundSelect && notifDurationInput) {
-    notifSoundSelect.addEventListener("change", async (e) => {
-      await storage.set(browser.storage.local, "notifSound", e.target.value);
-    });
-    notifDurationInput.addEventListener("change", async (e) => {
-      let val = parseInt(e.target.value, 10);
-      if (isNaN(val) || val < 1) val = 1;
-      if (val > 20) val = 20;
-      notifDurationInput.value = val;
-      await storage.set(browser.storage.local, "notifDuration", val);
-    });
-    loadNotificationSettings();
   }
 
   // Setup and load advanced timing settings
@@ -357,18 +325,18 @@ function renderDeviceRegistry() {
       nameSpan.className = 'device-name-label'; // Add class for potential styling/selection
       // Make current device name bold
       if (id === localId) {
-          // Create elements programmatically for safety
-          const strong = document.createElement('strong');
-          strong.textContent = device.name || STRINGS.deviceNameNotSet;
-          nameSpan.appendChild(strong);
-          nameSpan.appendChild(document.createTextNode(' (This Device)'));
-          li.classList.add('this-device'); // Keep highlighting the row
+        // Create elements programmatically for safety
+        const strong = document.createElement('strong');
+        strong.textContent = device.name || STRINGS.deviceNameNotSet;
+        nameSpan.appendChild(strong);
+        nameSpan.appendChild(document.createTextNode(' (This Device)'));
+        li.classList.add('this-device'); // Keep highlighting the row
       }
       // Only allow renaming for the current device within this list
       if (id === localId) {
-          nameSpan.style.cursor = 'pointer'; // Indicate clickable
-          nameSpan.title = 'Click to rename this device';
-          nameSpan.onclick = () => startRenameDevice(id, device.name || '', li, nameSpan);
+        nameSpan.style.cursor = 'pointer'; // Indicate clickable
+        nameSpan.title = 'Click to rename this device';
+        nameSpan.onclick = () => startRenameDevice(id, device.name || '', li, nameSpan);
       }
       nameAndInfoDiv.appendChild(nameSpan);
 
@@ -390,15 +358,15 @@ function renderDeviceRegistry() {
       deleteBtn.className = 'inline-btn danger'; // Use existing style
 
       if (id === localId) {
-          deleteBtn.textContent = 'Remove';
-          deleteBtn.title = 'Remove this device from all groups and registry. This cannot be undone.';
-          deleteBtn.setAttribute('aria-label', 'Remove this device from registry');
-          // Attach the specific handler for removing self
-          deleteBtn.onclick = handleRemoveSelfDevice; // Use a dedicated handler
+        deleteBtn.textContent = 'Remove';
+        deleteBtn.title = 'Remove this device from all groups and registry. This cannot be undone.';
+        deleteBtn.setAttribute('aria-label', 'Remove this device from registry');
+        // Attach the specific handler for removing self
+        deleteBtn.onclick = handleRemoveSelfDevice; // Use a dedicated handler
       } else {
-          deleteBtn.textContent = 'Delete';
-          deleteBtn.title = 'Delete this device from the registry';
-          deleteBtn.setAttribute('aria-label', `Delete device ${device.name || 'Unnamed'} from registry`);
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.title = 'Delete this device from the registry';
+        deleteBtn.setAttribute('aria-label', `Delete device ${device.name || 'Unnamed'} from registry`);
       }
       deleteBtn.onclick = () => handleDeleteDevice(id, device.name);
       actionsDiv.appendChild(deleteBtn);
@@ -742,17 +710,20 @@ async function handleDeleteGroup(event) {
 }
 
 // --- Test Notification ---
-dom.testNotificationBtn.addEventListener("click", async () => {
-  showLoadingIndicator(dom.loadingIndicator, true);
-  try {
-    await browser.runtime.sendMessage({ action: "testNotification" });
-    showMessage(dom.messageArea, STRINGS.testNotificationSent, false);
-  } catch (e) {
-    showError(STRINGS.testNotificationFailed(e.message), dom.messageArea);
-  } finally {
-    showLoadingIndicator(dom.loadingIndicator, false);
-  }
-});
+const testNotificationBtn = document.getElementById("testNotificationBtn");
+if (testNotificationBtn) {
+  testNotificationBtn.addEventListener("click", async () => {
+    showLoadingIndicator(dom.loadingIndicator, true);
+    try {
+      await browser.runtime.sendMessage({ action: "testNotification" });
+      showMessage(dom.messageArea, STRINGS.testNotificationSent, false);
+    } catch (e) {
+      showMessage(dom.messageArea, STRINGS.testNotificationFailed(e.message), true); // Use showMessage
+    } finally {
+      showLoadingIndicator(dom.loadingIndicator, false);
+    }
+  });
+}
 
 // --- UI Helper Functions ---
 
