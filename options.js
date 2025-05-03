@@ -276,12 +276,9 @@ async function loadState() {
     let state = await getUnifiedState(isAndroidPlatform);
     if (isAndroidPlatform) {
       await processIncomingTabsAndroid(state);
-      // Show last sync time and debug info
       const container = document.querySelector(".container");
-      import("./utils.js").then((utils) => {
-        utils.setLastSyncTime(container, Date.now());
-        utils.showDebugInfo(container, state);
-      });
+      setLastSyncTime(container, Date.now()); // Call directly
+      showDebugInfo(container, state);      // Call directly
     }
     currentState = state;
     if (!currentState || currentState.error) {
