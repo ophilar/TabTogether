@@ -1108,12 +1108,11 @@ export const storage = {
       const mergedData = deepMerge(currentDataObj, updates);
       let dataChanged = JSON.stringify(currentDataObj) !== JSON.stringify(mergedData);
 
-      // Only set if data actually changed
       if (dataChanged) {
-        console.log(
-          `[storage.merge] Data changed for key "${key}", setting...`,
-          mergedData
-        );
+        // console.log(
+        //   `[storage.merge] Data changed for key "${key}", setting...`,
+        //   mergedData
+        // );
         await area.set({ [key]: mergedData });
       } else {
         console.log(
