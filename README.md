@@ -43,8 +43,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Privacy
 
 TabTogether uses Firefox Sync for communication and stores group/device information locally and within Sync's private storage. It does not send your data to any external servers. See the [SECURITY.md](SECURITY.md) for more details.
-
-## Personal Note
-
-This extension was created due to my personal need of reading materials across multiple devices. I'm far from being a web developer. TabTogether was created with extensive help from Copilot and Gemini. I had planned to expand it to synchronize automatically tabs' states and groups, so that I can start reading an Arxiv pdf on one device and seamlessly continue on another. Due to Firefox Sync issues and latency, I don't see any point in continuing development further. It would have worked best as part of Firefox itself.
-In any case, the source code is open at https://github.com/ophilar/TabTogether and I welcome feedback.
