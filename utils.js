@@ -229,15 +229,6 @@ export function renderDeviceList(container, devices, highlightId = null) {
   container.appendChild(ul);
 }
 
-// --- Simple HTML template utility for rendering repeated DOM blocks ---
-export const html = (strings, ...values) => {
-  const template = document.createElement("template");
-  template.innerHTML = strings.reduce(
-    (acc, str, i) => acc + str + (values[i] ?? ""),
-    ""
-  );
-  return template.content.cloneNode(true);
-};
 
 // --- Refactor renderGroupList to use the html template utility ---
 export function renderGroupList(
@@ -780,20 +771,9 @@ export async function getUnifiedState(isAndroidPlatform) {
       instanceName,
       subscriptions,
       groupBits,
-    ] = await Promise.all([
-      storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID),
-      storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_NAME),
-      storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []),
-      storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {}),
-      browser.storage.sync
-        .get(SYNC_STORAGE_KEYS.DEFINED_GROUPS)
-        .then((r) => r[SYNC_STORAGE_KEYS.DEFINED_GROUPS] || []),
-      browser.storage.sync
-        .get(SYNC_STORAGE_KEYS.GROUP_STATE)
-        .then((r) => r[SYNC_STORAGE_KEYS.GROUP_STATE] || {}),
-      browser.storage.sync
-        .get(SYNC_STORAGE_KEYS.DEVICE_REGISTRY)
-        .then((r) => r[SYNC_STORAGE_KEYS.DEVICE_REGISTRY] || {}),
+      definedGroups, // Added missing variable
+      groupState,    // Added missing variable
+      deviceRegistry // Added missing variable
     ]);
     return {
       instanceId,
@@ -1106,9 +1086,9 @@ export const storage = {
         // );
         await area.set({ [key]: mergedData });
       } else {
-        console.log(
-          `[storage.merge] Skipped setting ${key} as merge resulted in no change.`
-        ); // Keep this log as it's useful for debugging merge logic
+        // console.log(
+        //   `[storage.merge] Skipped setting ${key} as merge resulted in no change.`
+        // );
       }
       // Return success status and the final merged data
       return { success: true, mergedData: mergedData };

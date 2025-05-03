@@ -399,7 +399,7 @@ function renderDeviceRegistry() {
           deleteBtn.textContent = 'Delete';
           deleteBtn.title = 'Delete this device from the registry';
           deleteBtn.setAttribute('aria-label', `Delete device ${device.name || 'Unnamed'} from registry`);
-      } // Note: The onclick handler below gets overwritten by handleRemoveSelfDevice if id === localId
+      }
       deleteBtn.onclick = () => handleDeleteDevice(id, device.name);
       actionsDiv.appendChild(deleteBtn);
 
