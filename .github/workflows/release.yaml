@@ -1,0 +1,41 @@
+name: Release and Submit to AMO
+
+on:
+  push:
+    tags:
+      - 'v*.*.*' # Trigger on tags like v1.0.0, v0.9.1 etc.
+
+jobs:
+  build-and-submit:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20' # Or your preferred Node.js version
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci # Use ci for cleaner installs in CI
+
+    - name: Build the extension
+      run: npm run build:prod
+      # This creates the production-ready files in the 'dist' directory
+
+    - name: Sign and Submit to AMO (Listed)
+      run: npx web-ext sign --source-dir=dist --artifacts-dir=web-ext-artifacts --channel=listed
+      env:
+        # Use secrets to store your AMO API keys securely
+        WEB_EXT_API_KEY: ${{ secrets.AMO_API_KEY }}
+        WEB_EXT_API_SECRET: ${{ secrets.AMO_API_SECRET }}
+
+    # Optional: Upload the signed artifact if needed for manual checks or releases
+    # - name: Upload Signed Artifact
+    #   uses: actions/upload-artifact@v4
+    #   with:
+    #     name: signed-extension
+    #     path: web-ext-artifacts/*.xpi
