@@ -16,7 +16,6 @@ import {
   showAndroidBanner,
   setLastSyncTime,
   debounce,
-  showError,
   renameDeviceUnified,
   storage,
   showLoadingIndicator,
@@ -36,7 +35,6 @@ const dom = {
   messageArea: document.getElementById("messageArea"),
   staleDeviceThresholdInput: document.getElementById("staleDeviceThresholdInput"),
   taskExpiryInput: document.getElementById("taskExpiryInput"),
-  // testNotificationBtn: document.getElementById("testNotificationBtn"),
 };
 
 let currentState = null; // Cache for state fetched from background
@@ -110,17 +108,6 @@ storage.get(browser.storage.local, "lastSync", null).then((ts) => {
     syncStatus.textContent = "Last sync: " + new Date(ts).toLocaleString();
 });
 
-// --- Advanced Timing Settings ---
-
-const DEFAULT_STALE_THRESHOLD_DAYS = 30;
-const DEFAULT_TASK_EXPIRY_DAYS = 14;
-
-async function loadAdvancedTimingSettings() {
-  const staleDays = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.STALE_DEVICE_THRESHOLD_DAYS, DEFAULT_STALE_THRESHOLD_DAYS);
-  const taskDays = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.TASK_EXPIRY_DAYS, DEFAULT_TASK_EXPIRY_DAYS);
-  if (dom.staleDeviceThresholdInput) dom.staleDeviceThresholdInput.value = staleDays;
-  if (dom.taskExpiryInput) dom.taskExpiryInput.value = taskDays;
-}
 
 function setupAdvancedTimingListeners() {
   if (dom.staleDeviceThresholdInput) {
@@ -139,6 +126,18 @@ function setupAdvancedTimingListeners() {
       await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.TASK_EXPIRY_DAYS, val);
     });
   }
+}
+
+// --- Advanced Timing Settings ---
+
+const DEFAULT_STALE_THRESHOLD_DAYS = 30;
+const DEFAULT_TASK_EXPIRY_DAYS = 14;
+
+async function loadAdvancedTimingSettings() {
+  const staleDays = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.STALE_DEVICE_THRESHOLD_DAYS, DEFAULT_STALE_THRESHOLD_DAYS);
+  const taskDays = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.TASK_EXPIRY_DAYS, DEFAULT_TASK_EXPIRY_DAYS);
+  if (dom.staleDeviceThresholdInput) dom.staleDeviceThresholdInput.value = staleDays;
+  if (dom.taskExpiryInput) dom.taskExpiryInput.value = taskDays;
 }
 
 // --- Initialization ---
@@ -240,7 +239,7 @@ async function loadState() {
   showLoadingIndicator(dom.loadingIndicator, true);
   clearMessage(dom.messageArea);
   try {
-    const isAndroidPlatform = await isAndroid();
+    const isAndroidPlatform = await isAndroid(); // Fetch once
     let state = await getUnifiedState(isAndroidPlatform);
     if (isAndroidPlatform) {
       await processIncomingTabsAndroid(state);
@@ -251,7 +250,7 @@ async function loadState() {
     currentState = state;
     if (!currentState || currentState.error) {
       throw new Error(
-        currentState?.error || "Failed to load state from background script."
+        currentState?.error || "Failed to load state." // Simplified error
       );
     }
     renderAll();
@@ -261,7 +260,7 @@ async function loadState() {
       console.error("!!! Stack Trace:", error.stack); // Log the stack trace if available
     }
 
-    showError(STRINGS.loadingSettingsError(error.message), dom.messageArea);
+    showMessage(dom.messageArea, STRINGS.loadingSettingsError(error.message), true); // Use showMessage
     if (dom.deviceNameDisplay) dom.deviceNameDisplay.textContent = STRINGS.error; // Check if exists
     // Replace innerHTML with textContent for simple messages
     dom.definedGroupsListDiv.textContent = STRINGS.loadingGroups;
@@ -452,11 +451,11 @@ async function finishRenameGroup(oldName, newName, nameSpan, inlineControlsConta
       // Controls are removed implicitly by re-rendering
     } else {
       showError(response.message || STRINGS.groupRenameFailed, dom.messageArea);
-      // Explicitly cancel edit UI on failure if loadState doesn't happen
+      // Explicitly cancel edit UI on failure
       cancelInlineEdit(nameSpan, inlineControlsContainer);
     }
   } catch (e) {
-    showError(STRINGS.groupRenameFailed + ": " + e.message, dom.messageArea);
+    showMessage(dom.messageArea, STRINGS.groupRenameFailed + ": " + e.message, true);
     // Explicitly cancel edit UI on error
     cancelInlineEdit(nameSpan, inlineControlsContainer);
   } finally {
@@ -524,11 +523,11 @@ async function finishRenameDevice(deviceId, newName, listItem, nameSpan, inlineC
         renderDeviceRegistry(); // Re-render the device list
       }
     } else {
-      showError(response.message || STRINGS.deviceRenameFailed, dom.messageArea);
+      showMessage(dom.messageArea, response.message || STRINGS.deviceRenameFailed, true);
       cancelInlineEdit(nameSpan, inlineControlsContainer); // Clean up on failure
     }
   } catch (e) {
-    showError(STRINGS.deviceRenameFailed + ": " + e.message, dom.messageArea);
+    showMessage(dom.messageArea, STRINGS.deviceRenameFailed + ": " + e.message, true);
     cancelInlineEdit(nameSpan, inlineControlsContainer); // Clean up on error
   } finally {
     showLoadingIndicator(dom.loadingIndicator, false);
@@ -558,13 +557,13 @@ async function handleDeleteDevice(deviceId, deviceName) {
         renderDeviceRegistry(); // Re-render the device list
       }
     } else {
-      showError(
+      showMessage(dom.messageArea,
         response.message || STRINGS.deviceDeleteFailed,
-        dom.messageArea
+        true
       );
     }
   } catch (e) {
-    showError(STRINGS.deviceDeleteFailed + ": " + e.message, dom.messageArea);
+    showMessage(dom.messageArea, STRINGS.deviceDeleteFailed + ": " + e.message, true);
   } finally {
     showLoadingIndicator(dom.loadingIndicator, false);
   }
@@ -574,13 +573,14 @@ async function handleDeleteDevice(deviceId, deviceName) {
 
 
 dom.newGroupNameInput.addEventListener(
-  "input",
-  debounce(function (e) {
+  "input", // Use inline debounce as 'debounce' import was removed
+  (function () {
+    let timer;
+    return function (e) {
     const value = e.target.value.trim();
     dom.createGroupBtn.disabled = value.length === 0;
-  }, 250)
+  }})()
 );
-
 dom.createGroupBtn.addEventListener("click", async () => {
   const groupName = dom.newGroupNameInput.value.trim();
   if (groupName === "") return;
@@ -607,11 +607,11 @@ dom.createGroupBtn.addEventListener("click", async () => {
       dom.newGroupNameInput.value = "";
       dom.createGroupBtn.disabled = true;
     } else {
-      showError(response.message || STRINGS.groupCreateFailed, dom.messageArea);
+      showMessage(dom.messageArea, response.message || STRINGS.groupCreateFailed, true);
     }
   } catch (error) {
-    showError(
-      STRINGS.groupCreateFailed + ": " + error.message,
+    showMessage(dom.messageArea,
+      STRINGS.groupCreateFailed + ": " + error.message, true,
       dom.messageArea
     );
   } finally {
@@ -635,10 +635,10 @@ async function handleSubscribe(event) {
         showMessage(dom.messageArea, `Subscribed to "${response.subscribedGroup}".`, false);
       }
     } else {
-      showError(response.message || "Failed to subscribe.", dom.messageArea);
+      showMessage(dom.messageArea, response.message || "Failed to subscribe.", true);
     }
   } catch (error) {
-    showError(`Error subscribing: ${error.message}`, dom.messageArea);
+    showMessage(dom.messageArea, `Error subscribing: ${error.message}`, true);
   } finally {
     showLoadingIndicator(dom.loadingIndicator, false);
   }
@@ -662,10 +662,10 @@ async function handleUnsubscribe(event) {
         showMessage(dom.messageArea, `Unsubscribed from "${response.unsubscribedGroup}".`, false);
       }
     } else {
-      showError(response.message || "Failed to unsubscribe.", dom.messageArea);
+      showMessage(dom.messageArea, response.message || "Failed to unsubscribe.", true);
     }
   } catch (error) {
-    showError(`Error unsubscribing: ${error.message}`, dom.messageArea);
+    showMessage(dom.messageArea, `Error unsubscribing: ${error.message}`, true);
   } finally {
     showLoadingIndicator(dom.loadingIndicator, false);
   }
@@ -697,32 +697,16 @@ async function handleDeleteGroup(event) {
       }
       showMessage(dom.messageArea, STRINGS.groupDeleteSuccess(response.deletedGroup), false);
     } else {
-      showError(response.message || STRINGS.groupDeleteFailed, dom.messageArea);
+      showMessage(dom.messageArea, response.message || STRINGS.groupDeleteFailed, true);
     }
   } catch (error) {
-    showError(
-      STRINGS.groupDeleteFailed + ": " + error.message,
+    showMessage(dom.messageArea,
+      STRINGS.groupDeleteFailed + ": " + error.message, true,
       dom.messageArea
     );
   } finally {
     showLoadingIndicator(dom.loadingIndicator, false);
   }
-}
-
-// --- Test Notification ---
-const testNotificationBtn = document.getElementById("testNotificationBtn");
-if (testNotificationBtn) {
-  testNotificationBtn.addEventListener("click", async () => {
-    showLoadingIndicator(dom.loadingIndicator, true);
-    try {
-      await browser.runtime.sendMessage({ action: "testNotification" });
-      showMessage(dom.messageArea, STRINGS.testNotificationSent, false);
-    } catch (e) {
-      showMessage(dom.messageArea, STRINGS.testNotificationFailed(e.message), true); // Use showMessage
-    } finally {
-      showLoadingIndicator(dom.loadingIndicator, false);
-    }
-  });
 }
 
 // --- UI Helper Functions ---

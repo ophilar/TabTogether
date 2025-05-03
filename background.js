@@ -973,46 +973,18 @@ async function assignBitForGroup(
   return null; // Or throw new Error("Failed to assign bit after multiple retries");
 }
 
-// Utility: Play notification sound
-// async function playNotificationSound(sound) {
-//   if (sound === "none") return;
-//   let url = "";
-//   if (sound === "chime")
-//     url = "https://cdn.jsdelivr.net/gh/ophilar/TabTogether-assets/chime.mp3";
-//   if (sound === "ding")b
-//     url = "https://cdn.jsdelivr.net/gh/ophilar/TabTogether-assets/ding.mp3";
-//   if (sound === "default") url = "";
-//   if (url) {
-//     const audio = new Audio(url);
-//     audio.volume = 0.7;
-//     audio.play();
-//   }
-// }
+// Removed playNotificationSound function
 
 // Enhanced notification for tab send/receive
 async function showTabNotification({ title, url, groupName, faviconUrl }) {
-  // const sound = await storage.get(
-  //   browser.storage.local,
-  //   "notifSound",
-  //   "default"
-  // );
-  // const duration = await storage.get(
-  //   browser.storage.local,
-  //   "notifDuration",
-  //   5
-  // );
-  // await playNotificationSound(sound);
-  const notifId = await browser.notifications.create({
+  // Removed sound and duration logic - use system defaults
+  await browser.notifications.create({
     type: "basic",
     iconUrl: faviconUrl || browser.runtime.getURL("icons/icon-48.png"),
     title: `TabTogether: ${groupName ? "Group " + groupName : "Tab Received"}`,
     message: title || url || "Tab received",
     contextMessage: url || "",
-    // requireInteraction: false,
   });
-  // if (duration > 0) {
-  // setTimeout(() => browser.notifications.clear(notifId), duration * 1000);
-  // }
 }
 
 // Example usage: showTabNotification({ title, url, groupName, faviconUrl }) when sending/receiving tabs
