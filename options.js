@@ -475,8 +475,13 @@ async function finishRenameGroup(oldName, newName, nameSpan, inlineControlsConta
     if (response.success) {
       showMessage(dom.messageArea, STRINGS.groupRenameSuccess(newName), false);
       success = true;
-      // Reload state which will re-render the list, removing the inline controls
-      await loadState();
+      // Update local state and re-render instead of full reload
+      if (currentState) {
+        currentState.definedGroups = currentState.definedGroups.map(g => g === oldName ? newName : g);
+        currentState.subscriptions = currentState.subscriptions.map(s => s === oldName ? newName : s);
+        renderDefinedGroups(); // Re-render the groups list
+      }
+      // Controls are removed implicitly by re-rendering
     } else {
       showError(response.message || STRINGS.groupRenameFailed, dom.messageArea);
       // Explicitly cancel edit UI on failure if loadState doesn't happen
@@ -542,7 +547,14 @@ async function finishRenameDevice(deviceId, newName, listItem, nameSpan, inlineC
     if (response.success) {
       showMessage(dom.messageArea, STRINGS.deviceRenameSuccess(newName), false);
       success = true;
-      await loadState(); // Reload state to re-render
+      // Update local state and re-render
+      if (currentState && currentState.deviceRegistry[deviceId]) {
+        currentState.deviceRegistry[deviceId].name = newName;
+        if (deviceId === currentState.instanceId) {
+          currentState.instanceName = newName; // Update local name cache if it's this device
+        }
+        renderDeviceRegistry(); // Re-render the device list
+      }
     } else {
       showError(response.message || STRINGS.deviceRenameFailed, dom.messageArea);
       cancelInlineEdit(nameSpan, inlineControlsContainer); // Clean up on failure
@@ -572,7 +584,11 @@ async function handleDeleteDevice(deviceId, deviceName) {
     }
     if (response.success) {
       showMessage(dom.messageArea, STRINGS.deviceDeleteSuccess(deviceName), false);
-      await loadState();
+      // Update local state and re-render
+      if (currentState && currentState.deviceRegistry[deviceId]) {
+        delete currentState.deviceRegistry[deviceId];
+        renderDeviceRegistry(); // Re-render the device list
+      }
     } else {
       showError(
         response.message || STRINGS.deviceDeleteFailed,
@@ -613,7 +629,12 @@ dom.createGroupBtn.addEventListener("click", async () => {
       });
     }
     if (response.success) {
-      await loadState(); // Always reload state after group creation
+      // Update local state and re-render
+      if (currentState && !currentState.definedGroups.includes(response.newGroup)) {
+        currentState.definedGroups.push(response.newGroup);
+        currentState.definedGroups.sort();
+        renderDefinedGroups(); // Re-render the groups list
+      }
       showMessage(dom.messageArea, STRINGS.groupCreateSuccess(response.newGroup), false);
       dom.newGroupNameInput.value = "";
       dom.createGroupBtn.disabled = true;
@@ -638,12 +659,13 @@ async function handleSubscribe(event) {
     const isAndroidPlatform = await isAndroid();
     let response = await subscribeToGroupUnified(groupName, isAndroidPlatform);
     if (response.success) {
-      if (!currentState.subscriptions.includes(response.subscribedGroup)) {
+      // Update local state and re-render
+      if (currentState && !currentState.subscriptions.includes(response.subscribedGroup)) {
         currentState.subscriptions.push(response.subscribedGroup);
         currentState.subscriptions.sort();
+        renderDefinedGroups(); // Re-render the groups list
+        showMessage(dom.messageArea, `Subscribed to "${response.subscribedGroup}".`, false);
       }
-      renderDefinedGroups();
-      showMessage(dom.messageArea, `Subscribed to "${response.subscribedGroup}".`, false);
     } else {
       showError(response.message || "Failed to subscribe.", dom.messageArea);
     }
@@ -665,11 +687,12 @@ async function handleUnsubscribe(event) {
       isAndroidPlatform
     );
     if (response.success) {
-      currentState.subscriptions = currentState.subscriptions.filter(
-        (g) => g !== response.unsubscribedGroup
-      );
-      renderDefinedGroups();
-      showMessage(dom.messageArea, `Unsubscribed from "${response.unsubscribedGroup}".`, false);
+      // Update local state and re-render
+      if (currentState) {
+        currentState.subscriptions = currentState.subscriptions.filter(g => g !== response.unsubscribedGroup);
+        renderDefinedGroups(); // Re-render the groups list
+        showMessage(dom.messageArea, `Unsubscribed from "${response.unsubscribedGroup}".`, false);
+      }
     } else {
       showError(response.message || "Failed to unsubscribe.", dom.messageArea);
     }
@@ -698,13 +721,12 @@ async function handleDeleteGroup(event) {
       });
     }
     if (response.success) {
-      currentState.definedGroups = currentState.definedGroups.filter(
-        (g) => g !== response.deletedGroup
-      );
-      currentState.subscriptions = currentState.subscriptions.filter(
-        (g) => g !== response.deletedGroup
-      );
-      renderDefinedGroups();
+      // Update local state and re-render
+      if (currentState) {
+        currentState.definedGroups = currentState.definedGroups.filter(g => g !== response.deletedGroup);
+        currentState.subscriptions = currentState.subscriptions.filter(g => g !== response.deletedGroup);
+        renderDefinedGroups(); // Re-render the groups list
+      }
       showMessage(dom.messageArea, STRINGS.groupDeleteSuccess(response.deletedGroup), false);
     } else {
       showError(response.message || STRINGS.groupDeleteFailed, dom.messageArea);
@@ -847,7 +869,11 @@ async function handleRemoveSelfDevice() {
 
     if (res.success) {
       showMessage(dom.messageArea, "This device removed from all groups and registry.", false);
-      await loadState(); // Reload to reflect the change (device should disappear or be marked differently)
+      // Update local state and re-render
+      if (currentState && currentState.deviceRegistry[instanceId]) {
+        delete currentState.deviceRegistry[instanceId]; // Remove self from registry cache
+        renderDeviceRegistry(); // Re-render
+      }
     } else {
       showError(res.message || "Failed to remove this device.", dom.messageArea);
     }

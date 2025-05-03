@@ -766,15 +766,15 @@ export async function unsubscribeFromGroupUnified(
 export async function getUnifiedState(isAndroidPlatform) {
   if (isAndroidPlatform) {
     // Use storage wrapper for consistency and type safety
-    const [ // Added = await Promise.all([...])
+    const [
       instanceId,
       instanceName,
       subscriptions,
       groupBits,
       definedGroups,
       groupState,
-      deviceRegistry
-    ] = await Promise.all([
+      deviceRegistry,
+    ] = await Promise.all([ // Use storage.get for sync keys too
       storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID),
       storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_NAME),
       storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []),
