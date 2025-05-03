@@ -218,7 +218,7 @@ export function renderDeviceList(container, devices, highlightId = null) {
     `;
     ul.appendChild(li.querySelector("li"));
   }
-  container.innerHTML = "";
+  container.textContent = ""; // Clear safely
   container.appendChild(ul);
 }
 
@@ -245,7 +245,7 @@ export function renderGroupList(
   if (!groups || groups.length === 0) {
     const p = document.createElement("p");
     p.textContent = STRINGS.noGroups;
-    container.innerHTML = "";
+    container.textContent = ""; // Clear safely
     container.appendChild(p);
     return;
   }
@@ -309,7 +309,7 @@ export function renderGroupList(
     deleteButton.addEventListener("click", onDelete);
     ul.appendChild(liElem);
   });
-  container.innerHTML = "";
+  container.textContent = ""; // Clear safely
   container.appendChild(ul);
 }
 
@@ -371,7 +371,7 @@ export function showDebugInfo(container, state) {
     debugDiv.style.borderRadius = "4px";
     container.appendChild(debugDiv);
   }
-  debugDiv.innerHTML = "";
+  debugDiv.textContent = ""; // Clear safely
   const title = document.createElement("strong");
   title.textContent = "Debug Info";
   debugDiv.appendChild(title);
@@ -1210,7 +1210,7 @@ export function showLoadingIndicator(
       indicatorElement.prepend(spinner); // Add spinner at the beginning
     }
   } else {
-    indicatorElement.innerHTML = ""; // Clear content (spinner) when not loading
+    indicatorElement.textContent = ""; // Clear content safely
   }
 }
 

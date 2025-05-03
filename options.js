@@ -297,9 +297,10 @@ async function loadState() {
     }
 
     showError(STRINGS.loadingSettingsError(error.message), dom.messageArea);
-    dom.deviceNameDisplay.textContent = STRINGS.error;
-    dom.definedGroupsListDiv.innerHTML = `<p>${STRINGS.loadingGroups}</p>`;
-    dom.deviceRegistryListDiv.innerHTML = `<p>${STRINGS.loadingRegistry}</p>`;
+    if (dom.deviceNameDisplay) dom.deviceNameDisplay.textContent = STRINGS.error; // Check if exists
+    // Replace innerHTML with textContent for simple messages
+    dom.definedGroupsListDiv.textContent = STRINGS.loadingGroups;
+    dom.deviceRegistryListDiv.textContent = STRINGS.loadingRegistry;
     if (typeof console !== "undefined") {
       console.error("TabTogether options.js loadState error:", error);
       if (error && error.stack) {
@@ -319,7 +320,7 @@ function renderAll() {
 
 function renderDeviceRegistry() {
   const devices = currentState.deviceRegistry;
-  dom.deviceRegistryListDiv.innerHTML = ''; // Clear previous content first
+  dom.deviceRegistryListDiv.textContent = ''; // Clear previous content safely
 
   if (!devices || Object.keys(devices).length === 0) {
     dom.deviceRegistryListDiv.textContent = STRINGS.noDevices;
@@ -356,12 +357,15 @@ function renderDeviceRegistry() {
       nameAndInfoDiv.className = 'registry-item-info'; // Add class for styling
 
       const nameSpan = document.createElement('span');
+      nameSpan.className = 'device-name-label'; // Add class for potential styling/selection
       // Make current device name bold
       if (id === localId) {
-          nameSpan.innerHTML = `<strong>${device.name || STRINGS.deviceNameNotSet}</strong> (This Device)`;
+          // Create elements programmatically for safety
+          const strong = document.createElement('strong');
+          strong.textContent = device.name || STRINGS.deviceNameNotSet;
+          nameSpan.appendChild(strong);
+          nameSpan.appendChild(document.createTextNode(' (This Device)'));
           li.classList.add('this-device'); // Keep highlighting the row
-      } else {
-          nameSpan.textContent = device.name || STRINGS.deviceNameNotSet; // Use constant
       }
       // Only allow renaming for the current device within this list
       if (id === localId) {

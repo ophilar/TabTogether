@@ -46,7 +46,7 @@ TabTogether uses Firefox Sync for communication and stores group/device informat
 
 ## Contributing & Development Notes
 
-This extension was created to fulfill a personal need using AI assistance (Copilot, Gemini). Due to perceived limitations and latency with Firefox Sync, active development by the original author has paused. Further development, particularly around synchronizing tab states or groups, seemed challenging under these constraints.
+This extension was created to fulfill a personal need using AI assistance (Copilot, Gemini). Due to perceived limitations and latency with Firefox Sync, active development by the original author has paused. Further development, particularly around synchronizing tab states or tab groups, seem challenging under these constraints.
 
 Feedback, bug reports, and contributions are still welcome! Please see the [CONTRIBUTING.md](CONTRIBUTING.md) file for more details on how to get involved and for the full original development notes.
 

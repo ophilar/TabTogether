@@ -158,12 +158,17 @@ async function loadStatus() {
     // Use consistent message area
     showMessage(dom.messageArea, STRINGS.loadingSettingsError(error.message), true);
 
-    // Provide fallback UI content on error
     if (dom.deviceNameSpan) dom.deviceNameSpan.textContent = STRINGS.error;
-    if (dom.sendTabGroupsList)
+    if (dom.sendTabGroupsList) dom.sendTabGroupsList.textContent = "Error loading groups.";
+    if (dom.subscriptionsUl) {
+      dom.subscriptionsUl.textContent = ''; // Clear safely first
+      const li = document.createElement('li');
+      li.textContent = STRINGS.error;
       dom.sendTabGroupsList.textContent = "Error loading groups.";
-    if (dom.subscriptionsUl)
-      dom.subscriptionsUl.innerHTML = `<li>${STRINGS.error}</li>`;
+
+      // dom.subscriptionsUl.innerHTML = ''; // Clear first
+      // dom.subscriptionsUl.innerHTML = `<li>${STRINGS.error}</li>`;
+    }
   } finally {
     showLoadingIndicator(dom.loadingIndicator, false); // Hide loading indicator
     // if (syncIcon) syncIcon.classList.remove("syncing-icon"); // Moved to click handler
@@ -187,7 +192,7 @@ function renderSubscriptionsUI(subscriptions) {
   const ul = dom.subscriptionsUl;
   if (!ul) return; // Guard clause
 
-  ul.innerHTML = ""; // Clear previous list
+  ul.textContent = ""; // Clear previous list safely
   if (!subscriptions || subscriptions.length === 0) {
     const li = document.createElement("li");
     li.textContent = STRINGS.notSubscribed;
@@ -206,7 +211,7 @@ function renderSendTabGroups(groups) {
   const listContainer = dom.sendTabGroupsList;
   if (!listContainer) return; // Guard clause
 
-  listContainer.innerHTML = ""; // Clear previous content
+  listContainer.textContent = ""; // Clear previous content safely
 
   if (!groups || groups.length === 0) {
     const div = document.createElement("div");
