@@ -1,6 +1,6 @@
 # Privacy Policy for TabTogether
 
-**Last Updated:** 2024-07-29
+**Last Updated:** 2025-05-03
 
 This Privacy Policy describes how TabTogether ("the Extension", "we", "us") handles your information. By using TabTogether, you agree to the collection and use of information in accordance with this policy.
 
