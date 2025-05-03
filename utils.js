@@ -63,14 +63,14 @@ export const ensureString = (val, fallback = "") =>
 export async function mergeSyncStorage(key, updates) {
   try {
     const { success, mergedData } = await storage.merge(browser.storage.sync, key, updates);
-
-    if (success) {
-      // Log the actual merged data if the operation was considered successful (even if no change occurred)
-      console.log(`Merge operation for key "${key}" complete. Result:`, mergedData);
-    } else {
-      console.error(`Failed to set merged data for key "${key}"`);
-      return false; // Return false if set failed
-    }
+    // Return only the success status boolean, as expected by callers
+    return success;
+    // if (success) {
+    //   // Log the actual merged data if the operation was considered successful (even if no change occurred)
+    //   // console.log(`Merge operation for key "${key}" complete. Result:`, mergedData);
+    // } else {
+    //   console.error(`Failed to set merged data for key "${key}"`);
+    // }
     return true;
   } catch (error) {
     console.error(
@@ -206,17 +206,24 @@ export function renderDeviceList(container, devices, highlightId = null) {
     (a[1]?.name || "").localeCompare(b[1]?.name || "")
   );
   for (const [id, device] of entries) {
-    const li = html`
-      <li role="listitem" class="${id === highlightId ? "this-device" : ""}">
-        <span>${device.name || "Unnamed Device"}</span>
-        ${device.lastSeen
-          ? `<span class="small-text" style="margin-left:10px;font-size:0.95em;">Last seen: ${new Date(
-              device.lastSeen
-            ).toLocaleString()}</span>`
-          : ""}
-      </li>
-    `;
-    ul.appendChild(li.querySelector("li"));
+    // Create elements programmatically for safety
+    const li = document.createElement('li');
+    li.setAttribute('role', 'listitem');
+    if (id === highlightId) li.classList.add('this-device');
+
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = device.name || "Unnamed Device"; // Use textContent
+    li.appendChild(nameSpan);
+
+    if (device.lastSeen) {
+      const lastSeenSpan = document.createElement('span');
+      lastSeenSpan.className = 'small-text';
+      lastSeenSpan.style.marginLeft = '10px';
+      lastSeenSpan.style.fontSize = '0.95em';
+      lastSeenSpan.textContent = `Last seen: ${new Date(device.lastSeen).toLocaleString()}`; // Use textContent
+      li.appendChild(lastSeenSpan);
+    }
+    ul.appendChild(li); // Append the created li element directly
   }
   container.textContent = ""; // Clear safely
   container.appendChild(ul);
@@ -253,42 +260,42 @@ export function renderGroupList(
   ul.setAttribute("role", "list");
   groups.sort().forEach((groupName) => {
     const isSubscribed = subscriptions && subscriptions.includes(groupName);
-    // Use html template for group item
-    const li = html`
-      <li role="listitem">
-        <span
-          class="group-name-label"
-          title="Click to rename"
-          style="cursor:pointer;"
-          tabindex="0"
-          role="button"
-          aria-label="Rename group ${groupName}"
-          >${groupName}</span
-        >
-        <div class="group-actions">
-          <button
-            class="${isSubscribed ? "unsubscribe-btn" : "subscribe-btn"}"
-            data-group="${groupName}"
-            aria-label="${isSubscribed
-              ? "Unsubscribe from"
-              : "Subscribe to"} group ${groupName}"
-          >
-            ${isSubscribed ? "Unsubscribe" : "Subscribe"}
-          </button>
-          <button
-            class="delete-btn"
-            data-group="${groupName}"
-            title="Delete group for all devices"
-            aria-label="Delete group ${groupName}"
-          >
-            Delete
-          </button>
-        </div>
-      </li>
-    `;
+
+    // Create elements programmatically for safety
+    const liElem = document.createElement('li');
+    liElem.setAttribute('role', 'listitem');
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'group-name-label';
+    nameSpan.title = 'Click to rename';
+    nameSpan.style.cursor = 'pointer';
+    nameSpan.tabIndex = 0;
+    nameSpan.setAttribute('role', 'button');
+    nameSpan.setAttribute('aria-label', `Rename group ${groupName}`);
+    nameSpan.textContent = groupName; // Use textContent
+    liElem.appendChild(nameSpan);
+
+    const actionsDiv = document.createElement('div');
+    actionsDiv.className = 'group-actions';
+
+    const subButton = document.createElement('button');
+    subButton.className = isSubscribed ? 'unsubscribe-btn' : 'subscribe-btn';
+    subButton.dataset.group = groupName;
+    subButton.setAttribute('aria-label', `${isSubscribed ? 'Unsubscribe from' : 'Subscribe to'} group ${groupName}`);
+    subButton.textContent = isSubscribed ? 'Unsubscribe' : 'Subscribe'; // Use textContent
+    actionsDiv.appendChild(subButton);
+
+    const deleteButton = document.createElement('button');
+    deleteButton.className = 'delete-btn';
+    deleteButton.dataset.group = groupName;
+    deleteButton.title = 'Delete group for all devices';
+    deleteButton.setAttribute('aria-label', `Delete group ${groupName}`);
+    deleteButton.textContent = 'Delete'; // Use textContent
+    actionsDiv.appendChild(deleteButton);
+
+    liElem.appendChild(actionsDiv);
+
     // Attach event listeners
-    const liElem = li.querySelector("li");
-    const nameSpan = liElem.querySelector(".group-name-label");
     if (onRename) {
       nameSpan.onclick = () => onRename(groupName, nameSpan);
       nameSpan.onkeydown = (e) => {
@@ -298,14 +305,10 @@ export function renderGroupList(
         }
       };
     }
-    const subButton = liElem.querySelector(
-      'button[data-group][class$="subscribe-btn"], button[data-group][class$="unsubscribe-btn"]'
-    );
     subButton.addEventListener(
       "click",
       isSubscribed ? onUnsubscribe : onSubscribe
     );
-    const deleteButton = liElem.querySelector(".delete-btn");
     deleteButton.addEventListener("click", onDelete);
     ul.appendChild(liElem);
   });
@@ -771,27 +774,17 @@ export async function unsubscribeFromGroupUnified(
 // getUnifiedState: already uses Promise.all for Android, but not for non-Android
 export async function getUnifiedState(isAndroidPlatform) {
   if (isAndroidPlatform) {
+    // Use storage wrapper for consistency and type safety
     const [
       instanceId,
       instanceName,
       subscriptions,
       groupBits,
-      definedGroups,
-      groupState,
-      deviceRegistry,
     ] = await Promise.all([
-      browser.storage.local
-        .get(LOCAL_STORAGE_KEYS.INSTANCE_ID)
-        .then((r) => r[LOCAL_STORAGE_KEYS.INSTANCE_ID]),
-      browser.storage.local
-        .get(LOCAL_STORAGE_KEYS.INSTANCE_NAME)
-        .then((r) => r[LOCAL_STORAGE_KEYS.INSTANCE_NAME]),
-      browser.storage.local
-        .get(LOCAL_STORAGE_KEYS.SUBSCRIPTIONS)
-        .then((r) => r[LOCAL_STORAGE_KEYS.SUBSCRIPTIONS] || []),
-      browser.storage.local
-        .get(LOCAL_STORAGE_KEYS.GROUP_BITS)
-        .then((r) => r[LOCAL_STORAGE_KEYS.GROUP_BITS] || {}),
+      storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID),
+      storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_NAME),
+      storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []),
+      storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {}),
       browser.storage.sync
         .get(SYNC_STORAGE_KEYS.DEFINED_GROUPS)
         .then((r) => r[SYNC_STORAGE_KEYS.DEFINED_GROUPS] || []),
@@ -896,8 +889,6 @@ export const showError = (message, area = null) => {
       title: STRINGS.error,
       message: message,
     });
-  } else {
-    alert(message);
   }
 };
 
@@ -1117,7 +1108,7 @@ export const storage = {
       } else {
         console.log(
           `[storage.merge] Skipped setting ${key} as merge resulted in no change.`
-        );
+        ); // Keep this log as it's useful for debugging merge logic
       }
       // Return success status and the final merged data
       return { success: true, mergedData: mergedData };
