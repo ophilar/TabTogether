@@ -155,9 +155,6 @@ legend {
   font-size: 1.08em;
   transition: color var(--transition);
 }
-[data-theme="dark"] legend {
-  transition: color var(--transition);
-}
 
 /* Forms & Inputs */
 .setting-item {
