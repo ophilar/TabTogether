@@ -758,63 +758,39 @@ export async function unsubscribeFromGroupUnified(
 
 // --- Modernize Async Patterns: Use Promise.all for parallel async operations ---
 // getUnifiedState: already uses Promise.all for Android, but not for non-Android
-export async function getUnifiedState(isAndroidPlatform) {
-  if (isAndroidPlatform) {
-    // Use storage wrapper for consistency and type safety
-    const [
-      instanceId,
-      instanceName,
-      subscriptions,
-      groupBits,
-      definedGroups,
-      groupState,
-      deviceRegistry,
-    ] = await Promise.all([ // Use storage.get for sync keys too
-      storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID),
-      storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_NAME),
-      storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []),
-      storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {}),
-      storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []),
-      storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {}),
-      storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {}),
-    ]);
-    return {
-      instanceId,
-      instanceName,
-      subscriptions,
-      groupBits,
-      definedGroups,
-      groupState,
-      deviceRegistry,
-    };
-  } else {
-    // Parallelize state fetch for non-Android
-    const [
-      instanceId,
-      instanceName,
-      subscriptions,
-      groupBits,
-      definedGroups,
-      groupState,
-      deviceRegistry,
-    ] = await Promise.all([
-      storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID),
-      storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_NAME),
-      storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []),
-      storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {}),
-      storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []),
-      storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {}),
-      storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {}),
-    ]);
-    return {
-      instanceId,
-      instanceName,
-      subscriptions,
-      groupBits,
-      definedGroups,
-      groupState,
-      deviceRegistry,
-    };
+export async function getUnifiedState() {
+  // Removed redundant isAndroidPlatform check, logic is identical.
+  // Parallelize state fetch using storage wrapper for consistency.
+  try {
+      const [
+          instanceId,
+          instanceName,
+          subscriptions,
+          groupBits,
+          definedGroups,
+          groupState,
+          deviceRegistry,
+      ] = await Promise.all([
+          storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID),
+          storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_NAME),
+          storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []),
+          storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {}),
+          storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []),
+          storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {}),
+          storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {}),
+      ]);
+      return {
+          instanceId,
+          instanceName,
+          subscriptions,
+          groupBits,
+          definedGroups,
+          groupState,
+          deviceRegistry,
+      };
+  } catch (error) {
+      console.error("Error fetching unified state:", error);
+      return { error: error.message || "Failed to fetch state" }; // Return error state
   }
 }
 
@@ -833,48 +809,26 @@ export async function renameDeviceUnified(
     });
   }
 }
-
-// --- Generic Storage List/Object Updaters ---
-export async function updateListInStorage(
-  area,
-  key,
-  updater,
-  defaultValue = []
-) {
-  const list = await storage.get(area, key, defaultValue);
-  const updated = updater(Array.isArray(list) ? list : defaultValue);
-  await storage.set(area, key, updated);
-  return updated;
-}
-
-export async function updateObjectInStorage(
-  area,
-  key,
-  updater,
-  defaultValue = {}
-) {
-  const obj = await storage.get(area, key, defaultValue);
-  const updated = updater(obj && typeof obj === "object" ? obj : defaultValue);
-  await storage.set(area, key, updated);
-  return updated;
-}
-
-// --- Standardized Error Handling and User Feedback ---
-export const showError = (message, area = null) => {
-  if (area) {
-    area.textContent = message;
-    area.className = "error";
-    area.classList.remove("hidden");
-  } else if (typeof browser !== "undefined" && browser.notifications) {
-    browser.notifications.create({
-      type: "basic",
-      iconUrl: browser.runtime.getURL("icons/icon-48.png"),
-      title: STRINGS.error,
-      message: message,
-    });
+// --- Generic Storage List/Object Updaters (Re-added for internal use) ---
+export async function addToList(area, key, value) {
+  const list = await storage.get(area, key, []);
+  if (!list.includes(value)) {
+    list.push(value);
+    list.sort();
+    await storage.set(area, key, list);
   }
-};
+  return list;
+}
 
+export async function removeFromList(area, key, value) {
+  const list = await storage.get(area, key, []);
+  const updated = list.filter((item) => item !== value);
+  // Only set if the list actually changed
+  if (updated.length !== list.length) {
+      await storage.set(area, key, updated);
+  }
+  return updated;
+}
 // --- Background logic shared for background.js and tests ---
 export async function performHeartbeat(
   localInstanceId,
@@ -1113,6 +1067,15 @@ export async function updateObjectKey(area, key, oldProp, newProp) {
     await storage.set(area, key, obj);
   }
   return obj;
+}
+
+// --- Debounce Utility --- (Used by theme.js)
+export function debounce(fn, delay) {
+  let timer = null;
+  return function (...args) {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn.apply(this, args), delay);
+  };
 }
 
 export async function removeObjectKey(area, key, prop) {
