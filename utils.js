@@ -46,11 +46,6 @@ export async function isAndroid() {
   }
 }
 
-export async function isDesktop() {
-  const info = await getPlatformInfoCached();
-  return info.os === "win" || info.os === "mac" || info.os === "linux";
-}
-
 // --- Type Safety and Validation Helpers ---
 export const ensureObject = (val, fallback = {}) =>
   val && typeof val === "object" && !Array.isArray(val) ? val : fallback;
@@ -904,11 +899,10 @@ export async function performHeartbeat(
     SYNC_STORAGE_KEYS.DEVICE_REGISTRY,
     update
   );
-  if (success && cachedDeviceRegistry) {
-    cachedDeviceRegistry = deepMerge(cachedDeviceRegistry, update);
-  }
+  // Removed ineffective update to cachedDeviceRegistry argument
   console.log("Heartbeat complete.");
-} // Added closing brace that might have been missing visually
+}
+
 
 export async function performStaleDeviceCheck(
   cachedDeviceRegistry,
@@ -968,18 +962,14 @@ export async function performStaleDeviceCheck(
       SYNC_STORAGE_KEYS.DEVICE_REGISTRY,
       registryUpdates
     );
-    if (registryMergeSuccess && cachedDeviceRegistry) {
-      cachedDeviceRegistry = deepMerge(cachedDeviceRegistry, registryUpdates);
-    }
+    // Removed ineffective update to cachedDeviceRegistry argument
   }
   if (needsGroupStateUpdate) {
     groupStateMergeSuccess = await mergeSyncStorage(
       SYNC_STORAGE_KEYS.GROUP_STATE,
       groupStateUpdates
     );
-    if (groupStateMergeSuccess && cachedGroupState) {
-      cachedGroupState = deepMerge(cachedGroupState, groupStateUpdates);
-    }
+    // Removed ineffective update to cachedGroupState argument
   }
   console.log("Stale device check complete.");
 }
@@ -1108,24 +1098,6 @@ export const storage = {
   },
 };
 
-// --- Generic Group/Device Logic Helpers ---
-export async function addToList(area, key, value) {
-  const list = await storage.get(area, key, []);
-  if (!list.includes(value)) {
-    list.push(value);
-    list.sort();
-    await storage.set(area, key, list);
-  }
-  return list;
-}
-
-export async function removeFromList(area, key, value) {
-  const list = await storage.get(area, key, []);
-  const updated = list.filter((item) => item !== value);
-  await storage.set(area, key, updated);
-  return updated;
-}
-
 export async function renameInList(area, key, oldValue, newValue) {
   const list = await storage.get(area, key, []);
   const updated = list.map((item) => (item === oldValue ? newValue : item));
@@ -1150,78 +1122,4 @@ export async function removeObjectKey(area, key, prop) {
     await storage.set(area, key, obj);
   }
   return obj;
-}
-
-// --- Debounce Utility ---
-export function debounce(fn, delay) {
-  let timer = null;
-  return function (...args) {
-    clearTimeout(timer);
-    timer = setTimeout(() => fn.apply(this, args), delay);
-  };
-}
-
-// --- UI Helper Functions ---
-
-/**
- * Toggles the visibility and content of a loading indicator element.
- * @param {HTMLElement} indicatorElement - The DOM element for the loading indicator.
- * @param {boolean} isLoading - True to show loading, false to hide.
- */
-export function showLoadingIndicator(
-  indicatorElement,
-  isLoading,
-) {
-  if (!indicatorElement) {
-    console.warn("showLoadingIndicator: Indicator element not found.");
-    return;
-  }
-
-  indicatorElement.classList.toggle("hidden", !isLoading);
-
-  if (isLoading) {
-    // Ensure spinner span exists and set text
-    let spinner = indicatorElement.querySelector(".spinner");
-    if (!spinner) {
-      spinner = document.createElement("span");
-      spinner.className = "spinner";
-      indicatorElement.prepend(spinner); // Add spinner at the beginning
-    }
-  } else {
-    indicatorElement.textContent = ""; // Clear content safely
-  }
-}
-
-/**
- * Shows a message in a designated message area element.
- * @param {HTMLElement} messageArea - The DOM element for the message area.
- * @param {string} message - The message text to display.
- * @param {boolean} [isError=false] - True if the message is an error, false for success.
- * @param {number} [autoHideDelay=4000] - Delay in ms to auto-hide non-error messages (0 to disable).
- */
-export function showMessage(
-  messageArea,
-  message,
-  isError = false,
-  autoHideDelay = 4000
-) {
-  if (!messageArea) return;
-
-  messageArea.textContent = message;
-  messageArea.className = "message-area"; // Reset classes first
-  messageArea.classList.add(isError ? "error" : "success");
-  messageArea.classList.remove("hidden");
-
-  // Auto-hide non-error messages after a delay
-  if (!isError && autoHideDelay > 0) {
-    setTimeout(() => clearMessage(messageArea), autoHideDelay);
-  }
-}
-
-/** Clears the content and hides the designated message area element. */
-export function clearMessage(messageArea) {
-  if (messageArea) {
-    messageArea.textContent = "";
-    messageArea.className = "message-area hidden"; // Add hidden class
-  }
 }
