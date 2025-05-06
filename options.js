@@ -67,7 +67,7 @@ if (manualSyncBtn) {
       }
     } catch (error) { // Catch errors from loadState or sendMessage
       console.error("Manual sync failed:", error);
-      showError(`Sync failed: ${error.message || 'Unknown error'}`, dom.messageArea);
+      showMessage(dom.messageArea, `Sync failed: ${error.message || 'Unknown error'}`, true);
     } finally {
       // showLoadingIndicator(dom.loadingIndicator, false); // Don't show/hide the separate indicator
       const duration = Date.now() - startTime;
@@ -162,16 +162,22 @@ document.addEventListener("DOMContentLoaded", async () => {
   loadAdvancedTimingSettings();
 
   // Listen for messages from the background script indicating data changes
-  browser.runtime.onMessage.addListener((message) => {
+  browser.runtime.onMessage.addListener(async (message) => { // Make listener async
     if (message.action === "syncDataChanged") {
       console.log("Options page received syncDataChanged message, reloading state...");
-      loadState(); // Reload the state to update the UI
+      await loadState(); // Reload the state to update the UI
+
+      // After state is loaded, explicitly update the sync status display
+      // from the potentially updated 'lastSync' value in local storage.
+      const ts = await storage.get(browser.storage.local, "lastSync", null);
+      if (ts && syncStatus) { // Ensure syncStatus element exists
+        syncStatus.textContent = "Last sync: " + new Date(ts).toLocaleString();
+      }
     }
   });
 
   loadState(); // Load initial state after setting up listeners
 });
-
 // Onboarding steps content
 const onboardingSteps = [
   {
@@ -212,7 +218,20 @@ const openOnboardingLink = document.getElementById("openOnboardingLink");
 function showOnboardingStep(idx) {
   onboardingStep = idx;
   const step = onboardingSteps[onboardingStep];
-  onboardingStepContent.innerHTML = `<h2 style='margin-top:0;'>${step.title}</h2>${step.content}`;
+  // Clear previous content
+  onboardingStepContent.textContent = '';
+
+  // Create and append h2 for title
+  const titleElement = document.createElement('h2');
+  titleElement.style.marginTop = '0';
+  titleElement.textContent = step.title;
+  onboardingStepContent.appendChild(titleElement);
+
+  // Create a div for the content and set its innerHTML (assuming step.content is trusted HTML)
+  const contentDiv = document.createElement('div');
+  contentDiv.textContent = step.content; // If step.content is simple text, use textContent
+  onboardingStepContent.appendChild(contentDiv);
+
   onboardingPrevBtn.disabled = onboardingStep === 0;
   onboardingNextBtn.disabled = onboardingStep === onboardingSteps.length - 1;
 }
@@ -259,18 +278,9 @@ async function loadState() {
     if (error && error.stack) {
       console.error("!!! Stack Trace:", error.stack); // Log the stack trace if available
     }
-
     showMessage(dom.messageArea, STRINGS.loadingSettingsError(error.message), true); // Use showMessage
-    if (dom.deviceNameDisplay) dom.deviceNameDisplay.textContent = STRINGS.error; // Check if exists
-    // Replace innerHTML with textContent for simple messages
     dom.definedGroupsListDiv.textContent = STRINGS.loadingGroups;
     dom.deviceRegistryListDiv.textContent = STRINGS.loadingRegistry;
-    if (typeof console !== "undefined") {
-      console.error("TabTogether options.js loadState error:", error);
-      if (error && error.stack) {
-        console.error("Stack trace:", error.stack);
-      }
-    }
   } finally {
     showLoadingIndicator(dom.loadingIndicator, false);
   }
@@ -323,19 +333,25 @@ function renderDeviceRegistry() {
       const nameSpan = document.createElement('span');
       nameSpan.className = 'device-name-label'; // Add class for potential styling/selection
       // Make current device name bold
+
+      // Set the base name for all devices.
+      // Use device.name directly; STRINGS.deviceNameNotSet can be a fallback if device.name is empty.
+      let displayName = device.name || STRINGS.deviceNameNotSet;
+
       if (id === localId) {
         // Create elements programmatically for safety
         const strong = document.createElement('strong');
-        strong.textContent = device.name || STRINGS.deviceNameNotSet;
+        strong.textContent = displayName;
         nameSpan.appendChild(strong);
         nameSpan.appendChild(document.createTextNode(' (This Device)'));
         li.classList.add('this-device'); // Keep highlighting the row
-      }
-      // Only allow renaming for the current device within this list
-      if (id === localId) {
+
+        // Renaming logic only for the current device
         nameSpan.style.cursor = 'pointer'; // Indicate clickable
         nameSpan.title = 'Click to rename this device';
-        nameSpan.onclick = () => startRenameDevice(id, device.name || '', li, nameSpan);
+        nameSpan.onclick = () => startRenameDevice(id, displayName, li, nameSpan);
+      } else {
+        nameSpan.textContent = displayName;
       }
       nameAndInfoDiv.appendChild(nameSpan);
 
@@ -360,14 +376,14 @@ function renderDeviceRegistry() {
         deleteBtn.textContent = 'Remove';
         deleteBtn.title = 'Remove this device from all groups and registry. This cannot be undone.';
         deleteBtn.setAttribute('aria-label', 'Remove this device from registry');
-        // Attach the specific handler for removing self
         deleteBtn.onclick = handleRemoveSelfDevice; // Use a dedicated handler
       } else {
         deleteBtn.textContent = 'Delete';
         deleteBtn.title = 'Delete this device from the registry';
-        deleteBtn.setAttribute('aria-label', `Delete device ${device.name || 'Unnamed'} from registry`);
+        const currentDeviceNameForDelete = device.name || 'Unnamed'; // Fallback for ARIA label and confirmation
+        deleteBtn.setAttribute('aria-label', `Delete device ${currentDeviceNameForDelete} from registry`);
+        deleteBtn.onclick = () => handleDeleteDevice(id, currentDeviceNameForDelete);
       }
-      deleteBtn.onclick = () => handleDeleteDevice(id, device.name);
       actionsDiv.appendChild(deleteBtn);
 
       li.appendChild(actionsDiv);
@@ -450,7 +466,7 @@ async function finishRenameGroup(oldName, newName, nameSpan, inlineControlsConta
       }
       // Controls are removed implicitly by re-rendering
     } else {
-      showError(response.message || STRINGS.groupRenameFailed, dom.messageArea);
+      showMessage(dom.messageArea, response.message || STRINGS.groupRenameFailed, true);
       // Explicitly cancel edit UI on failure
       cancelInlineEdit(nameSpan, inlineControlsContainer);
     }
@@ -573,13 +589,11 @@ async function handleDeleteDevice(deviceId, deviceName) {
 
 
 dom.newGroupNameInput.addEventListener(
-  "input", // Use inline debounce as 'debounce' import was removed
-  (function () {
-    let timer;
-    return function (e) {
+  "input",
+  debounce((e) => {
     const value = e.target.value.trim();
     dom.createGroupBtn.disabled = value.length === 0;
-  }})()
+  }, 250) // Standard debounce delay
 );
 dom.createGroupBtn.addEventListener("click", async () => {
   const groupName = dom.newGroupNameInput.value.trim();
@@ -610,10 +624,8 @@ dom.createGroupBtn.addEventListener("click", async () => {
       showMessage(dom.messageArea, response.message || STRINGS.groupCreateFailed, true);
     }
   } catch (error) {
-    showMessage(dom.messageArea,
-      STRINGS.groupCreateFailed + ": " + error.message, true,
-      dom.messageArea
-    );
+    // Corrected: Removed extra dom.messageArea argument
+    showMessage(dom.messageArea, STRINGS.groupCreateFailed + ": " + error.message, true);
   } finally {
     showLoadingIndicator(dom.loadingIndicator, false);
   }
@@ -700,10 +712,8 @@ async function handleDeleteGroup(event) {
       showMessage(dom.messageArea, response.message || STRINGS.groupDeleteFailed, true);
     }
   } catch (error) {
-    showMessage(dom.messageArea,
-      STRINGS.groupDeleteFailed + ": " + error.message, true,
-      dom.messageArea
-    );
+    // Corrected: Removed extra dom.messageArea argument
+    showMessage(dom.messageArea, STRINGS.groupDeleteFailed + ": " + error.message, true);
   } finally {
     showLoadingIndicator(dom.loadingIndicator, false);
   }
@@ -830,10 +840,10 @@ async function handleRemoveSelfDevice() {
         renderDeviceRegistry(); // Re-render
       }
     } else {
-      showError(res.message || "Failed to remove this device.", dom.messageArea);
+      showMessage(dom.messageArea, res.message || "Failed to remove this device.", true);
     }
   } catch (e) {
-    showError("Error removing this device: " + e.message, dom.messageArea);
+    showMessage(dom.messageArea, "Error removing this device: " + e.message, true);
   } finally {
     showLoadingIndicator(dom.loadingIndicator, false);
   }
