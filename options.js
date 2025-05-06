@@ -227,11 +227,18 @@ function showOnboardingStep(idx) {
   titleElement.textContent = step.title;
   onboardingStepContent.appendChild(titleElement);
 
-  // Create a div for the content and set its innerHTML (assuming step.content is trusted HTML)
-  const contentDiv = document.createElement('div');
-  contentDiv.textContent = step.content; // If step.content is simple text, use textContent
-  onboardingStepContent.appendChild(contentDiv);
-
+  // Parse and append step.content HTML safely
+  if (step.content && typeof step.content === 'string') {
+    const parser = new DOMParser();
+    // text/html creates a full HTML document; we're interested in the body's children.
+    const doc = parser.parseFromString(step.content, 'text/html');
+    // Append all child nodes from the parsed body to the onboardingStepContent
+    // Using cloneNode(true) is important to import nodes into the current document
+    Array.from(doc.body.childNodes).forEach(node => {
+      onboardingStepContent.appendChild(node.cloneNode(true));
+    });
+  }
+  
   onboardingPrevBtn.disabled = onboardingStep === 0;
   onboardingNextBtn.disabled = onboardingStep === onboardingSteps.length - 1;
 }

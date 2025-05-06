@@ -66,7 +66,6 @@ export async function mergeSyncStorage(key, updates) {
     // } else {
     //   console.error(`Failed to set merged data for key "${key}"`);
     // }
-    return true;
   } catch (error) {
     console.error(
       `Error merging ${key} in sync storage:`,
@@ -759,7 +758,6 @@ export async function unsubscribeFromGroupUnified(
 // --- Modernize Async Patterns: Use Promise.all for parallel async operations ---
 // getUnifiedState: already uses Promise.all for Android, but not for non-Android
 export async function getUnifiedState() {
-  // Removed redundant isAndroidPlatform check, logic is identical.
   // Parallelize state fetch using storage wrapper for consistency.
   try {
       const [
@@ -834,7 +832,6 @@ export async function performHeartbeat(
   localInstanceId,
   localInstanceName,
   localGroupBits,
-  cachedDeviceRegistry
 ) {
   if (!localInstanceId) {
     console.warn("Heartbeat skipped: Instance ID not available yet.");
@@ -1085,4 +1082,69 @@ export async function removeObjectKey(area, key, prop) {
     await storage.set(area, key, obj);
   }
   return obj;
+}
+
+// --- UI Helper Functions ---
+
+/**
+ * Toggles the visibility and content of a loading indicator element.
+ * @param {HTMLElement} indicatorElement - The DOM element for the loading indicator.
+ * @param {boolean} isLoading - True to show loading, false to hide.
+ */
+export function showLoadingIndicator(
+  indicatorElement,
+  isLoading,
+) {
+  if (!indicatorElement) {
+    console.warn("showLoadingIndicator: Indicator element not found.");
+    return;
+  }
+
+  indicatorElement.classList.toggle("hidden", !isLoading);
+
+  if (isLoading) {
+    // Ensure spinner span exists and set text
+    let spinner = indicatorElement.querySelector(".spinner");
+    if (!spinner) {
+      spinner = document.createElement("span");
+      spinner.className = "spinner";
+      indicatorElement.prepend(spinner); // Add spinner at the beginning
+    }
+  } else {
+    indicatorElement.textContent = ""; // Clear content safely
+  }
+}
+
+/**
+ * Shows a message in a designated message area element.
+ * @param {HTMLElement} messageArea - The DOM element for the message area.
+ * @param {string} message - The message text to display.
+ * @param {boolean} [isError=false] - True if the message is an error, false for success.
+ * @param {number} [autoHideDelay=4000] - Delay in ms to auto-hide non-error messages (0 to disable).
+ */
+export function showMessage(
+  messageArea,
+  message,
+  isError = false,
+  autoHideDelay = 4000
+) {
+  if (!messageArea) return;
+
+  messageArea.textContent = message;
+  messageArea.className = "message-area"; // Reset classes first
+  messageArea.classList.add(isError ? "error" : "success");
+  messageArea.classList.remove("hidden");
+
+  // Auto-hide non-error messages after a delay
+  if (!isError && autoHideDelay > 0) {
+    setTimeout(() => clearMessage(messageArea), autoHideDelay);
+  }
+}
+
+/** Clears the content and hides the designated message area element. */
+export function clearMessage(messageArea) {
+  if (messageArea) {
+    messageArea.textContent = "";
+    messageArea.className = "message-area hidden"; // Add hidden class
+  }
 }
