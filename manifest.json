@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TabTogether",
-  "version": "0.9.2",
+  "version": "0.9.3",
   "description": "Send tabs between groups of devices using Firefox Sync.",
   "permissions": [
     "storage",        
@@ -31,6 +31,9 @@
     "gecko": {
       "id": "{e7a1c2b3-4d5e-4f6a-8b7c-9d0e1f2a3b4c}",
       "strict_min_version": "112.0" 
+    },
+    "gecko_android": {
+      "strict_min_version": "112.0"
     }
   },
   "options_ui": {
