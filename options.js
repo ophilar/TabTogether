@@ -31,8 +31,8 @@ const dom = {
   definedGroupsListDiv: document.getElementById("definedGroupsList"),
   newGroupNameInput: document.getElementById("newGroupName"),
   createGroupBtn: document.getElementById("createGroupBtn"),
-  loadingIndicator: document.getElementById("loadingIndicator"),
-  messageArea: document.getElementById("messageArea"),
+  // loadingIndicator: document.getElementById("loadingIndicator"),
+  // messageArea: document.getElementById("messageArea"),
   staleDeviceThresholdInput: document.getElementById("staleDeviceThresholdInput"),
   taskExpiryInput: document.getElementById("taskExpiryInput"),
 };
@@ -146,7 +146,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   injectSharedUI();
   applyThemeFromStorage();
   setupThemeDropdown("darkModeSelect");
-
+  
+  // Assign DOM elements that might be created/checked by injectSharedUI or need full DOM readiness
+  dom.loadingIndicator = document.getElementById("loadingIndicator");
+  dom.messageArea = document.getElementById("messageArea");
+  
   if (await isAndroid()) {
     const container = document.querySelector(".container");
     showAndroidBanner(
