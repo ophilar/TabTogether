@@ -183,30 +183,38 @@ async function updateContextMenu(cachedDefinedGroups) {
     "tab",
   ];
 
-  if (groups.length === 0) {
+  try {
+    if (groups.length === 0) {
+      browser.contextMenus.create({
+        id: "no-groups",
+        title: "No groups defined",
+        contexts: contexts,
+        enabled: false,
+      });
+      return;
+    }
+
     browser.contextMenus.create({
-      id: "no-groups",
-      title: "No groups defined",
+      id: "send-to-group-parent",
+      title: "Send Tab to Group",
       contexts: contexts,
-      enabled: false,
     });
-    return;
+
+    groups.sort().forEach((groupName) => {
+      try {
+        browser.contextMenus.create({
+          id: `send-to-${groupName}`,
+          parentId: "send-to-group-parent",
+          title: groupName,
+          contexts: contexts,
+        });
+      } catch (e) {
+        console.error(`Failed to create context menu item for group "${groupName}":`, e.message);
+      }
+    });
+  } catch (e) {
+    console.error("Error during top-level context menu creation (e.g., 'no-groups' or 'send-to-group-parent'):", e.message);
   }
-
-  browser.contextMenus.create({
-    id: "send-to-group-parent",
-    title: "Send Tab to Group",
-    contexts: contexts,
-  });
-
-  groups.sort().forEach((groupName) => {
-    browser.contextMenus.create({
-      id: `send-to-${groupName}`,
-      parentId: "send-to-group-parent",
-      title: groupName,
-      contexts: contexts,
-    });
-  });
 }
 
 browser.contextMenus.onClicked.addListener(async (info, tab) => {

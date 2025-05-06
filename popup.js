@@ -3,14 +3,13 @@ import {
   renderDeviceName,
   isAndroid,
   sendTabToGroupDirect,
-  processIncomingTabsAndroid, // Import the shared function
+  processIncomingTabsAndroid,
   getUnifiedState,
   showAndroidBanner,
   setLastSyncTime,
   storage,
   showLoadingIndicator,
   showMessage,
-  clearMessage,
   performHeartbeat,
 } from "./utils.js";
 import { injectSharedUI } from "./shared-ui.js";
@@ -29,12 +28,15 @@ const dom = {
   popupDetails: document.getElementById("popupDetails"),
 };
 
-const loadingIndicator = document.getElementById("loadingIndicator");
+let loadingIndicator; // Declare, assign after UI injection
 
 // --- Initialization ---
 document.addEventListener("DOMContentLoaded", async () => {
   injectSharedUI(); // Ensure shared UI elements like loading/message areas are present
   applyThemeFromStorage(); // Apply theme early
+
+  loadingIndicator = document.getElementById("loadingIndicator");
+  dom.messageArea = document.getElementById("messageArea"); // Also re-assign if injectSharedUI creates it
 
   if (await isAndroid()) {
     const container = document.querySelector(".container");
@@ -72,9 +74,18 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (!(await isAndroid())) {
           await browser.runtime.sendMessage({ action: "heartbeat" });
         } else {
-          // Explicitly perform heartbeat on Android after processing,
-          // as background sync isn't available.
-          await performHeartbeat(); // Ensure heartbeat is performed
+          // Explicitly perform heartbeat on Android after processing.
+          // We need to get the necessary details from the state.
+          const latestState = await getUnifiedState(); // true for isAndroidPlatform
+          if (latestState && latestState.instanceId && latestState.instanceName && latestState.groupBits) {
+            await performHeartbeat(
+              latestState.instanceId,
+              latestState.instanceName,
+              latestState.groupBits
+            );
+          } else {
+            console.warn("[Popup] Android: Could not perform heartbeat due to missing state for arguments.");
+          }
         }
         const now = new Date();
         await storage.set(browser.storage.local, "lastSync", now.getTime());
@@ -127,7 +138,7 @@ async function loadStatus() {
   showLoadingIndicator(dom.loadingIndicator, true);
   try {
     const isAndroidPlatform = await isAndroid();
-    let state = await getUnifiedState(isAndroidPlatform);
+    let state = await getUnifiedState();
 
     // Process incoming tabs immediately on Android after getting state
     if (isAndroidPlatform) {
