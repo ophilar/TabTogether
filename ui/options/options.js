@@ -1,37 +1,29 @@
 // options.js
 
-import { STRINGS, SYNC_STORAGE_KEYS } from "./common/constants.js";
-import { isAndroid } from "./core/platform.js";
+import { STRINGS } from "../../common/constants.js";
 import {
+  renderGroupList,
+  isAndroid,
+  SYNC_STORAGE_KEYS, // Use SYNC keys for shared settings
   createGroupDirect,
   deleteGroupDirect,
   renameGroupDirect,
   deleteDeviceDirect,
+  processIncomingTabsAndroid, // Import the shared function
   getUnifiedState,
   subscribeToGroupUnified,
   unsubscribeFromGroupUnified,
-  renameDeviceUnified,
-} from "./core/actions.js";
-import { storage } from "./core/storage.js";
-import { processIncomingTabsAndroid } from "./core/tasks.js";
-import { debounce } from "./common/utils.js";
-import { injectSharedUI } from "./ui/shared/shared-ui.js";
-import { applyThemeFromStorage, setupThemeDropdown } from "./ui/shared/theme.js";
-import {
   showAndroidBanner,
+  setLastSyncTime,
+  debounce,
+  renameDeviceUnified,
+  storage,
   showLoadingIndicator,
   showMessage,
   clearMessage,
-} from "./ui/shared/ui-helpers.js";
-import {
-  renderDeviceRegistryUI,
-  renderGroupListUI,
-  createInlineEditControlsUI,
-  cancelInlineEditUI,
-  setLastSyncTimeUI,
-  showDebugInfoUI
-} from "./ui/options/options-ui.js";
-import { setupOnboarding } from "./ui/options/options-onboarding.js";
+} from "../../utils.js";
+import { injectSharedUI } from "../shared/shared-ui.js";
+import { applyThemeFromStorage, setupThemeDropdown } from "./theme.js";
 
 // Cache DOM elements at the top for repeated use
 const dom = {
@@ -39,6 +31,8 @@ const dom = {
   definedGroupsListDiv: document.getElementById("definedGroupsList"),
   newGroupNameInput: document.getElementById("newGroupName"),
   createGroupBtn: document.getElementById("createGroupBtn"),
+  // loadingIndicator: document.getElementById("loadingIndicator"),
+  // messageArea: document.getElementById("messageArea"),
   staleDeviceThresholdInput: document.getElementById("staleDeviceThresholdInput"),
   taskExpiryInput: document.getElementById("taskExpiryInput"),
 };
@@ -152,7 +146,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   injectSharedUI();
   applyThemeFromStorage();
   setupThemeDropdown("darkModeSelect");
-  setupOnboarding(); // Initialize onboarding UI and logic
   
   // Assign DOM elements that might be created/checked by injectSharedUI or need full DOM readiness
   dom.loadingIndicator = document.getElementById("loadingIndicator");
@@ -163,8 +156,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     showAndroidBanner(
       'Note: On Firefox for Android, background processing is not available. Open this page and tap "Sync Now" to process new tabs or changes.'
     );
-    setLastSyncTimeUI(container, Date.now()); // Use UI function
-    showDebugInfoUI(container, currentState);      // Use UI function
+    setLastSyncTime(container, Date.now());
+    showDebugInfo(container, currentState);
 
   }
 
@@ -189,6 +182,88 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   loadState(); // Load initial state after setting up listeners
 });
+// Onboarding steps content
+const onboardingSteps = [
+  {
+    title: "Welcome to TabTogether!",
+    content:
+      "<p>TabTogether lets you send tabs to groups of devices instantly. This onboarding will guide you through the main features.</p>",
+  },
+  {
+    title: "Device Settings",
+    content:
+      "<p>Set your device name and icon. This helps you identify your devices in groups and the registry.</p>",
+  },
+  {
+    title: "Groups",
+    content:
+      "<p>Create, rename, and delete groups. Subscribe your devices to groups to send tabs between them.</p>",
+  },
+  {
+    title: "Notifications & Sync",
+    content:
+      "<p>Customize notification sound and duration. Use manual or auto-sync to keep your devices up to date.</p>",
+  },
+  {
+    title: "Help & About",
+    content:
+      "<p>Find more help in the Help/About section or on the project page. You can always reopen this onboarding from the link at the bottom of the settings page.</p>",
+  },
+];
+
+let onboardingStep = 0;
+const onboardingModal = document.getElementById("onboardingModal");
+const onboardingStepContent = document.getElementById("onboardingStepContent");
+const onboardingPrevBtn = document.getElementById("onboardingPrevBtn");
+const onboardingNextBtn = document.getElementById("onboardingNextBtn");
+const onboardingCloseBtn = document.getElementById("onboardingCloseBtn");
+const openOnboardingLink = document.getElementById("openOnboardingLink");
+
+function showOnboardingStep(idx) {
+  onboardingStep = idx;
+  const step = onboardingSteps[onboardingStep];
+  // Clear previous content
+  onboardingStepContent.textContent = '';
+
+  // Create and append h2 for title
+  const titleElement = document.createElement('h2');
+  titleElement.style.marginTop = '0';
+  titleElement.textContent = step.title;
+  onboardingStepContent.appendChild(titleElement);
+
+  // Parse and append step.content HTML safely
+  if (step.content && typeof step.content === 'string') {
+    const parser = new DOMParser();
+    // text/html creates a full HTML document; we're interested in the body's children.
+    const doc = parser.parseFromString(step.content, 'text/html');
+    // Append all child nodes from the parsed body to the onboardingStepContent
+    // Using cloneNode(true) is important to import nodes into the current document
+    Array.from(doc.body.childNodes).forEach(node => {
+      onboardingStepContent.appendChild(node.cloneNode(true));
+    });
+  }
+  
+  onboardingPrevBtn.disabled = onboardingStep === 0;
+  onboardingNextBtn.disabled = onboardingStep === onboardingSteps.length - 1;
+}
+
+if (openOnboardingLink) {
+  openOnboardingLink.addEventListener("click", (e) => {
+    e.preventDefault();
+    onboardingModal.classList.remove("hidden");
+    showOnboardingStep(0);
+  });
+}
+if (onboardingPrevBtn)
+  onboardingPrevBtn.onclick = () =>
+    showOnboardingStep(Math.max(0, onboardingStep - 1));
+if (onboardingNextBtn)
+  onboardingNextBtn.onclick = () =>
+    showOnboardingStep(
+      Math.min(onboardingSteps.length - 1, onboardingStep + 1)
+    );
+if (onboardingCloseBtn)
+  onboardingCloseBtn.onclick = () => onboardingModal.classList.add("hidden");
 
 async function loadState() {
   showLoadingIndicator(dom.loadingIndicator, true);
@@ -199,8 +274,8 @@ async function loadState() {
     if (isAndroidPlatform) {
       await processIncomingTabsAndroid(state);
       const container = document.querySelector(".container");
-      setLastSyncTimeUI(container, Date.now()); // Call UI function
-      showDebugInfoUI(container, state);      // Call UI function
+      setLastSyncTime(container, Date.now()); // Call directly
+      showDebugInfo(container, state);      // Call directly
     }
     currentState = state;
     if (!currentState || currentState.error) {
@@ -229,21 +304,113 @@ function renderAll() {
 }
 
 function renderDeviceRegistry() {
-  // Call the UI rendering function from options-ui.js
-  renderDeviceRegistryUI(
-    dom.deviceRegistryListDiv,
-    currentState,
-    { // Pass handlers
-      startRenameDevice,
-      handleRemoveSelfDevice,
-      handleDeleteDevice,
-    }
-  );
+  const devices = currentState.deviceRegistry;
+  dom.deviceRegistryListDiv.textContent = ''; // Clear previous content safely
+
+  if (!devices || Object.keys(devices).length === 0) {
+    dom.deviceRegistryListDiv.textContent = STRINGS.noDevices;
+    return;
+  }
+
+  const localId = currentState.instanceId;
+  const ul = document.createElement('ul');
+  ul.setAttribute('role', 'list');
+  // Apply styling similar to #definedGroupsList ul from styles.css
+  ul.className = 'registry-list'; // Add class for styling
+
+  Object.entries(devices)
+    .sort((a, b) => {
+      const [idA] = a;
+      const [idB] = b;
+      // Prioritize the current device
+      if (idA === localId) return -1; // a comes first
+      if (idB === localId) return 1;  // b comes first
+      // Otherwise, sort alphabetically by name
+      return (a[1]?.name || '').localeCompare(b[1]?.name || '');
+    })
+    .forEach(([id, device]) => {
+      const li = document.createElement('li');
+      li.setAttribute('role', 'listitem');
+      // Apply styling similar to #definedGroupsList li
+      li.className = 'registry-list-item'; // Add class for styling
+
+      if (id === localId) {
+      }
+
+      // Container for name and last seen (allows inline edit controls to fit)
+      const nameAndInfoDiv = document.createElement('div');
+      nameAndInfoDiv.className = 'registry-item-info'; // Add class for styling
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'device-name-label'; // Add class for potential styling/selection
+      // Make current device name bold
+
+      // Set the base name for all devices.
+      // Use device.name directly; STRINGS.deviceNameNotSet can be a fallback if device.name is empty.
+      let displayName = device.name || STRINGS.deviceNameNotSet;
+
+      if (id === localId) {
+        // Create elements programmatically for safety
+        const strong = document.createElement('strong');
+        strong.textContent = displayName;
+        nameSpan.appendChild(strong);
+        nameSpan.appendChild(document.createTextNode(' (This Device)'));
+        li.classList.add('this-device'); // Keep highlighting the row
+
+        // Renaming logic only for the current device
+        nameSpan.style.cursor = 'pointer'; // Indicate clickable
+        nameSpan.title = 'Click to rename this device';
+        nameSpan.onclick = () => startRenameDevice(id, displayName, li, nameSpan);
+      } else {
+        nameSpan.textContent = displayName;
+      }
+      nameAndInfoDiv.appendChild(nameSpan);
+
+      if (device.lastSeen) {
+        const lastSeenSpan = document.createElement('span');
+        lastSeenSpan.className = 'small-text registry-item-lastseen'; // Add classes for styling
+        lastSeenSpan.textContent = `Last seen: ${new Date(device.lastSeen).toLocaleString()}`;
+        nameAndInfoDiv.appendChild(lastSeenSpan);
+      }
+
+      li.appendChild(nameAndInfoDiv);
+
+      // Action buttons container
+      const actionsDiv = document.createElement('div');
+      actionsDiv.className = 'registry-item-actions'; // Add class for styling
+
+      // Delete/Remove button
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'inline-btn danger'; // Use existing style
+
+      if (id === localId) {
+        deleteBtn.textContent = 'Remove';
+        deleteBtn.title = 'Remove this device from all groups and registry. This cannot be undone.';
+        deleteBtn.setAttribute('aria-label', 'Remove this device from registry');
+        deleteBtn.onclick = handleRemoveSelfDevice; // Use a dedicated handler
+      } else {
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.title = 'Delete this device from the registry';
+        const currentDeviceNameForDelete = device.name || 'Unnamed'; // Fallback for ARIA label and confirmation
+        deleteBtn.setAttribute('aria-label', `Delete device ${currentDeviceNameForDelete} from registry`);
+        deleteBtn.onclick = () => handleDeleteDevice(id, currentDeviceNameForDelete);
+      }
+      actionsDiv.appendChild(deleteBtn);
+
+      li.appendChild(actionsDiv);
+      ul.appendChild(li);
+    });
+
+  // Remove border from last item
+  // if (ul.lastChild) { // Let CSS handle this with :last-child selector
+  //   ul.lastChild.style.borderBottom = 'none';
+  // }
+
+  dom.deviceRegistryListDiv.appendChild(ul);
 }
 
 function renderDefinedGroups() {
-  // Call the UI rendering function from options-ui.js
-  renderGroupListUI(
+  renderGroupList(
     dom.definedGroupsListDiv,
     currentState.definedGroups,
     currentState.subscriptions,
@@ -268,11 +435,11 @@ function startRenameGroup(oldName, nameSpan) {
   };
 
   const onCancel = () => {
-    cancelInlineEditUI(nameSpan, inlineControls.element);
+    cancelInlineEdit(nameSpan, inlineControls.element);
   };
 
-  // Create the inline controls using the UI function
-  const inlineControls = createInlineEditControlsUI(oldName, onSave, onCancel);
+  // Create the inline controls
+  const inlineControls = createInlineEditControls(oldName, onSave, onCancel);
 
   nameSpan.style.display = 'none'; // Hide original span
   // Insert controls *after* the hidden span, within the list item
@@ -285,7 +452,7 @@ async function finishRenameGroup(oldName, newName, nameSpan, inlineControlsConta
   // Basic validation (already handled in save handler, but good practice)
   newName = newName.trim();
   if (!newName || newName === oldName) {
-    cancelInlineEditUI(nameSpan, inlineControlsContainer);
+    cancelInlineEdit(nameSpan, inlineControlsContainer);
     return;
   }
 
@@ -312,12 +479,12 @@ async function finishRenameGroup(oldName, newName, nameSpan, inlineControlsConta
     } else {
       showMessage(dom.messageArea, response.message || STRINGS.groupRenameFailed, true);
       // Explicitly cancel edit UI on failure
-      cancelInlineEditUI(nameSpan, inlineControlsContainer);
+      cancelInlineEdit(nameSpan, inlineControlsContainer);
     }
   } catch (e) {
     showMessage(dom.messageArea, STRINGS.groupRenameFailed + ": " + e.message, true);
     // Explicitly cancel edit UI on error
-    cancelInlineEditUI(nameSpan, inlineControlsContainer);
+    cancelInlineEdit(nameSpan, inlineControlsContainer);
   } finally {
     showLoadingIndicator(dom.loadingIndicator, false);
     // If loadState was successful, controls are gone. If not, cancelInlineEdit was called above.
@@ -336,11 +503,11 @@ function startRenameDevice(deviceId, oldName, listItem, nameSpan) {
   };
 
   const onCancel = () => {
-    cancelInlineEditUI(nameSpan, inlineControls.element);
+    cancelInlineEdit(nameSpan, inlineControls.element);
   };
 
-  // Create the inline controls using the UI function
-  const inlineControls = createInlineEditControlsUI(oldName, onSave, onCancel);
+  // Create the inline controls
+  const inlineControls = createInlineEditControls(oldName, onSave, onCancel);
 
   nameSpan.style.display = 'none'; // Hide original span
   // Insert controls *after* the hidden span, before other action buttons
@@ -355,13 +522,13 @@ async function finishRenameDevice(deviceId, newName, listItem, nameSpan, inlineC
   newName = newName.trim();
   // Allow renaming back to original, just check for empty
   if (!newName) {
-    cancelInlineEditUI(nameSpan, inlineControlsContainer);
+    cancelInlineEdit(nameSpan, inlineControlsContainer);
     return;
   }
 
   // Optional: Remove confirmation
   // if (!confirm(STRINGS.confirmRenameDevice(newName))) {
-  //     cancelInlineEditUI(nameSpan, inlineControlsContainer);
+  //     cancelInlineEdit(nameSpan, inlineControlsContainer);
   //     return;
   // }
 
@@ -384,11 +551,11 @@ async function finishRenameDevice(deviceId, newName, listItem, nameSpan, inlineC
       }
     } else {
       showMessage(dom.messageArea, response.message || STRINGS.deviceRenameFailed, true);
-      cancelInlineEditUI(nameSpan, inlineControlsContainer); // Clean up on failure
+      cancelInlineEdit(nameSpan, inlineControlsContainer); // Clean up on failure
     }
   } catch (e) {
     showMessage(dom.messageArea, STRINGS.deviceRenameFailed + ": " + e.message, true);
-    cancelInlineEditUI(nameSpan, inlineControlsContainer); // Clean up on error
+    cancelInlineEdit(nameSpan, inlineControlsContainer); // Clean up on error
   } finally {
     showLoadingIndicator(dom.loadingIndicator, false);
   }
@@ -561,6 +728,98 @@ async function handleDeleteGroup(event) {
   } finally {
     showLoadingIndicator(dom.loadingIndicator, false);
   }
+}
+
+// --- UI Helper Functions ---
+
+// Function to remove inline edit elements and restore the original span
+function cancelInlineEdit(originalSpan, inlineControlsContainer) {
+  if (inlineControlsContainer && inlineControlsContainer.parentNode) {
+    inlineControlsContainer.remove();
+  }
+  if (originalSpan) {
+    originalSpan.style.display = ''; // Make original span visible again
+    // Optionally refocus the original element or the list item for accessibility
+    // originalSpan.focus();
+  }
+}
+
+// Function to create the inline input and buttons
+function createInlineEditControls(currentValue, onSaveCallback, onCancelCallback) {
+  const container = document.createElement('div');
+  container.className = 'inline-edit-container'; // Add class for styling
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = currentValue;
+  input.className = 'inline-edit-input'; // Add class for styling
+
+  const saveBtn = document.createElement('button');
+  saveBtn.textContent = '✓'; // Save icon/text
+  saveBtn.className = 'inline-edit-save'; // Add class for styling
+  saveBtn.title = 'Save';
+  // Minimal button styling
+  // Apply base button styles via CSS if needed, or inherit
+  // Consider using a success color
+  // saveBtn.style.backgroundColor = 'var(--main-success-bg)';
+  // saveBtn.style.color = 'var(--main-success-text)';
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.textContent = '✕'; // Cancel icon/text
+  cancelBtn.className = 'inline-edit-cancel secondary'; // Use secondary style from base CSS
+  cancelBtn.title = 'Cancel';
+  // Minimal button styling
+
+  // --- Event Handlers ---
+  const handleSave = () => {
+    const newValue = input.value.trim();
+    // Only save if non-empty and different from original
+    if (newValue && newValue !== currentValue) {
+      onSaveCallback(newValue);
+    } else {
+      onCancelCallback(); // Treat empty or unchanged as cancel
+    }
+  };
+
+  const handleCancel = () => {
+    onCancelCallback();
+  };
+
+  input.onkeydown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleSave();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      handleCancel();
+    }
+  };
+
+  saveBtn.onclick = handleSave;
+  cancelBtn.onclick = handleCancel;
+
+  // Handle blur: Treat blur as cancel to prevent accidental saves
+  input.onblur = (e) => {
+    // Use setTimeout to allow clicks on save/cancel buttons to register first
+    setTimeout(() => {
+      // Check if focus moved to one of the inline buttons
+      const focusMovedToButton = e.relatedTarget === saveBtn || e.relatedTarget === cancelBtn;
+      // If the container is still part of the DOM and focus didn't move to save/cancel, then cancel.
+      if (container.parentNode && !focusMovedToButton) {
+        handleCancel();
+      }
+    }, 150); // Delay might need adjustment
+  };
+
+  container.appendChild(input);
+  container.appendChild(saveBtn);
+  container.appendChild(cancelBtn);
+
+  // Return container and a function to focus the input
+  return {
+    element: container,
+    focusInput: () => input.focus()
+  };
 }
 
 // Handler specifically for the "Remove" button next to the current device

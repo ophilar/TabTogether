@@ -1,4 +1,4 @@
-import { STRINGS } from "./constants.js";
+import { STRINGS } from "../../common/constants.js";
 import {
   renderDeviceName,
   isAndroid,
@@ -11,8 +11,8 @@ import {
   showLoadingIndicator,
   showMessage,
   performHeartbeat,
-} from "./utils.js";
-import { injectSharedUI } from "./shared-ui.js";
+} from "../../utils.js";
+import { injectSharedUI } from "../shared/shared-ui.js";
 import { applyThemeFromStorage } from "./theme.js";
 
 // Cache DOM elements at the top for repeated use

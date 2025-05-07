@@ -17,8 +17,8 @@ import {
   deleteDeviceDirect,
   createAndStoreGroupTask, // Assuming this is also in utils.js
   storage,
-} from "./utils.js";
-import { getNextAvailableBitPosition } from "./utils.js";
+} from "../utils.js";
+import { getNextAvailableBitPosition } from "../utils.js";
 
 const ALARM_HEARTBEAT = "deviceHeartbeat";
 const ALARM_STALE_CHECK = "staleDeviceCheck";
