@@ -1,7 +1,7 @@
 import { jest } from '@jest/globals';
 
 import * as utils from '../utils.js';
-import { STRINGS } from '../constants.js'; // Import STRINGS and other constants for UI tests
+import { STRINGS } from '../common/constants.js'; // Import STRINGS and other constants for UI tests
 
 // Mock the constants dependency
 jest.mock('../constants.js', () => ({
