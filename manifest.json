@@ -1,7 +1,8 @@
 {
   "manifest_version": 3,
   "name": "TabTogether",
-  "version": "0.9.3",
+  "version": "0.10.0",
+  "author": "Ron Katzir",
   "description": "Send tabs between groups of devices using Firefox Sync.",
   "permissions": [
     "storage",        
@@ -16,7 +17,7 @@
     "128": "icons/icon-128.png"
   },
   "background": {
-    "scripts": ["utils.js", "background.js"],
+    "scripts": ["background.js"],
     "type": "module"
   },
   "action": {
