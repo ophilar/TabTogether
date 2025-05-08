@@ -1,29 +1,40 @@
 // options.js
 
-import { STRINGS } from "../../common/constants.js";
+import { STRINGS, SYNC_STORAGE_KEYS } from "./common/constants.js";
+import { isAndroid } from "./core/platform.js";
 import {
-  renderGroupList,
-  isAndroid,
-  SYNC_STORAGE_KEYS, // Use SYNC keys for shared settings
   createGroupDirect,
   deleteGroupDirect,
   renameGroupDirect,
   deleteDeviceDirect,
-  processIncomingTabsAndroid, // Import the shared function
   getUnifiedState,
   subscribeToGroupUnified,
   unsubscribeFromGroupUnified,
-  showAndroidBanner,
-  setLastSyncTime,
-  debounce,
   renameDeviceUnified,
-  storage,
+} from "./core/actions.js";
+import { storage } from "./core/storage.js";
+import { processIncomingTabsAndroid } from "./core/tasks.js";
+import { debounce } from "./common/utils.js";
+import { injectSharedUI } from "./ui/shared/shared-ui.js";
+import { applyThemeFromStorage, setupThemeDropdown } from "./ui/shared/theme.js";
+import {
+  showAndroidBanner,
   showLoadingIndicator,
   showMessage,
   clearMessage,
-} from "../../utils.js";
-import { injectSharedUI } from "../shared/shared-ui.js";
-import { applyThemeFromStorage, setupThemeDropdown } from "./theme.js";
+} from "./ui/shared/ui-helpers.js";
+import {
+  renderDeviceRegistryUI,
+  renderGroupListUI,
+  createInlineEditControlsUI,
+  createGroupListItemUI,
+  createDeviceListItemUI, // Import for device list items (though not used for adding in options.js directly)
+  cancelInlineEditUI,
+  setLastSyncTimeUI,
+  showDebugInfoUI
+} from "./ui/options/options-ui.js";
+import { setupOnboarding } from "./ui/options/options-onboarding.js";
+import { setupAdvancedTiming } from "./ui/options/options-advanced-timing.js";
 
 // Cache DOM elements at the top for repeated use
 const dom = {
@@ -31,17 +42,15 @@ const dom = {
   definedGroupsListDiv: document.getElementById("definedGroupsList"),
   newGroupNameInput: document.getElementById("newGroupName"),
   createGroupBtn: document.getElementById("createGroupBtn"),
-  // loadingIndicator: document.getElementById("loadingIndicator"),
-  // messageArea: document.getElementById("messageArea"),
-  staleDeviceThresholdInput: document.getElementById("staleDeviceThresholdInput"),
-  taskExpiryInput: document.getElementById("taskExpiryInput"),
+  // staleDeviceThresholdInput and taskExpiryInput will be handled by options-advanced-timing.js
 };
 
 let currentState = null; // Cache for state fetched from background
+let isAndroidPlatformGlobal = false; // Cache for isAndroid() result
+
 const manualSyncBtn = document.getElementById("manualSyncBtn"); // Or rename ID to syncNowBtn if you change HTML
 const syncIntervalInput = document.getElementById("syncIntervalInput");
 const syncStatus = document.getElementById("syncStatus");
-
 // Manual sync handler
 if (manualSyncBtn) {
   manualSyncBtn.addEventListener("click", async () => {
@@ -52,7 +61,7 @@ if (manualSyncBtn) {
     if (syncIcon) syncIcon.classList.add('syncing-icon'); // Start animation
     clearMessage(dom.messageArea);
     try {
-      if (await isAndroid()) {
+      if (isAndroidPlatformGlobal) {
 
         // On Android, perform the direct foreground sync
         await loadState(); // This handles UI updates and messages internally
@@ -108,62 +117,35 @@ storage.get(browser.storage.local, "lastSync", null).then((ts) => {
     syncStatus.textContent = "Last sync: " + new Date(ts).toLocaleString();
 });
 
-
-function setupAdvancedTimingListeners() {
-  if (dom.staleDeviceThresholdInput) {
-    dom.staleDeviceThresholdInput.addEventListener('change', async (e) => {
-      let val = parseInt(e.target.value, 10);
-      if (isNaN(val) || val < 1) val = DEFAULT_STALE_THRESHOLD_DAYS; // Reset to default if invalid
-      dom.staleDeviceThresholdInput.value = val; // Update input field in case it was corrected
-      await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.STALE_DEVICE_THRESHOLD_DAYS, val);
-    });
-  }
-  if (dom.taskExpiryInput) {
-    dom.taskExpiryInput.addEventListener('change', async (e) => {
-      let val = parseInt(e.target.value, 10);
-      if (isNaN(val) || val < 1) val = DEFAULT_TASK_EXPIRY_DAYS; // Reset to default if invalid
-      dom.taskExpiryInput.value = val; // Update input field
-      await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.TASK_EXPIRY_DAYS, val);
-    });
-  }
-}
-
 // --- Advanced Timing Settings ---
-
-const DEFAULT_STALE_THRESHOLD_DAYS = 30;
-const DEFAULT_TASK_EXPIRY_DAYS = 14;
-
-async function loadAdvancedTimingSettings() {
-  const staleDays = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.STALE_DEVICE_THRESHOLD_DAYS, DEFAULT_STALE_THRESHOLD_DAYS);
-  const taskDays = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.TASK_EXPIRY_DAYS, DEFAULT_TASK_EXPIRY_DAYS);
-  if (dom.staleDeviceThresholdInput) dom.staleDeviceThresholdInput.value = staleDays;
-  if (dom.taskExpiryInput) dom.taskExpiryInput.value = taskDays;
-}
+// Logic moved to ui/options/options-advanced-timing.js
 
 // --- Initialization ---
 
 document.addEventListener("DOMContentLoaded", async () => {
+  isAndroidPlatformGlobal = await isAndroid(); // Cache platform info
+
   injectSharedUI();
   applyThemeFromStorage();
   setupThemeDropdown("darkModeSelect");
+  setupOnboarding(); // Initialize onboarding UI and logic
   
   // Assign DOM elements that might be created/checked by injectSharedUI or need full DOM readiness
   dom.loadingIndicator = document.getElementById("loadingIndicator");
   dom.messageArea = document.getElementById("messageArea");
   
-  if (await isAndroid()) {
+  if (isAndroidPlatformGlobal) {
     const container = document.querySelector(".container");
     showAndroidBanner(
       'Note: On Firefox for Android, background processing is not available. Open this page and tap "Sync Now" to process new tabs or changes.'
     );
-    setLastSyncTime(container, Date.now());
-    showDebugInfo(container, currentState);
+    setLastSyncTimeUI(container, Date.now()); // Use UI function
+    showDebugInfoUI(container, currentState);      // Use UI function
 
   }
 
   // Setup and load advanced timing settings
-  setupAdvancedTimingListeners();
-  loadAdvancedTimingSettings();
+  setupAdvancedTiming();
 
   // Listen for messages from the background script indicating data changes
   browser.runtime.onMessage.addListener(async (message) => { // Make listener async
@@ -182,100 +164,17 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   loadState(); // Load initial state after setting up listeners
 });
-// Onboarding steps content
-const onboardingSteps = [
-  {
-    title: "Welcome to TabTogether!",
-    content:
-      "<p>TabTogether lets you send tabs to groups of devices instantly. This onboarding will guide you through the main features.</p>",
-  },
-  {
-    title: "Device Settings",
-    content:
-      "<p>Set your device name and icon. This helps you identify your devices in groups and the registry.</p>",
-  },
-  {
-    title: "Groups",
-    content:
-      "<p>Create, rename, and delete groups. Subscribe your devices to groups to send tabs between them.</p>",
-  },
-  {
-    title: "Notifications & Sync",
-    content:
-      "<p>Customize notification sound and duration. Use manual or auto-sync to keep your devices up to date.</p>",
-  },
-  {
-    title: "Help & About",
-    content:
-      "<p>Find more help in the Help/About section or on the project page. You can always reopen this onboarding from the link at the bottom of the settings page.</p>",
-  },
-];
-
-let onboardingStep = 0;
-const onboardingModal = document.getElementById("onboardingModal");
-const onboardingStepContent = document.getElementById("onboardingStepContent");
-const onboardingPrevBtn = document.getElementById("onboardingPrevBtn");
-const onboardingNextBtn = document.getElementById("onboardingNextBtn");
-const onboardingCloseBtn = document.getElementById("onboardingCloseBtn");
-const openOnboardingLink = document.getElementById("openOnboardingLink");
-
-function showOnboardingStep(idx) {
-  onboardingStep = idx;
-  const step = onboardingSteps[onboardingStep];
-  // Clear previous content
-  onboardingStepContent.textContent = '';
-
-  // Create and append h2 for title
-  const titleElement = document.createElement('h2');
-  titleElement.style.marginTop = '0';
-  titleElement.textContent = step.title;
-  onboardingStepContent.appendChild(titleElement);
-
-  // Parse and append step.content HTML safely
-  if (step.content && typeof step.content === 'string') {
-    const parser = new DOMParser();
-    // text/html creates a full HTML document; we're interested in the body's children.
-    const doc = parser.parseFromString(step.content, 'text/html');
-    // Append all child nodes from the parsed body to the onboardingStepContent
-    // Using cloneNode(true) is important to import nodes into the current document
-    Array.from(doc.body.childNodes).forEach(node => {
-      onboardingStepContent.appendChild(node.cloneNode(true));
-    });
-  }
-  
-  onboardingPrevBtn.disabled = onboardingStep === 0;
-  onboardingNextBtn.disabled = onboardingStep === onboardingSteps.length - 1;
-}
-
-if (openOnboardingLink) {
-  openOnboardingLink.addEventListener("click", (e) => {
-    e.preventDefault();
-    onboardingModal.classList.remove("hidden");
-    showOnboardingStep(0);
-  });
-}
-if (onboardingPrevBtn)
-  onboardingPrevBtn.onclick = () =>
-    showOnboardingStep(Math.max(0, onboardingStep - 1));
-if (onboardingNextBtn)
-  onboardingNextBtn.onclick = () =>
-    showOnboardingStep(
-      Math.min(onboardingSteps.length - 1, onboardingStep + 1)
-    );
-if (onboardingCloseBtn)
-  onboardingCloseBtn.onclick = () => onboardingModal.classList.add("hidden");
 
 async function loadState() {
   showLoadingIndicator(dom.loadingIndicator, true);
   clearMessage(dom.messageArea);
   try {
-    const isAndroidPlatform = await isAndroid(); // Fetch once
-    let state = await getUnifiedState(isAndroidPlatform);
-    if (isAndroidPlatform) {
+    let state = await getUnifiedState(isAndroidPlatformGlobal);
+    if (isAndroidPlatformGlobal) {
       await processIncomingTabsAndroid(state);
       const container = document.querySelector(".container");
-      setLastSyncTime(container, Date.now()); // Call directly
-      showDebugInfo(container, state);      // Call directly
+      setLastSyncTimeUI(container, Date.now()); // Call UI function
+      showDebugInfoUI(container, state);      // Call UI function
     }
     currentState = state;
     if (!currentState || currentState.error) {
@@ -304,121 +203,62 @@ function renderAll() {
 }
 
 function renderDeviceRegistry() {
-  const devices = currentState.deviceRegistry;
-  dom.deviceRegistryListDiv.textContent = ''; // Clear previous content safely
-
-  if (!devices || Object.keys(devices).length === 0) {
-    dom.deviceRegistryListDiv.textContent = STRINGS.noDevices;
-    return;
-  }
-
-  const localId = currentState.instanceId;
-  const ul = document.createElement('ul');
-  ul.setAttribute('role', 'list');
-  // Apply styling similar to #definedGroupsList ul from styles.css
-  ul.className = 'registry-list'; // Add class for styling
-
-  Object.entries(devices)
-    .sort((a, b) => {
-      const [idA] = a;
-      const [idB] = b;
-      // Prioritize the current device
-      if (idA === localId) return -1; // a comes first
-      if (idB === localId) return 1;  // b comes first
-      // Otherwise, sort alphabetically by name
-      return (a[1]?.name || '').localeCompare(b[1]?.name || '');
-    })
-    .forEach(([id, device]) => {
-      const li = document.createElement('li');
-      li.setAttribute('role', 'listitem');
-      // Apply styling similar to #definedGroupsList li
-      li.className = 'registry-list-item'; // Add class for styling
-
-      if (id === localId) {
-      }
-
-      // Container for name and last seen (allows inline edit controls to fit)
-      const nameAndInfoDiv = document.createElement('div');
-      nameAndInfoDiv.className = 'registry-item-info'; // Add class for styling
-
-      const nameSpan = document.createElement('span');
-      nameSpan.className = 'device-name-label'; // Add class for potential styling/selection
-      // Make current device name bold
-
-      // Set the base name for all devices.
-      // Use device.name directly; STRINGS.deviceNameNotSet can be a fallback if device.name is empty.
-      let displayName = device.name || STRINGS.deviceNameNotSet;
-
-      if (id === localId) {
-        // Create elements programmatically for safety
-        const strong = document.createElement('strong');
-        strong.textContent = displayName;
-        nameSpan.appendChild(strong);
-        nameSpan.appendChild(document.createTextNode(' (This Device)'));
-        li.classList.add('this-device'); // Keep highlighting the row
-
-        // Renaming logic only for the current device
-        nameSpan.style.cursor = 'pointer'; // Indicate clickable
-        nameSpan.title = 'Click to rename this device';
-        nameSpan.onclick = () => startRenameDevice(id, displayName, li, nameSpan);
-      } else {
-        nameSpan.textContent = displayName;
-      }
-      nameAndInfoDiv.appendChild(nameSpan);
-
-      if (device.lastSeen) {
-        const lastSeenSpan = document.createElement('span');
-        lastSeenSpan.className = 'small-text registry-item-lastseen'; // Add classes for styling
-        lastSeenSpan.textContent = `Last seen: ${new Date(device.lastSeen).toLocaleString()}`;
-        nameAndInfoDiv.appendChild(lastSeenSpan);
-      }
-
-      li.appendChild(nameAndInfoDiv);
-
-      // Action buttons container
-      const actionsDiv = document.createElement('div');
-      actionsDiv.className = 'registry-item-actions'; // Add class for styling
-
-      // Delete/Remove button
-      const deleteBtn = document.createElement('button');
-      deleteBtn.className = 'inline-btn danger'; // Use existing style
-
-      if (id === localId) {
-        deleteBtn.textContent = 'Remove';
-        deleteBtn.title = 'Remove this device from all groups and registry. This cannot be undone.';
-        deleteBtn.setAttribute('aria-label', 'Remove this device from registry');
-        deleteBtn.onclick = handleRemoveSelfDevice; // Use a dedicated handler
-      } else {
-        deleteBtn.textContent = 'Delete';
-        deleteBtn.title = 'Delete this device from the registry';
-        const currentDeviceNameForDelete = device.name || 'Unnamed'; // Fallback for ARIA label and confirmation
-        deleteBtn.setAttribute('aria-label', `Delete device ${currentDeviceNameForDelete} from registry`);
-        deleteBtn.onclick = () => handleDeleteDevice(id, currentDeviceNameForDelete);
-      }
-      actionsDiv.appendChild(deleteBtn);
-
-      li.appendChild(actionsDiv);
-      ul.appendChild(li);
-    });
-
-  // Remove border from last item
-  // if (ul.lastChild) { // Let CSS handle this with :last-child selector
-  //   ul.lastChild.style.borderBottom = 'none';
-  // }
-
-  dom.deviceRegistryListDiv.appendChild(ul);
+  // Call the UI rendering function from options-ui.js
+  renderDeviceRegistryUI(
+    dom.deviceRegistryListDiv,
+    currentState,
+    { // Pass handlers
+      startRenameDevice,
+      handleRemoveSelfDevice,
+      handleDeleteDevice,
+    }
+  );
 }
 
 function renderDefinedGroups() {
-  renderGroupList(
+  // Call the UI rendering function from options-ui.js
+  renderGroupListUI(
     dom.definedGroupsListDiv,
     currentState.definedGroups,
     currentState.subscriptions,
-    handleSubscribe,
-    handleUnsubscribe,
-    handleDeleteGroup,
-    startRenameGroup
+    { // Pass handlers as an object
+      handleSubscribe,
+      handleUnsubscribe,
+      handleDeleteGroup,
+      startRenameGroup,
+    }
   );
+}
+
+function ensureDeviceRegistryUl() {
+  let ul = dom.deviceRegistryListDiv.querySelector('#device-registry-list-ul');
+  if (!ul) {
+    ul = document.createElement('ul');
+    ul.id = 'device-registry-list-ul';
+    ul.setAttribute('role', 'list');
+    dom.deviceRegistryListDiv.appendChild(ul);
+  }
+  // Clear "no devices" message if it exists
+  if (dom.deviceRegistryListDiv.textContent === STRINGS.noDevices) {
+    dom.deviceRegistryListDiv.textContent = '';
+    dom.deviceRegistryListDiv.appendChild(ul);
+  }
+  return ul;
+}
+function ensureGroupsListUl() {
+  let ul = dom.definedGroupsListDiv.querySelector('#defined-groups-list-ul');
+  if (!ul) {
+    ul = document.createElement('ul');
+    ul.id = 'defined-groups-list-ul';
+    ul.setAttribute('role', 'list');
+    dom.definedGroupsListDiv.appendChild(ul);
+  }
+  // Clear "no groups" message if it exists
+  if (dom.definedGroupsListDiv.textContent === STRINGS.noGroups) {
+    dom.definedGroupsListDiv.textContent = '';
+    dom.definedGroupsListDiv.appendChild(ul);
+  }
+  return ul;
 }
 
 // --- Group Rename ---
@@ -435,11 +275,11 @@ function startRenameGroup(oldName, nameSpan) {
   };
 
   const onCancel = () => {
-    cancelInlineEdit(nameSpan, inlineControls.element);
+    cancelInlineEditUI(nameSpan, inlineControls.element);
   };
 
-  // Create the inline controls
-  const inlineControls = createInlineEditControls(oldName, onSave, onCancel);
+  // Create the inline controls using the UI function
+  const inlineControls = createInlineEditControlsUI(oldName, onSave, onCancel);
 
   nameSpan.style.display = 'none'; // Hide original span
   // Insert controls *after* the hidden span, within the list item
@@ -452,7 +292,7 @@ async function finishRenameGroup(oldName, newName, nameSpan, inlineControlsConta
   // Basic validation (already handled in save handler, but good practice)
   newName = newName.trim();
   if (!newName || newName === oldName) {
-    cancelInlineEdit(nameSpan, inlineControlsContainer);
+    cancelInlineEditUI(nameSpan, inlineControlsContainer);
     return;
   }
 
@@ -460,7 +300,7 @@ async function finishRenameGroup(oldName, newName, nameSpan, inlineControlsConta
   let success = false;
   try {
     let response;
-    if (await isAndroid()) {
+    if (isAndroidPlatformGlobal) {
       response = await renameGroupDirect(oldName, newName);
     } else {
       response = await browser.runtime.sendMessage({ action: 'renameGroup', oldName, newName });
@@ -473,21 +313,31 @@ async function finishRenameGroup(oldName, newName, nameSpan, inlineControlsConta
       if (currentState) {
         currentState.definedGroups = currentState.definedGroups.map(g => g === oldName ? newName : g);
         currentState.subscriptions = currentState.subscriptions.map(s => s === oldName ? newName : s);
-        renderDefinedGroups(); // Re-render the groups list
+        // Targeted DOM update for rename
+        const groupLi = dom.definedGroupsListDiv.querySelector(`li[data-group-name="${oldName}"]`);
+        if (groupLi) {
+          groupLi.dataset.groupName = newName;
+          const groupNameSpan = groupLi.querySelector('.group-name-label');
+          if (groupNameSpan) groupNameSpan.textContent = newName;
+          // Re-attach rename handler to the updated span
+          if (groupNameSpan) groupNameSpan.onclick = () => startRenameGroup(newName, groupNameSpan);
+        }
       }
-      // Controls are removed implicitly by re-rendering
+      cancelInlineEditUI(nameSpan, inlineControlsContainer); // Ensure edit controls are removed
     } else {
       showMessage(dom.messageArea, response.message || STRINGS.groupRenameFailed, true);
       // Explicitly cancel edit UI on failure
-      cancelInlineEdit(nameSpan, inlineControlsContainer);
+      cancelInlineEditUI(nameSpan, inlineControlsContainer);
     }
   } catch (e) {
     showMessage(dom.messageArea, STRINGS.groupRenameFailed + ": " + e.message, true);
     // Explicitly cancel edit UI on error
-    cancelInlineEdit(nameSpan, inlineControlsContainer);
+    cancelInlineEditUI(nameSpan, inlineControlsContainer);
   } finally {
     showLoadingIndicator(dom.loadingIndicator, false);
-    // If loadState was successful, controls are gone. If not, cancelInlineEdit was called above.
+    if (!success) { // If not successful, ensure original span is visible
+      nameSpan.style.display = '';
+    }
   }
 }
 
@@ -503,11 +353,11 @@ function startRenameDevice(deviceId, oldName, listItem, nameSpan) {
   };
 
   const onCancel = () => {
-    cancelInlineEdit(nameSpan, inlineControls.element);
+    cancelInlineEditUI(nameSpan, inlineControls.element);
   };
 
-  // Create the inline controls
-  const inlineControls = createInlineEditControls(oldName, onSave, onCancel);
+  // Create the inline controls using the UI function
+  const inlineControls = createInlineEditControlsUI(oldName, onSave, onCancel);
 
   nameSpan.style.display = 'none'; // Hide original span
   // Insert controls *after* the hidden span, before other action buttons
@@ -522,21 +372,20 @@ async function finishRenameDevice(deviceId, newName, listItem, nameSpan, inlineC
   newName = newName.trim();
   // Allow renaming back to original, just check for empty
   if (!newName) {
-    cancelInlineEdit(nameSpan, inlineControlsContainer);
+    cancelInlineEditUI(nameSpan, inlineControlsContainer);
     return;
   }
 
   // Optional: Remove confirmation
   // if (!confirm(STRINGS.confirmRenameDevice(newName))) {
-  //     cancelInlineEdit(nameSpan, inlineControlsContainer);
+  //     cancelInlineEditUI(nameSpan, inlineControlsContainer);
   //     return;
   // }
 
   showLoadingIndicator(dom.loadingIndicator, true);
   let success = false;
   try {
-    const isAndroidPlatform = await isAndroid();
-    let response = await renameDeviceUnified(deviceId, newName, isAndroidPlatform);
+    let response = await renameDeviceUnified(deviceId, newName, isAndroidPlatformGlobal);
 
     if (response.success) {
       showMessage(dom.messageArea, STRINGS.deviceRenameSuccess(newName), false);
@@ -547,17 +396,39 @@ async function finishRenameDevice(deviceId, newName, listItem, nameSpan, inlineC
         if (deviceId === currentState.instanceId) {
           currentState.instanceName = newName; // Update local name cache if it's this device
         }
-        renderDeviceRegistry(); // Re-render the device list
+        // Targeted DOM update for device rename
+        const deviceLi = dom.deviceRegistryListDiv.querySelector(`li[data-device-id="${deviceId}"]`);
+        if (deviceLi) {
+          const deviceNameSpan = deviceLi.querySelector('.device-name-label');
+          if (deviceNameSpan) {
+            // Clear existing content (e.g., <strong> and text node)
+            deviceNameSpan.textContent = '';
+            if (deviceId === currentState.instanceId) {
+              const strong = document.createElement('strong');
+              strong.textContent = newName;
+              deviceNameSpan.appendChild(strong);
+              deviceNameSpan.appendChild(document.createTextNode(' (This Device)'));
+            } else {
+              deviceNameSpan.textContent = newName;
+            }
+            // Re-attach rename handler to the updated span
+            deviceNameSpan.onclick = () => startRenameDevice(deviceId, newName, deviceLi, deviceNameSpan);
+          }
+        }
       }
+      cancelInlineEditUI(nameSpan, inlineControlsContainer); // Ensure edit controls are removed
     } else {
       showMessage(dom.messageArea, response.message || STRINGS.deviceRenameFailed, true);
-      cancelInlineEdit(nameSpan, inlineControlsContainer); // Clean up on failure
+      cancelInlineEditUI(nameSpan, inlineControlsContainer); // Clean up on failure
     }
   } catch (e) {
     showMessage(dom.messageArea, STRINGS.deviceRenameFailed + ": " + e.message, true);
-    cancelInlineEdit(nameSpan, inlineControlsContainer); // Clean up on error
+    cancelInlineEditUI(nameSpan, inlineControlsContainer); // Clean up on error
   } finally {
     showLoadingIndicator(dom.loadingIndicator, false);
+    if (!success) { // If not successful, ensure original span is visible
+      nameSpan.style.display = '';
+    }
   }
 }
 
@@ -568,7 +439,7 @@ async function handleDeleteDevice(deviceId, deviceName) {
   showLoadingIndicator(dom.loadingIndicator, true);
   try {
     let response;
-    if (await isAndroid()) {
+    if (isAndroidPlatformGlobal) {
       response = await deleteDeviceDirect(deviceId);
     } else {
       response = await browser.runtime.sendMessage({
@@ -581,7 +452,14 @@ async function handleDeleteDevice(deviceId, deviceName) {
       // Update local state and re-render
       if (currentState && currentState.deviceRegistry[deviceId]) {
         delete currentState.deviceRegistry[deviceId];
-        renderDeviceRegistry(); // Re-render the device list
+        // Targeted DOM update for deleting a device
+        const deviceLi = dom.deviceRegistryListDiv.querySelector(`li[data-device-id="${deviceId}"]`);
+        if (deviceLi) {
+          deviceLi.remove();
+        }
+        if (Object.keys(currentState.deviceRegistry).length === 0) {
+          ensureDeviceRegistryUl().parentElement.textContent = STRINGS.noDevices;
+        }
       }
     } else {
       showMessage(dom.messageArea,
@@ -613,7 +491,7 @@ dom.createGroupBtn.addEventListener("click", async () => {
   clearMessage(dom.messageArea);
   try {
     let response;
-    if (await isAndroid()) {
+    if (isAndroidPlatformGlobal) {
       response = await createGroupDirect(groupName);
     } else {
       response = await browser.runtime.sendMessage({
@@ -626,7 +504,27 @@ dom.createGroupBtn.addEventListener("click", async () => {
       if (currentState && !currentState.definedGroups.includes(response.newGroup)) {
         currentState.definedGroups.push(response.newGroup);
         currentState.definedGroups.sort();
-        renderDefinedGroups(); // Re-render the groups list
+
+        // Targeted DOM update for adding a group
+        const ul = ensureGroupsListUl();
+        const isSubscribed = currentState.subscriptions.includes(response.newGroup); // Should be false for new group
+        const newLi = createGroupListItemUI(response.newGroup, isSubscribed, {
+          handleSubscribe,
+          handleUnsubscribe,
+          handleDeleteGroup,
+          startRenameGroup,
+        });
+        // Insert in sorted order (simplified: append, full sort is complex for targeted add)
+        // For true sorted insertion, you'd find the correct position.
+        // For now, we'll append and rely on full re-render on page load for perfect sort.
+        // Or, re-render if perfect sort on add is critical.
+        // A simple approach is to re-render if not too many items, or accept append.
+        ul.appendChild(newLi);
+        // If the "no groups" message was showing, clear it.
+        if (ul.children.length === 1 && dom.definedGroupsListDiv.textContent === STRINGS.noGroups) {
+          dom.definedGroupsListDiv.textContent = '';
+          dom.definedGroupsListDiv.appendChild(ul);
+        }
       }
       showMessage(dom.messageArea, STRINGS.groupCreateSuccess(response.newGroup), false);
       dom.newGroupNameInput.value = "";
@@ -635,7 +533,6 @@ dom.createGroupBtn.addEventListener("click", async () => {
       showMessage(dom.messageArea, response.message || STRINGS.groupCreateFailed, true);
     }
   } catch (error) {
-    // Corrected: Removed extra dom.messageArea argument
     showMessage(dom.messageArea, STRINGS.groupCreateFailed + ": " + error.message, true);
   } finally {
     showLoadingIndicator(dom.loadingIndicator, false);
@@ -647,15 +544,24 @@ async function handleSubscribe(event) {
   showLoadingIndicator(dom.loadingIndicator, true);
   clearMessage(dom.messageArea);
   try {
-    const isAndroidPlatform = await isAndroid();
-    let response = await subscribeToGroupUnified(groupName, isAndroidPlatform);
+    let response = await subscribeToGroupUnified(groupName, isAndroidPlatformGlobal);
     if (response.success) {
       // Update local state and re-render
       if (currentState && !currentState.subscriptions.includes(response.subscribedGroup)) {
         currentState.subscriptions.push(response.subscribedGroup);
         currentState.subscriptions.sort();
-        renderDefinedGroups(); // Re-render the groups list
         showMessage(dom.messageArea, `Subscribed to "${response.subscribedGroup}".`, false);
+
+        // Targeted DOM update for subscription button
+        const groupLi = dom.definedGroupsListDiv.querySelector(`li[data-group-name="${response.subscribedGroup}"]`);
+        if (groupLi) {
+          const subBtn = groupLi.querySelector('button:not(.danger)'); // Get the subscribe/unsubscribe button
+          if (subBtn) {
+            subBtn.textContent = "Unsubscribe";
+            subBtn.className = 'secondary';
+            subBtn.onclick = handleUnsubscribe; // Change listener
+          }
+        }
       }
     } else {
       showMessage(dom.messageArea, response.message || "Failed to subscribe.", true);
@@ -672,17 +578,23 @@ async function handleUnsubscribe(event) {
   showLoadingIndicator(dom.loadingIndicator, true);
   clearMessage(dom.messageArea);
   try {
-    const isAndroidPlatform = await isAndroid();
-    let response = await unsubscribeFromGroupUnified(
-      groupName,
-      isAndroidPlatform
-    );
+    let response = await unsubscribeFromGroupUnified(groupName, isAndroidPlatformGlobal);
     if (response.success) {
       // Update local state and re-render
       if (currentState) {
         currentState.subscriptions = currentState.subscriptions.filter(g => g !== response.unsubscribedGroup);
-        renderDefinedGroups(); // Re-render the groups list
         showMessage(dom.messageArea, `Unsubscribed from "${response.unsubscribedGroup}".`, false);
+
+        // Targeted DOM update for subscription button
+        const groupLi = dom.definedGroupsListDiv.querySelector(`li[data-group-name="${response.unsubscribedGroup}"]`);
+        if (groupLi) {
+          const subBtn = groupLi.querySelector('button:not(.danger)'); // Get the subscribe/unsubscribe button
+          if (subBtn) {
+            subBtn.textContent = "Subscribe";
+            subBtn.className = 'primary';
+            subBtn.onclick = handleSubscribe; // Change listener
+          }
+        }
       }
     } else {
       showMessage(dom.messageArea, response.message || "Failed to unsubscribe.", true);
@@ -703,7 +615,7 @@ async function handleDeleteGroup(event) {
   clearMessage(dom.messageArea);
   try {
     let response;
-    if (await isAndroid()) {
+    if (isAndroidPlatformGlobal) {
       response = await deleteGroupDirect(groupName);
     } else {
       response = await browser.runtime.sendMessage({
@@ -716,110 +628,24 @@ async function handleDeleteGroup(event) {
       if (currentState) {
         currentState.definedGroups = currentState.definedGroups.filter(g => g !== response.deletedGroup);
         currentState.subscriptions = currentState.subscriptions.filter(g => g !== response.deletedGroup);
-        renderDefinedGroups(); // Re-render the groups list
+        // Targeted DOM update for deleting a group
+        const groupLi = dom.definedGroupsListDiv.querySelector(`li[data-group-name="${response.deletedGroup}"]`);
+        if (groupLi) {
+          groupLi.remove();
+        }
+        if (currentState.definedGroups.length === 0) {
+          dom.definedGroupsListDiv.textContent = STRINGS.noGroups;
+        }
       }
       showMessage(dom.messageArea, STRINGS.groupDeleteSuccess(response.deletedGroup), false);
     } else {
       showMessage(dom.messageArea, response.message || STRINGS.groupDeleteFailed, true);
     }
   } catch (error) {
-    // Corrected: Removed extra dom.messageArea argument
     showMessage(dom.messageArea, STRINGS.groupDeleteFailed + ": " + error.message, true);
   } finally {
     showLoadingIndicator(dom.loadingIndicator, false);
   }
-}
-
-// --- UI Helper Functions ---
-
-// Function to remove inline edit elements and restore the original span
-function cancelInlineEdit(originalSpan, inlineControlsContainer) {
-  if (inlineControlsContainer && inlineControlsContainer.parentNode) {
-    inlineControlsContainer.remove();
-  }
-  if (originalSpan) {
-    originalSpan.style.display = ''; // Make original span visible again
-    // Optionally refocus the original element or the list item for accessibility
-    // originalSpan.focus();
-  }
-}
-
-// Function to create the inline input and buttons
-function createInlineEditControls(currentValue, onSaveCallback, onCancelCallback) {
-  const container = document.createElement('div');
-  container.className = 'inline-edit-container'; // Add class for styling
-
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.value = currentValue;
-  input.className = 'inline-edit-input'; // Add class for styling
-
-  const saveBtn = document.createElement('button');
-  saveBtn.textContent = '✓'; // Save icon/text
-  saveBtn.className = 'inline-edit-save'; // Add class for styling
-  saveBtn.title = 'Save';
-  // Minimal button styling
-  // Apply base button styles via CSS if needed, or inherit
-  // Consider using a success color
-  // saveBtn.style.backgroundColor = 'var(--main-success-bg)';
-  // saveBtn.style.color = 'var(--main-success-text)';
-
-  const cancelBtn = document.createElement('button');
-  cancelBtn.textContent = '✕'; // Cancel icon/text
-  cancelBtn.className = 'inline-edit-cancel secondary'; // Use secondary style from base CSS
-  cancelBtn.title = 'Cancel';
-  // Minimal button styling
-
-  // --- Event Handlers ---
-  const handleSave = () => {
-    const newValue = input.value.trim();
-    // Only save if non-empty and different from original
-    if (newValue && newValue !== currentValue) {
-      onSaveCallback(newValue);
-    } else {
-      onCancelCallback(); // Treat empty or unchanged as cancel
-    }
-  };
-
-  const handleCancel = () => {
-    onCancelCallback();
-  };
-
-  input.onkeydown = (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleSave();
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      handleCancel();
-    }
-  };
-
-  saveBtn.onclick = handleSave;
-  cancelBtn.onclick = handleCancel;
-
-  // Handle blur: Treat blur as cancel to prevent accidental saves
-  input.onblur = (e) => {
-    // Use setTimeout to allow clicks on save/cancel buttons to register first
-    setTimeout(() => {
-      // Check if focus moved to one of the inline buttons
-      const focusMovedToButton = e.relatedTarget === saveBtn || e.relatedTarget === cancelBtn;
-      // If the container is still part of the DOM and focus didn't move to save/cancel, then cancel.
-      if (container.parentNode && !focusMovedToButton) {
-        handleCancel();
-      }
-    }, 150); // Delay might need adjustment
-  };
-
-  container.appendChild(input);
-  container.appendChild(saveBtn);
-  container.appendChild(cancelBtn);
-
-  // Return container and a function to focus the input
-  return {
-    element: container,
-    focusInput: () => input.focus()
-  };
 }
 
 // Handler specifically for the "Remove" button next to the current device
@@ -847,8 +673,15 @@ async function handleRemoveSelfDevice() {
       showMessage(dom.messageArea, "This device removed from all groups and registry.", false);
       // Update local state and re-render
       if (currentState && currentState.deviceRegistry[instanceId]) {
-        delete currentState.deviceRegistry[instanceId]; // Remove self from registry cache
-        renderDeviceRegistry(); // Re-render
+        delete currentState.deviceRegistry[instanceId];
+        // Targeted DOM update for removing self
+        const deviceLi = dom.deviceRegistryListDiv.querySelector(`li[data-device-id="${instanceId}"]`);
+        if (deviceLi) {
+          deviceLi.remove();
+        }
+        if (Object.keys(currentState.deviceRegistry).length === 0) {
+         ensureDeviceRegistryUl().parentElement.textContent = STRINGS.noDevices;
+        }
       }
     } else {
       showMessage(dom.messageArea, res.message || "Failed to remove this device.", true);
