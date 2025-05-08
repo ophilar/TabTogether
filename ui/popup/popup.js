@@ -1,19 +1,25 @@
 import { STRINGS } from "../../common/constants.js";
+import { storage } from "../../core/storage.js";
+import { isAndroid } from "../../core/platform.js";
 import {
-  renderDeviceName,
-  isAndroid,
   sendTabToGroupDirect,
-  processIncomingTabsAndroid,
   getUnifiedState,
+} from "../../core/actions.js";
+import { processIncomingTabsAndroid } from "../../core/tasks.js";
+import {
   showAndroidBanner,
-  setLastSyncTime,
-  storage,
+  setLastSyncTimeUI as setLastSyncTime, // Alias to match existing usage
   showLoadingIndicator,
   showMessage,
-  performHeartbeat,
-} from "../../utils.js";
+} from "../shared/ui-helpers.js";
 import { injectSharedUI } from "../shared/shared-ui.js";
-import { applyThemeFromStorage } from "./theme.js";
+import { applyThemeFromStorage } from "../shared/theme.js"; // Corrected path
+
+function renderDeviceNameUI(container, name) { // Keep as local helper or move to popup-ui.js if it grows
+  if (container) {
+    container.textContent = name || STRINGS.deviceNameNotSet;
+  }
+}
 
 // Cache DOM elements at the top for repeated use
 const dom = {
@@ -73,19 +79,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         // After successful load/process, update local sync time and trigger heartbeat.
         if (!(await isAndroid())) {
           await browser.runtime.sendMessage({ action: "heartbeat" });
-        } else {
-          // Explicitly perform heartbeat on Android after processing.
-          // We need to get the necessary details from the state.
-          const latestState = await getUnifiedState(); // true for isAndroidPlatform
-          if (latestState && latestState.instanceId && latestState.instanceName && latestState.groupBits) {
-            await performHeartbeat(
-              latestState.instanceId,
-              latestState.instanceName,
-              latestState.groupBits
-            );
-          } else {
-            console.warn("[Popup] Android: Could not perform heartbeat due to missing state for arguments.");
-          }
+        } else { // On Android, heartbeat is part of loadState/getUnifiedState implicitly
+            console.log("Android refresh: Heartbeat implicitly handled by getUnifiedState.");
         }
         const now = new Date();
         await storage.set(browser.storage.local, "lastSync", now.getTime());
@@ -138,7 +133,7 @@ async function loadStatus() {
   showLoadingIndicator(dom.loadingIndicator, true);
   try {
     const isAndroidPlatform = await isAndroid();
-    let state = await getUnifiedState();
+    let state = await getUnifiedState(isAndroidPlatform); // Pass platform info
 
     // Process incoming tabs immediately on Android after getting state
     if (isAndroidPlatform) {
@@ -152,7 +147,7 @@ async function loadStatus() {
     if (state.error) throw new Error(state.error); // Propagate error from background
 
     // Render UI components
-    renderDeviceNameUI(state.instanceName);
+    renderDeviceNameUI(dom.deviceNameSpan, state.instanceName);
     renderSubscriptionsUI(state.subscriptions);
     renderSendTabGroups(state.definedGroups); // Uses the combined button approach
   } catch (error) {
@@ -170,13 +165,6 @@ async function loadStatus() {
     }
   } finally {
     showLoadingIndicator(dom.loadingIndicator, false); // Hide loading indicator
-  }
-}
-
-// Renders the device name
-function renderDeviceNameUI(name) {
-  if (dom.deviceNameSpan) {
-    renderDeviceName(dom.deviceNameSpan, name); // Uses util function
   }
 }
 

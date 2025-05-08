@@ -4,21 +4,24 @@ import {
   SYNC_STORAGE_KEYS,
   LOCAL_STORAGE_KEYS,
   MAX_DEVICES_PER_GROUP,
-  mergeSyncStorage,
+  STRINGS // Assuming STRINGS might be needed for notifications etc.
+} from "../common/constants.js";
+import { storage } from "../core/storage.js"; // Import the storage wrapper
+import {
   getInstanceId,
   getInstanceName,
-  performHeartbeat,
-  performStaleDeviceCheck,
-  performTimeBasedTaskCleanup,
+} from "../core/instance.js";
+import {
   renameDeviceDirect,
   createGroupDirect,
   deleteGroupDirect,
   renameGroupDirect,
   deleteDeviceDirect,
-  createAndStoreGroupTask, // Assuming this is also in utils.js
-  storage,
-} from "../utils.js";
-import { getNextAvailableBitPosition } from "../utils.js";
+} from "../core/actions.js";
+import { createAndStoreGroupTask } from "../core/tasks.js";
+import { getNextAvailableBitPosition } from "../core/bitmask.js";
+import { performHeartbeat } from "./heartbeat.js";
+import { performStaleDeviceCheck, performTimeBasedTaskCleanup } from "./cleanup.js";
 
 const ALARM_HEARTBEAT = "deviceHeartbeat";
 const ALARM_STALE_CHECK = "staleDeviceCheck";
@@ -71,12 +74,12 @@ async function initializeExtension() {
     let cachedGroupState = await storage.get(
       browser.storage.sync,
       SYNC_STORAGE_KEYS.GROUP_STATE,
-      undefined
+      {} // Default to empty object
     );
     let cachedDeviceRegistry = await storage.get(
       browser.storage.sync,
       SYNC_STORAGE_KEYS.DEVICE_REGISTRY,
-      undefined
+      {} // Default to empty object
     );
 
     await setupAlarms();
@@ -85,7 +88,7 @@ async function initializeExtension() {
       localInstanceId,
       localInstanceName,
       localGroupBits,
-      cachedDeviceRegistry
+      // cachedDeviceRegistry // performHeartbeat now fetches its own registry
     ); // Perform initial heartbeat/registry update
     console.log(`Initialization complete. Name: ${localInstanceName}`);
   } catch (error) {
@@ -126,25 +129,25 @@ browser.alarms.onAlarm.addListener(async (alarm) => {
         const localInstanceName = await getInstanceName();
         const localGroupBits = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {});
         // Heartbeat primarily updates the registry, so fetch it
-        const cachedDeviceRegistry = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
+        // const cachedDeviceRegistry = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
         await performHeartbeat(
           localInstanceId,
           localInstanceName,
           localGroupBits,
-          cachedDeviceRegistry // Pass fetched registry
+          // cachedDeviceRegistry // Pass fetched registry
         );
       }
       break;
     case ALARM_STALE_CHECK:
       {
         // Stale check needs registry and group state
-        const cachedDeviceRegistry = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
-        const cachedGroupState = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {});
+        // const cachedDeviceRegistry = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
+        // const cachedGroupState = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {});
         const staleThresholdDays = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.STALE_DEVICE_THRESHOLD_DAYS, DEFAULT_STALE_DEVICE_THRESHOLD_DAYS);
         const currentStaleDeviceThresholdMs = staleThresholdDays * 24 * 60 * 60 * 1000;
         await performStaleDeviceCheck(
-          cachedDeviceRegistry, // Pass fetched registry
-          cachedGroupState,   // Pass fetched group state
+          // cachedDeviceRegistry, // Pass fetched registry
+          // cachedGroupState,   // Pass fetched group state
           currentStaleDeviceThresholdMs
         );
       }
@@ -294,7 +297,7 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
   const update = { [groupName]: newTask };
 
   console.log(`Sending task ${taskId} to group ${groupName}: ${urlToSend}`);
-  const success = await mergeSyncStorage(SYNC_STORAGE_KEYS.GROUP_TASKS, update);
+  const { success } = await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, update);
 
   browser.notifications.create({
     type: "basic",
@@ -715,7 +718,7 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
             localInstanceId,
             localInstanceName,
             localGroupBits,
-            registryForSubUpdate // Pass the fetched registry
+            // registryForSubUpdate // Pass the fetched registry
           );
           response = {
             success: true,
@@ -763,7 +766,7 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
             const registryUpdate = {
               [localInstanceId]: { groupBits: { [groupToUnsubscribe]: null } },
             };
-            const registryMergeSuccess = await mergeSyncStorage(SYNC_STORAGE_KEYS.DEVICE_REGISTRY, registryUpdate);
+            const registryMergeResult = await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, registryUpdate);
 
             const groupState =
               cachedGroupState ??
@@ -774,11 +777,11 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
               ));
             if (groupState[groupToUnsubscribe]) {
               // Only update group state mask if registry update was successful
-              if (registryMergeSuccess) {
+              if (registryMergeResult.success) {
                 const currentMask = groupState[groupToUnsubscribe].assignedMask;
                 const newMask = currentMask & ~removedBit;
                 if (newMask !== currentMask) {
-                  await mergeSyncStorage(SYNC_STORAGE_KEYS.GROUP_STATE, {
+                  await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {
                     [groupToUnsubscribe]: { assignedMask: newMask },
                   });
                 }
@@ -816,12 +819,12 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
     case "heartbeat":
       // Manual heartbeat
       // Fetch latest registry state before performing heartbeat
-      const cachedDeviceRegistryForHeartbeat = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
+      // const cachedDeviceRegistryForHeartbeat = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
       await performHeartbeat(
         localInstanceId,
         localInstanceName,
         localGroupBits,
-        cachedDeviceRegistryForHeartbeat // Pass the correctly fetched registry
+        // cachedDeviceRegistryForHeartbeat // Pass the correctly fetched registry
       );
       response = { success: true };
       break;
@@ -877,8 +880,8 @@ async function assignBitForGroup(
   const BASE_DELAY_MS = 250; // Increased base delay slightly
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
-      const groupState =
-        cachedGroupState ??
+      let groupState =
+        // cachedGroupState ??
         (await storage.get(
           browser.storage.sync,
           SYNC_STORAGE_KEYS.GROUP_STATE,
@@ -933,17 +936,19 @@ async function assignBitForGroup(
       const newAssignedMask = currentAssignedMask | myBit;
       const update = { [groupName]: { assignedMask: newAssignedMask } };
       console.log(`[AssignBit attempt ${attempt + 1}] Attempting merge for ${groupName} mask: ${newAssignedMask}`);
-      const success = await mergeSyncStorage(
-        SYNC_STORAGE_KEYS.GROUP_STATE,
+      const mergeResult = await storage.mergeItem( // Use mergeItem for specific key
+        browser.storage.sync,
+        SYNC_STORAGE_KEYS.GROUP_STATE, // The key to merge into
         update
       );
-      if (success) {
+      if (mergeResult.success) {
         // Update registry immediately
         const registryUpdate = {
           [localInstanceId]: { groupBits: { [groupName]: myBit } },
         };
-        await mergeSyncStorage(
-          SYNC_STORAGE_KEYS.DEVICE_REGISTRY,
+        await storage.mergeItem( // Use mergeItem for specific key
+          browser.storage.sync,
+          SYNC_STORAGE_KEYS.DEVICE_REGISTRY, // The key to merge into
           registryUpdate
         );
         // Remove updates to cached variables passed into the function,
