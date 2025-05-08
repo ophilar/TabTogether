@@ -2,6 +2,71 @@
 
 import { STRINGS } from "../../common/constants.js";
 
+/**
+ * Creates a list item element for a device.
+ * @param {string} deviceId - The ID of the device.
+ * @param {object} deviceData - The data object for the device.
+ * @param {string} localInstanceId - The ID of the current local instance.
+ * @param {object} handlers - Object containing event handlers (startRenameDevice, handleRemoveSelfDevice, handleDeleteDevice).
+ * @returns {HTMLLIElement} The created list item element.
+ */
+export function createDeviceListItemUI(deviceId, deviceData, localInstanceId, handlers) {
+  const li = document.createElement('li');
+  li.setAttribute('role', 'listitem');
+  li.dataset.deviceId = deviceId;
+  li.className = 'registry-list-item';
+
+  const nameAndInfoDiv = document.createElement('div');
+  nameAndInfoDiv.className = 'registry-item-info';
+
+  const nameSpan = document.createElement('span');
+  nameSpan.className = 'device-name-label';
+  let displayName = deviceData.name || STRINGS.deviceNameNotSet;
+
+  if (deviceId === localInstanceId) {
+    const strong = document.createElement('strong');
+    strong.textContent = displayName;
+    nameSpan.appendChild(strong);
+    nameSpan.appendChild(document.createTextNode(' (This Device)'));
+    li.classList.add('this-device');
+    nameSpan.style.cursor = 'pointer';
+    nameSpan.title = 'Click to rename this device';
+    nameSpan.onclick = () => handlers.startRenameDevice(deviceId, displayName, li, nameSpan);
+  } else {
+    nameSpan.textContent = displayName;
+  }
+  nameAndInfoDiv.appendChild(nameSpan);
+
+  if (deviceData.lastSeen) {
+    const lastSeenSpan = document.createElement('span');
+    lastSeenSpan.className = 'small-text registry-item-lastseen';
+    lastSeenSpan.textContent = `Last seen: ${new Date(deviceData.lastSeen).toLocaleString()}`;
+    nameAndInfoDiv.appendChild(lastSeenSpan);
+  }
+  li.appendChild(nameAndInfoDiv);
+
+  const actionsDiv = document.createElement('div');
+  actionsDiv.className = 'registry-item-actions';
+
+  const deleteBtn = document.createElement('button');
+  deleteBtn.className = 'inline-btn danger';
+
+  if (deviceId === localInstanceId) {
+    deleteBtn.textContent = 'Remove';
+    deleteBtn.title = 'Remove this device from all groups and registry. This cannot be undone.';
+    deleteBtn.setAttribute('aria-label', 'Remove this device from registry');
+    deleteBtn.onclick = handlers.handleRemoveSelfDevice;
+  } else {
+    deleteBtn.textContent = 'Delete';
+    deleteBtn.title = 'Delete this device from the registry';
+    const currentDeviceNameForDelete = deviceData.name || 'Unnamed';
+    deleteBtn.setAttribute('aria-label', `Delete device ${currentDeviceNameForDelete} from registry`);
+    deleteBtn.onclick = () => handlers.handleDeleteDevice(deviceId, currentDeviceNameForDelete);
+  }
+  actionsDiv.appendChild(deleteBtn);
+  li.appendChild(actionsDiv);
+  return li;
+}
 export function renderDeviceRegistryUI(deviceRegistryListDiv, currentState, handlers) {
   const devices = currentState.deviceRegistry;
   deviceRegistryListDiv.textContent = ''; // Clear previous content safely
@@ -25,59 +90,8 @@ export function renderDeviceRegistryUI(deviceRegistryListDiv, currentState, hand
       return (a[1]?.name || '').localeCompare(b[1]?.name || '');
     })
     .forEach(([id, device]) => {
-      const li = document.createElement('li');
-      li.setAttribute('role', 'listitem');
-      li.className = 'registry-list-item';
-
-      const nameAndInfoDiv = document.createElement('div');
-      nameAndInfoDiv.className = 'registry-item-info';
-
-      const nameSpan = document.createElement('span');
-      nameSpan.className = 'device-name-label';
-      let displayName = device.name || STRINGS.deviceNameNotSet;
-
-      if (id === localId) {
-        const strong = document.createElement('strong');
-        strong.textContent = displayName;
-        nameSpan.appendChild(strong);
-        nameSpan.appendChild(document.createTextNode(' (This Device)'));
-        li.classList.add('this-device');
-        nameSpan.style.cursor = 'pointer';
-        nameSpan.title = 'Click to rename this device';
-        nameSpan.onclick = () => handlers.startRenameDevice(id, displayName, li, nameSpan);
-      } else {
-        nameSpan.textContent = displayName;
-      }
-      nameAndInfoDiv.appendChild(nameSpan);
-
-      if (device.lastSeen) {
-        const lastSeenSpan = document.createElement('span');
-        lastSeenSpan.className = 'small-text registry-item-lastseen';
-        lastSeenSpan.textContent = `Last seen: ${new Date(device.lastSeen).toLocaleString()}`;
-        nameAndInfoDiv.appendChild(lastSeenSpan);
-      }
-      li.appendChild(nameAndInfoDiv);
-
-      const actionsDiv = document.createElement('div');
-      actionsDiv.className = 'registry-item-actions';
-
-      const deleteBtn = document.createElement('button');
-      deleteBtn.className = 'inline-btn danger';
-
-      if (id === localId) {
-        deleteBtn.textContent = 'Remove';
-        deleteBtn.title = 'Remove this device from all groups and registry. This cannot be undone.';
-        deleteBtn.setAttribute('aria-label', 'Remove this device from registry');
-        deleteBtn.onclick = handlers.handleRemoveSelfDevice;
-      } else {
-        deleteBtn.textContent = 'Delete';
-        deleteBtn.title = 'Delete this device from the registry';
-        const currentDeviceNameForDelete = device.name || 'Unnamed';
-        deleteBtn.setAttribute('aria-label', `Delete device ${currentDeviceNameForDelete} from registry`);
-        deleteBtn.onclick = () => handlers.handleDeleteDevice(id, currentDeviceNameForDelete);
-      }
-      actionsDiv.appendChild(deleteBtn);
-      li.appendChild(actionsDiv);
+      // Use the new helper function to create each list item
+      const li = createDeviceListItemUI(id, device, localId, handlers);
       ul.appendChild(li);
     });
   deviceRegistryListDiv.appendChild(ul);
@@ -199,12 +213,57 @@ export function createInlineEditControlsUI(currentValue, onSaveCallback, onCance
 }
 
 export function setLastSyncTimeUI(containerElement, timestamp) {
-    // This is a placeholder. Implement actual DOM update for last sync time.
-    // e.g., find a specific element within containerElement and update its textContent.
-    console.log("UI: Set last sync time in container:", containerElement, new Date(timestamp).toLocaleString());
+  if (!containerElement) return;
+
+  let syncTimeDiv = containerElement.querySelector(".options-last-sync-time");
+  if (!syncTimeDiv) {
+    syncTimeDiv = document.createElement("div");
+    syncTimeDiv.className = "options-last-sync-time small-text"; // Use a specific class
+    syncTimeDiv.style.marginBottom = "7px"; // Example style
+    // Prepend to a specific section if available, or just the container
+    const androidInfoSection = containerElement.querySelector('#androidSpecificInfo'); // Assuming such an ID exists in options.html
+    if (androidInfoSection) {
+        androidInfoSection.insertBefore(syncTimeDiv, androidInfoSection.firstChild);
+    } else {
+        containerElement.insertBefore(syncTimeDiv, containerElement.firstChild); // Fallback
+    }
+  }
+  syncTimeDiv.textContent = "Last sync (this view): " + (timestamp ? new Date(timestamp).toLocaleString() : "Never");
 }
 
 export function showDebugInfoUI(containerElement, state) {
-    // This is a placeholder. Implement actual DOM update for debug info.
-    console.log("UI: Show debug info in container:", containerElement, state);
+  if (!containerElement || !state) return;
+
+  let debugDiv = containerElement.querySelector(".options-debug-info");
+  if (!debugDiv) {
+    debugDiv = document.createElement("div");
+    debugDiv.className = "options-debug-info small-text"; // Use a specific class
+    debugDiv.style.marginTop = "12px";
+    debugDiv.style.background = "#f5f5f5";
+    debugDiv.style.border = "1px solid #ccc";
+    debugDiv.style.padding = "7px";
+    debugDiv.style.borderRadius = "4px";
+
+    const androidInfoSection = containerElement.querySelector('#androidSpecificInfo');
+    if (androidInfoSection) {
+        androidInfoSection.appendChild(debugDiv);
+    } else {
+        containerElement.appendChild(debugDiv); // Fallback
+    }
+  }
+
+  debugDiv.textContent = ""; // Clear previous content
+  const title = document.createElement("strong");
+  title.textContent = "Debug Info (Current View)";
+  debugDiv.appendChild(title);
+
+  const pre = document.createElement("pre");
+  pre.style.whiteSpace = "pre-wrap"; // Allow wrapping
+  pre.style.wordBreak = "break-all"; // Break long strings
+
+  const { instanceId, instanceName, subscriptions, definedGroups, deviceRegistry, groupTasks, isAndroid } = state;
+  const debugState = { instanceId, instanceName, subscriptions, definedGroups, deviceRegistryCount: Object.keys(deviceRegistry || {}).length, groupTasksCount: Object.keys(groupTasks || {}).length, isAndroid };
+
+  pre.textContent = JSON.stringify(debugState, null, 2);
+  debugDiv.appendChild(pre);
 }
