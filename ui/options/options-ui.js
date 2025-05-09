@@ -267,3 +267,28 @@ export function showDebugInfoUI(containerElement, state) {
   pre.textContent = JSON.stringify(debugState, null, 2);
   debugDiv.appendChild(pre);
 }
+
+/**
+ * Renders the device name in a given container element.
+ * @param {HTMLElement} container - The container element to render the name into.
+ * @param {string} name - The device name.
+ */
+export function renderDeviceName(container, name) {
+  if (container) {
+    container.textContent = name || STRINGS.deviceNameNotSet;
+  }
+}
+
+/**
+ * Renders subscription information into a container.
+ * @param {HTMLElement} container - The container element.
+ * @param {string[]} subscriptions - Array of subscribed group names.
+ */
+export function renderSubscriptions(container, subscriptions) {
+  if (!container) return;
+  if (!subscriptions || subscriptions.length === 0) {
+    container.textContent = STRINGS.notSubscribed;
+  } else {
+    container.textContent = STRINGS.subscribedGroups + subscriptions.sort().join(', ');
+  }
+}

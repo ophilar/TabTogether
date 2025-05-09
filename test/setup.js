@@ -1,7 +1,6 @@
 // test/setup.js
 import { jest } from '@jest/globals';
 // Import the actual utils to use deepMerge
-import * as utils from '../utils.js';
 
 // --- Mock crypto ---
 // Directly mock the function on the global object
@@ -45,9 +44,16 @@ const getMockStorage = () => {
             if (errorConfig.setError && Object.keys(obj).includes(errorConfig.setError)) {
                 throw new Error(`Simulated set error for key: ${errorConfig.setError}`);
             }
-
-            Object.assign(memoryStore, obj);
-            // return Promise.resolve();
+            // Simulate browser.storage.set behavior:
+            // - If a value is null, the key is removed.
+            // - Otherwise, the key is set/updated.
+            for (const key in obj) {
+                if (obj[key] === null) {
+                    delete memoryStore[key];
+                } else {
+                    memoryStore[key] = obj[key];
+                }
+            }
         }),
         clear: jest.fn(async () => {
             for (const k in memoryStore) delete memoryStore[k];
