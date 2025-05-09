@@ -1,11 +1,9 @@
 import { STRINGS } from "../../common/constants.js";
 import { storage } from "../../core/storage.js";
 import { isAndroid } from "../../core/platform.js";
-import {
-  sendTabToGroupDirect,
-  getUnifiedState,
-} from "../../core/actions.js";
-import { processIncomingTabsAndroid } from "../../core/tasks.js";
+import { getUnifiedState } from "../../core/actions.js";
+import { processIncomingTabsAndroid, createAndStoreGroupTask } from "../../core/tasks.js";
+import { getInstanceId } from "../../core/instance.js";
 import {
   showAndroidBanner,
   setLastSyncTimeUI as setLastSyncTime, // Alias to match existing usage
@@ -254,7 +252,8 @@ async function sendTabToGroup(groupName) {
 
     // Send differently based on platform
     if (await isAndroid()) {
-      response = await sendTabToGroupDirect(groupName, tabData);
+      const instanceId = await getInstanceId();
+      response = await createAndStoreGroupTask(groupName, tabData, instanceId);
     } else {
       // Send message to background script for desktop platforms
       response = await browser.runtime.sendMessage({

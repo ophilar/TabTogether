@@ -1,42 +1,8 @@
 // core/storage.js
 
-import { ensureObject, ensureArray, ensureString, isObject as isObjectHelper } from "../common/utils.js";
+import { ensureObject, ensureArray, ensureString, isObject as isObjectHelper, deepMerge } from "../common/utils.js";
 import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from "../common/constants.js";
 
-/**
- * A utility to deeply merge objects.
- * @param {object} target The target object to merge into.
- * @param {object} source The source object to merge from.
- * @returns {object} The merged target object.
- * This version is more robust, handling null for deletion and ensuring target is an object.
- */
-export function deepMerge(target, source) {
-  const output = { ...ensureObject(target) }; // Ensure output starts as a copy of an object
-
-  if (isObjectHelper(source)) {
-    Object.keys(source).forEach((key) => {
-      const sourceValue = source[key];
-      const targetValue = output[key];
-
-      if (sourceValue === null) {
-        // Explicit deletion
-        delete output[key];
-      } else if (isObjectHelper(sourceValue)) {
-        // Recurse only if target value is also an object
-        if (isObjectHelper(targetValue)) {
-          output[key] = deepMerge(targetValue, sourceValue);
-        } else {
-          // Overwrite if target is not an object or doesn't exist
-          output[key] = sourceValue; // Assign source object directly
-        }
-      } else {
-        // Assign non-object values directly (overwriting target)
-        output[key] = sourceValue;
-      }
-    });
-  }
-  return output;
-}
 
 /**
  * Wrapper for browser.storage API to simplify get/set operations.
@@ -58,7 +24,8 @@ export const storage = {
       if (key === LOCAL_STORAGE_KEYS.GROUP_BITS ||
           key === SYNC_STORAGE_KEYS.GROUP_STATE ||
           key === SYNC_STORAGE_KEYS.DEVICE_REGISTRY ||
-          key === SYNC_STORAGE_KEYS.GROUP_TASKS // Added from previous context
+          key === SYNC_STORAGE_KEYS.GROUP_TASKS ||
+          key === SYNC_STORAGE_KEYS.SUBSCRIPTIONS // Ensure SYNC subscriptions are treated as an object
       ) {
         value = ensureObject(value, defaultValue ?? {});
       } else if (key === LOCAL_STORAGE_KEYS.SUBSCRIPTIONS ||
@@ -155,5 +122,30 @@ export async function removeFromList(area, key, value) {
   return updatedList;
 }
 
-// Add renameInList, updateObjectKey, removeObjectKey if needed,
-// ensuring they use the `storage.get` and `storage.set` methods correctly.
+export async function renameInList(area, key, oldValue, newValue) {
+  const list = await storage.get(area, key, []);
+  const updated = list.map((item) => (item === oldValue ? newValue : item));
+  // Note: This implementation does not sort the list after renaming.
+  // If sorting is desired (like in addToList), add list.sort() here.
+  await storage.set(area, key, updated);
+  return updated;
+}
+
+export async function updateObjectKey(area, key, oldProp, newProp) {
+  const obj = await storage.get(area, key, {});
+  if (Object.prototype.hasOwnProperty.call(obj, oldProp)) {
+    obj[newProp] = obj[oldProp];
+    delete obj[oldProp];
+    await storage.set(area, key, obj);
+  }
+  return obj;
+}
+
+export async function removeObjectKey(area, key, prop) {
+  const obj = await storage.get(area, key, {});
+  if (Object.prototype.hasOwnProperty.call(obj, prop)) {
+    delete obj[prop];
+    await storage.set(area, key, obj);
+  }
+  return obj;
+}

@@ -1,5 +1,42 @@
 // constants.js
 // Shared UI strings and constants for TabTogether
+
+/**
+ * Keys for browser.storage.local.
+ * These are specific to the local browser instance.
+ */
+export const LOCAL_STORAGE_KEYS = {
+  INSTANCE_ID: "tabtogether_instance_id",
+  INSTANCE_NAME: "tabtogether_instance_name",
+  SUBSCRIPTIONS: "tabtogether_subscriptions", // Stores an array of group names the device is subscribed to
+  GROUP_BITS: "tabtogether_group_bits",     // Stores an object mapping groupName to the device's bit in that group
+  PROCESSED_TASKS: "tabtogether_processed_tasks", // Stores an object mapping taskId to true if processed locally
+  // Add any other local storage keys here
+};
+
+/**
+ * Keys for browser.storage.sync.
+ * These are synced across all instances of the extension for the user.
+ */
+export const SYNC_STORAGE_KEYS = {
+  DEFINED_GROUPS: "tabtogether_defined_groups",   // Array of all group names
+  GROUP_STATE: "tabtogether_group_state",       // Object mapping groupName to { assignedMask: number }
+  GROUP_TASKS: "tabtogether_group_tasks",       // Object mapping groupName to { taskId: { url, title, processedMask, creationTimestamp } }
+  DEVICE_REGISTRY: "tabtogether_device_registry", // Object mapping instanceId to { name, lastSeen, groupBits: { groupName: bit } }
+  STALE_DEVICE_THRESHOLD_DAYS: "tabtogether_stale_device_threshold_days", // Number of days
+  TASK_EXPIRY_DAYS: "tabtogether_task_expiry_days", // Number of days
+  // Add any other sync storage keys here
+};
+
+/**
+ * Maximum number of devices allowed per group.
+ * This is tied to the bitmask implementation (e.g., a 16-bit mask allows 16 devices).
+ */
+export const MAX_DEVICES_PER_GROUP = 16; // Adjust if your bitmask supports more/less
+
+/**
+ * User-facing strings for UI elements, notifications, and messages.
+ */
 export const STRINGS = {
     deviceNameNotSet: '(Not Set)',
     noDevices: 'No devices registered.',
