@@ -1,8 +1,9 @@
 import { jest } from '@jest/globals';
 
 import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from '../common/constants.js';
-import { createGroupDirect, subscribeToGroupDirect, unsubscribeFromGroupDirect, deleteGroupDirect, sendTabToGroupDirect, getUnifiedState } from '../core/actions.js';
+import { createGroupDirect, subscribeToGroupDirect, unsubscribeFromGroupDirect, deleteGroupDirect, getUnifiedState } from '../core/actions.js';
 import { processIncomingTabsAndroid } from '../core/tasks.js';
+import { _clearInstanceIdCache } from '../core/instance.js';
 import { storage } from '../core/storage.js';
 import { showDebugInfoUI } from '../ui/options/options-ui.js'; // Assuming this is where showDebugInfo moved
 
@@ -12,6 +13,7 @@ describe('Integration: Group and Tab Flow', () => {
   let updateProcessedFn;
 
   beforeEach(async () => {
+    _clearInstanceIdCache(); // Clear instance ID cache
     // Reset mocks for callbacks
     openTabFn = jest.fn();
     updateProcessedFn = jest.fn(async (updatedTasks) => {
@@ -31,8 +33,8 @@ describe('Integration: Group and Tab Flow', () => {
       },
       [SYNC_STORAGE_KEYS.GROUP_TASKS]: {}, // Start with no tasks
       [SYNC_STORAGE_KEYS.DEFINED_GROUPS]: [],
-      [SYNC_STORAGE_KEYS.GROUP_STATE]: {}
-      // Subscriptions are now part of SYNC_STORAGE_KEYS.SUBSCRIPTIONS
+      [SYNC_STORAGE_KEYS.GROUP_STATE]: {},
+      [SYNC_STORAGE_KEYS.SUBSCRIPTIONS]: {} // Initialize subscriptions
     });
   });
 
@@ -98,7 +100,8 @@ describe('Integration: Group and Tab Flow', () => {
 // UI test (smoke test for debug info rendering)
 describe('UI: Debug Info Panel', () => {
   test('Renders debug info panel in DOM', () => {
-    document.body.innerHTML = '<div class="container"></div>';
+    // Ensure the .options-debug-info element exists for showDebugInfoUI to populate
+    document.body.innerHTML = '<div class="container"><div class="options-debug-info"></div></div>';
     const container = document.querySelector('.container');
     const state = {
       instanceId: 'uiid',
@@ -110,7 +113,9 @@ describe('UI: Debug Info Panel', () => {
       isAndroid: false
     };
     showDebugInfoUI(container, state);
-    expect(container.querySelector('.debug-info').innerHTML).toContain('Instance ID: uiid');
-    expect(container.querySelector('.debug-info').innerHTML).toContain('Defined Groups:');
+    const debugPreElement = container.querySelector('.options-debug-info pre');
+    const parsedDebugInfo = JSON.parse(debugPreElement.textContent);
+    expect(parsedDebugInfo.instanceId).toBe('uiid');
+    expect(parsedDebugInfo.definedGroups).toEqual(['g2']); // Use toEqual for array comparison
   });
 });

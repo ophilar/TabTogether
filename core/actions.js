@@ -1,6 +1,7 @@
 // core/actions.js
 
-import { storage, deepMerge } from "./storage.js";
+import { storage} from "./storage.js";
+import { deepMerge } from "../common/utils.js";
 import { SYNC_STORAGE_KEYS, STRINGS } from "../common/constants.js";
 import { getInstanceId, getInstanceName } from "./instance.js";
 import { isAndroid as checkAndroidPlatform } from "./platform.js"; // Renamed to avoid conflict

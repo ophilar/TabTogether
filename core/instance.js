@@ -17,7 +17,7 @@ export async function getInstanceId() {
   let id = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID);
   if (!id) {
     id = crypto.randomUUID();
-    await storage.set(browser.storage.local, { [LOCAL_STORAGE_KEYS.INSTANCE_ID]: id });
+    await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID, id);
   }
   instanceIdCache = id;
   return id;
@@ -37,4 +37,11 @@ export async function getInstanceName() {
   // Fallback name if not in registry or name not set
   // You might want to use browser.runtime.getPlatformInfo() to generate a more descriptive default
   return "My Device"; // Or a more dynamic default
+}
+
+/**
+ * Clears the in-memory instance ID cache. Used for testing.
+ */
+export function _clearInstanceIdCache() {
+  instanceIdCache = null;
 }
