@@ -302,12 +302,20 @@ export function renderSubscriptions(container, subscriptions) {
 /**
  * Displays a banner message about the requirement of Firefox Sync for cross-device functionality.
  * @param {HTMLElement} containerElement - The parent element to prepend the banner to.
+ * @param {object} storageAPI - The storage utility object.
  */
-export function displaySyncRequirementBanner(containerElement) {
+export async function displaySyncRequirementBanner(containerElement, storageAPI) {
   if (!containerElement) return;
 
+  const bannerDismissedKey = 'optionsSyncBannerDismissed';
+  const isDismissed = await storageAPI.get(browser.storage.local, bannerDismissedKey, false);
+
+  if (isDismissed) {
+    return; // Don't show if already dismissed
+  }
+
   // Prevent adding multiple banners
-  if (containerElement.querySelector('.sync-requirement-banner')) {
+  if (containerElement.querySelector('.sync-requirement-banner.tabtogether-banner')) { // More specific selector
     return;
   }
 
@@ -315,10 +323,23 @@ export function displaySyncRequirementBanner(containerElement) {
   banner.className = 'sync-requirement-banner notice-banner'; // Styles moved to styles.css
   
   const icon = document.createElement('span');
-  icon.textContent = 'ℹ️ '; // Info icon
+  icon.textContent = 'ℹ️'; // Info icon
   icon.style.marginRight = '8px';
   banner.appendChild(icon);
 
   banner.appendChild(document.createTextNode(STRINGS.SYNC_INFO_MESSAGE_OPTIONS || "TabTogether relies on Firefox Sync for cross-device features. Ensure you're signed in and add-on data sync is enabled."));
+
+  // Add a dismiss button
+  const dismissButton = document.createElement('button');
+  dismissButton.textContent = '✕'; // 'x' character for close
+  dismissButton.className = 'banner-dismiss-button'; // For styling
+  dismissButton.title = 'Dismiss this message';
+  dismissButton.setAttribute('aria-label', 'Dismiss this message');
+  dismissButton.onclick = async () => {
+    await storageAPI.set(browser.storage.local, bannerDismissedKey, true);
+    banner.remove(); // Remove the banner from the DOM
+  };
+  banner.appendChild(dismissButton);
+
   containerElement.insertBefore(banner, containerElement.firstChild); // Prepend to make it prominent
 }
