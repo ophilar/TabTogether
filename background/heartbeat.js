@@ -1,5 +1,6 @@
 import { storage } from "../core/storage.js"; // Import storage
 import { SYNC_STORAGE_KEYS } from "../common/constants.js"; // Assuming constants are needed
+
 export async function performHeartbeat(
   localInstanceId,
   localInstanceName,

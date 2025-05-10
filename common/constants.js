@@ -1,4 +1,3 @@
-// constants.js
 // Shared UI strings and constants for TabTogether
 
 /**
@@ -7,7 +6,7 @@
  */
 export const LOCAL_STORAGE_KEYS = {
   INSTANCE_ID: "tabtogether_instance_id",
-  INSTANCE_NAME: "tabtogether_instance_name",
+  INSTANCE_NAME_OVERRIDE: "tabtogether_instance_name_override", // Standardized key for user override
   SUBSCRIPTIONS: "tabtogether_subscriptions", // Stores an array of group names this specific device instance is subscribed to
   PROCESSED_TASKS: "tabtogether_processed_tasks", // Stores an object mapping taskId to true if processed locally
   // Add any other local storage keys here

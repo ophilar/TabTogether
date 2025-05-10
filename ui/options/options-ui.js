@@ -122,7 +122,7 @@ export function renderGroupListUI(
     nameSpan.className = 'group-name-label options-list-item-label'; // For styling and selection
     nameSpan.style.cursor = 'pointer'; // Indicate clickable for rename
     nameSpan.title = 'Click to rename group';
-    nameSpan.onclick = () => startRenameGroup(groupName, nameSpan); // Pass nameSpan for context
+    nameSpan.onclick = () => handlers.startRenameGroup(groupName, nameSpan); // Use handler from object
     li.appendChild(nameSpan);
 
     const actionsDiv = document.createElement('div');

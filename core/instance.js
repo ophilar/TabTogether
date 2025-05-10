@@ -66,7 +66,8 @@ export async function getInstanceName() {
   let name;
 
   // 1. Check for a user-defined override
-  const overrideName = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_NAME_OVERRIDE);
+  // Ensure a string default is passed if ensureString is to work correctly from storage.get
+  const overrideName = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_NAME_OVERRIDE, "");
   if (overrideName && overrideName.trim() !== "") {
     instanceNameCache = overrideName.trim();
     return instanceNameCache;

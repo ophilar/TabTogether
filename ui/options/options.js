@@ -1,7 +1,5 @@
-// options.js
-
-import { STRINGS, MAX_DEVICES_PER_GROUP, SYNC_STORAGE_KEYS } from "./common/constants.js";
-import { isAndroid } from "./core/platform.js";
+import { STRINGS, MAX_DEVICES_PER_GROUP, SYNC_STORAGE_KEYS } from "../../common/constants.js";
+import { isAndroid } from "../../core/platform.js";
 import {
   createGroupDirect,
   deleteGroupDirect,
@@ -11,31 +9,30 @@ import {
   subscribeToGroupUnified,
   unsubscribeFromGroupUnified,
   renameDeviceUnified,
-} from "./core/actions.js";
-import { storage } from "./core/storage.js";
-import { processIncomingTabsAndroid } from "./core/tasks.js";
-import { debounce } from "./common/utils.js";
-import { injectSharedUI } from "./ui/shared/shared-ui.js";
-import { applyThemeFromStorage, setupThemeDropdown } from "./ui/shared/theme.js";
+} from "../../core/actions.js";
+import { storage } from "../../core/storage.js";
+import { processIncomingTabsAndroid } from "../../core/tasks.js";
+import { debounce } from "../../common/utils.js";
+import { injectSharedUI } from "../shared/shared-ui.js";
+import { applyThemeFromStorage, setupThemeDropdown } from "../shared/theme.js";
 import {
   showAndroidBanner,
   showLoadingIndicator,
   showMessage,
   clearMessage,
-} from "./ui/shared/ui-helpers.js";
+} from "../shared/ui-helpers.js";
 import {
   renderDeviceRegistryUI,
   renderGroupListUI,
   createInlineEditControlsUI,
   createGroupListItemUI,
-  createDeviceListItemUI, // Import for device list items (though not used for adding in options.js directly)
   cancelInlineEditUI,
   setLastSyncTimeUI,
   showDebugInfoUI,
   displaySyncRequirementBanner, 
-} from "./ui/options/options-ui.js";
-import { setupOnboarding } from "./ui/options/options-onboarding.js";
-import { setupAdvancedTiming } from "./ui/options/options-advanced-timing.js";
+} from "./options-ui.js";
+import { setupOnboarding } from "./options-onboarding.js";
+import { setupAdvancedTiming } from "./options-advanced-timing.js";
 
 // Cache DOM elements at the top for repeated use
 const dom = {
@@ -65,7 +62,7 @@ if (manualSyncBtn) {
       if (isAndroidPlatformGlobal) {
 
         // On Android, perform the direct foreground sync
-        await loadState(); // This handles UI updates and messages internally
+        await loadState(); // This handles UI updates and messages internally for Android
         showMessage(dom.messageArea, 'Sync complete.', false); // Show success message after loadState finishes
       } else {
         // On Desktop, trigger background sync via heartbeat
@@ -551,7 +548,7 @@ async function handleSubscribe(event) {
   clearMessage(dom.messageArea);
   try {
     // Check MAX_DEVICES_PER_GROUP before attempting to subscribe
-    const allSubscriptionsSync = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS_SYNC, {});
+    const allSubscriptionsSync = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {});
     let currentSubscribersToGroup = 0;
     for (const deviceId in allSubscriptionsSync) {
         if (allSubscriptionsSync[deviceId] && allSubscriptionsSync[deviceId].includes(groupName)) {
