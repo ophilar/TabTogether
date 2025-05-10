@@ -2,25 +2,28 @@ import { jest } from '@jest/globals';
 
 // --- Other imports needed for your tests ---
 // Ensure these paths are correct for your project structure.
-import * as storageAPI from '../core/storage.js';
+import { storage as storageAPI } from '../core/storage.js'; // Correctly import and alias the storage object
 import {_clearInstanceIdCache as actualClearInstanceIdCache} from '../core/instance.js'; // Assuming storageAPI is exported from this module
-const instanceModulePath = '../core/instance.js';
 
 // Mock the core/instance module
-jest.mock(instanceModulePath, async () => {
-  const actualModule = await import(instanceModulePath); // Dynamically import the *actual* module
+const mockGetInstanceIdFn = jest.fn(); // Define the mock function instance here
+
+jest.mock('../core/instance.js', () => {
+  // Use jest.requireActual for synchronous loading of the module to be mocked
+  const actualModule = jest.requireActual('../core/instance.js');
+
 
   return {
     __esModule: true, // Important for ESM mocks
     ...actualModule, // Spread all actual exports (so they are available unless overridden)
-    getInstanceId: jest.fn(), // Override getInstanceId with a Jest mock function
+    getInstanceId: mockGetInstanceIdFn, // Override getInstanceId with a Jest mock function
     // _clearInstanceIdCache will be the actual implementation from actualModule here
   };
 });
 
 // Now, import everything else, including the mocked instanceModule
 import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS as COMMON_LOCAL_STORAGE_KEYS } from '../common/constants.js';
-import { createGroupDirect, subscribeToGroupDirect, unsubscribeFromGroupDirect, deleteGroupDirect, getUnifiedState } from '../core/actions.js';
+import { createGroupDirect, subscribeToGroupDirect, unsubscribeFromGroupDirect, deleteGroupDirect } from '../core/actions.js'; // Removed getUnifiedState from static imports here
 import { processIncomingTabsAndroid, createAndStoreGroupTask } from '../core/tasks.js';
 import { showDebugInfoUI } from '../ui/options/options-ui.js'; 
 import * as instanceModule from '../core/instance.js';
@@ -29,32 +32,91 @@ describe('Integration: Group and Tab Flow', () => {
   let openTabFn;
   let updateProcessedFn;
 
+  // --- Test Helper Functions ---
+  async function createGroupAndVerify(groupName) {
+    const res = await createGroupDirect(groupName);
+    expect(res.success).toBe(true);
+    const definedGroups = await storageAPI.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS);
+    expect(definedGroups).toContain(groupName);
+    return res;
+  }
+
+  async function subscribeToGroupAndVerify(groupName, deviceId) {
+    const res = await subscribeToGroupDirect(groupName);
+    expect(res.success).toBe(true);
+    const subscriptionsSync = await storageAPI.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {});
+    expect(subscriptionsSync[deviceId] || []).toContain(groupName);
+    return res;
+  }
+
+  async function sendTabAndVerify(groupName, tabDetails, senderId, recipientIds = null) {
+    const res = await createAndStoreGroupTask(groupName, tabDetails, senderId, recipientIds);
+    expect(res.success).toBe(true);
+    const groupTasks = await storageAPI.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS);
+    const taskId = res.taskId;
+    expect(taskId).toBeDefined();
+    expect(groupTasks[groupName][taskId]).toBeDefined();
+    expect(groupTasks[groupName][taskId].senderDeviceId).toBe(senderId);
+    if (recipientIds) {
+      expect(groupTasks[groupName][taskId].recipientDeviceIds).toEqual(recipientIds);
+    }
+    return { ...res, taskId };
+  }
+
+  async function processSelfSentTabAndVerify(state, groupName, taskId) {
+    await processIncomingTabsAndroid(state);
+    expect(browser.tabs.create).not.toHaveBeenCalled(); // Tab should NOT be opened
+    const groupTasksAfterProcessing = await storageAPI.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS);
+    expect(groupTasksAfterProcessing[groupName][taskId]).toBeDefined(); // Task remains
+  }
+
+  async function processReceivedTabAndVerify(state, tabUrl) {
+    await processIncomingTabsAndroid(state);
+    expect(browser.tabs.create).toHaveBeenCalledWith({ url: tabUrl, active: false });
+  }
+
+  async function unsubscribeFromGroupAndVerify(groupName, deviceId) {
+    const res = await unsubscribeFromGroupDirect(groupName);
+    expect(res.success).toBe(true);
+    const subscriptionsSync = await storageAPI.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {});
+    expect(subscriptionsSync[deviceId] || []).not.toContain(groupName);
+    return res;
+  }
+
+  async function deleteGroupAndVerify(groupName) {
+    const res = await deleteGroupDirect(groupName);
+    expect(res.success).toBe(true);
+    const definedGroups = await storageAPI.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS);
+    expect(definedGroups).not.toContain(groupName);
+    
+    const subscriptionsAfterGroupDelete = await storageAPI.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {});
+    for (const deviceId in subscriptionsAfterGroupDelete) {
+        expect(subscriptionsAfterGroupDelete[deviceId]).not.toContain(groupName);
+    }
+    return res;
+  }
+
   beforeEach(async () => {
-    // Call the captured actual function to clear instance ID cache if necessary for test setup
     actualClearInstanceIdCache();
-    // Reset mocks for callbacks
     openTabFn = jest.fn();
     updateProcessedFn = jest.fn(async (updatedTasks) => {
-      // Simulate updating local storage
       await browser.storage.local.set({ [COMMON_LOCAL_STORAGE_KEYS.PROCESSED_TASKS]: updatedTasks });
-      // In the new model, processIncomingTabsAndroid updates sync storage directly.
     });
 
-    // Set up a realistic device registry and group state
-    // Reset getInstanceId mock before each test to ensure a clean state
-    instanceModule.getInstanceId.mockResolvedValue('test-device-id'); // Default mock for most tests
-    await storageAPI.set(browser.storage.local, COMMON_LOCAL_STORAGE_KEYS.INSTANCE_ID, 'test-device-id');
-    // INSTANCE_NAME is now primarily in deviceRegistry, INSTANCE_NAME_OVERRIDE for local
-    await storageAPI.set(browser.storage.local, COMMON_LOCAL_STORAGE_KEYS.INSTANCE_NAME_OVERRIDE, 'Test Device');
+    mockGetInstanceIdFn.mockResolvedValue('test-device-id');
+    await browser.storage.local.set({
+        [COMMON_LOCAL_STORAGE_KEYS.INSTANCE_ID]: 'test-device-id',
+        [COMMON_LOCAL_STORAGE_KEYS.INSTANCE_NAME_OVERRIDE]: 'Test Device'
+    });
 
     await browser.storage.sync.set({
       [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: {
-        'test-device-id': { name: 'Test Device', lastSeen: Date.now(), subscriptions: [] } // Ensure subscriptions array exists
+        'test-device-id': { name: 'Test Device', lastSeen: Date.now(), subscriptions: [] }
       },
-      [SYNC_STORAGE_KEYS.GROUP_TASKS]: {}, // Start with no tasks
+      [SYNC_STORAGE_KEYS.GROUP_TASKS]: {},
       [SYNC_STORAGE_KEYS.DEFINED_GROUPS]: [],
       [SYNC_STORAGE_KEYS.GROUP_STATE]: {},
-      [SYNC_STORAGE_KEYS.SUBSCRIPTIONS]: {} // Use the correct sync key
+      [SYNC_STORAGE_KEYS.SUBSCRIPTIONS]: {}
     });
   });
 
@@ -63,58 +125,26 @@ describe('Integration: Group and Tab Flow', () => {
     const TAB_URL = 'https://integration.com';
     const TAB_TITLE = 'Integration';
 
-    // 1. Create group
-    const createRes = await createGroupDirect(GROUP_NAME);
-    expect(createRes.success).toBe(true);
-    expect(await storageAPI.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS)).toContain(GROUP_NAME);
+    await createGroupAndVerify(GROUP_NAME);
+    await subscribeToGroupAndVerify(GROUP_NAME, 'test-device-id');
 
-    // 2. Subscribe
-    const subRes = await subscribeToGroupDirect(GROUP_NAME);
-    expect(subRes.success).toBe(true);
-    const subscriptionsSync = await storageAPI.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {});
-    expect(subscriptionsSync['test-device-id'] || []).toContain(GROUP_NAME);
-
-    // 3. Send tab
-    // sendTabToGroupDirect is no longer used. We'd call createAndStoreGroupTask from background or a unified action.
-    // For this integration test, let's assume a background action would call createAndStoreGroupTask.
-    // createAndStoreGroupTask is now imported statically
-    const sendRes = await createAndStoreGroupTask(GROUP_NAME, { url: TAB_URL, title: TAB_TITLE }, 'test-device-id', null);
-    expect(sendRes.success).toBe(true);
-    const groupTasksBeforeProcessing = await storageAPI.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS);
-    const sentTaskId = Object.keys(groupTasksBeforeProcessing[GROUP_NAME])[0];
-    expect(sentTaskId).toBeDefined();
-    expect(groupTasksBeforeProcessing[GROUP_NAME][sentTaskId].senderDeviceId).toBe('test-device-id');
+    const { taskId: sentTaskId } = await sendTabAndVerify(GROUP_NAME, { url: TAB_URL, title: TAB_TITLE }, 'test-device-id');
 
     // 4. Simulate processing incoming tab (as if received by THIS device)
-    const state = await getUnifiedState(true, 'test-device-id'); // Simulate Android for processIncomingTabsAndroid, pass deviceId
+    // Dynamically import getUnifiedState for this test case as well
+    const { getUnifiedState: getUnifiedStateForTest1 } = await import('../core/actions.js');
+    const stateForProcessing = await getUnifiedStateForTest1(true); // Corrected: only one argument
+    await processSelfSentTabAndVerify(stateForProcessing, GROUP_NAME, sentTaskId);
 
-    // *** Call the actual processing function ***
-    await processIncomingTabsAndroid(state);
+    await unsubscribeFromGroupAndVerify(GROUP_NAME, 'test-device-id');
+    await deleteGroupAndVerify(GROUP_NAME);
 
-    // Assertions for processing:
-    // Tab should NOT be opened because senderDeviceId is 'test-device-id' (self)
-    expect(browser.tabs.create).not.toHaveBeenCalled();
-    const groupTasksAfterProcessing = await storageAPI.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS);
-    expect(groupTasksAfterProcessing[GROUP_NAME][sentTaskId]).toBeDefined(); // Task remains as it was from self
-
-    // 5. Unsubscribe
-    const unsubRes = await unsubscribeFromGroupDirect(GROUP_NAME);
-    expect(unsubRes.success).toBe(true);
-    const finalSubscriptionsSync = await storageAPI.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {});
-    expect(finalSubscriptionsSync['test-device-id'] || []).not.toContain(GROUP_NAME);
-
-    // 6. Delete group
-    const delRes = await deleteGroupDirect(GROUP_NAME);
-    expect(delRes.success).toBe(true);
-    expect(await storageAPI.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS)).not.toContain(GROUP_NAME);
-    // deleteGroupDirect also clears subscriptions for the deleted group from SYNC_STORAGE_KEYS.SUBSCRIPTIONS_SYNC
-    const subscriptionsAfterGroupDelete = await storageAPI.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {});
-    for (const deviceId in subscriptionsAfterGroupDelete) {
-        expect(subscriptionsAfterGroupDelete[deviceId]).not.toContain(GROUP_NAME);
-    }
-    const finalGroupTasksForDelete = await storageAPI.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS);
-    // deleteGroupDirect doesn't currently clear tasks, this might need adjustment or be handled by cleanup.
-    // For now, we'll assume tasks might still exist but the group itself is gone.
+    // Verify tasks are not cleared by deleteGroupDirect (handled by cleanup)
+    const finalGroupTasks = await storageAPI.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS);
+    // If sentTaskId was defined, and the group was deleted, the tasks for that group might still exist
+    // or be cleaned up by a separate mechanism. This assertion depends on the exact behavior of deleteGroupDirect.
+    // For now, let's assume tasks for the deleted group might still be in the main tasks object if not explicitly cleared by deleteGroupDirect.
+    // If deleteGroupDirect *does* clear tasks for the group, this assertion would change.
   });
 
   test('Multiple devices, tab sending and receiving', async () => {
@@ -136,29 +166,31 @@ describe('Integration: Group and Tab Flow', () => {
     });
 
     // 1. Create group (by deviceA)
-    await createGroupDirect(GROUP_NAME);
+    await createGroupAndVerify(GROUP_NAME);
+
     // 2. Both devices subscribe
-    await subscribeToGroupDirect(GROUP_NAME); // deviceA subscribes
+    await subscribeToGroupAndVerify(GROUP_NAME, deviceA_ID); // deviceA subscribes
+
     // Simulate deviceB subscribing (direct action for test simplicity)
     let subsB = await storageAPI.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS);
     subsB[deviceB_ID] = [GROUP_NAME];
     await storageAPI.set(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, subsB);
 
     // 3. DeviceA sends a tab to the group
-    // createAndStoreGroupTask is now imported statically
-    // Explicitly set recipient to deviceB
-    const sendRes = await createAndStoreGroupTask(GROUP_NAME, { url: TAB_URL, title: TAB_TITLE }, deviceA_ID, [deviceB_ID]);
-    expect(sendRes.success).toBe(true);
+    await sendTabAndVerify(GROUP_NAME, { url: TAB_URL, title: TAB_TITLE }, deviceA_ID, [deviceB_ID]);
 
     // 4. Simulate DeviceB processing the task
-    // Mock getInstanceId for DeviceB's context
-    instanceModule.getInstanceId.mockResolvedValue(deviceB_ID);
-    actualClearInstanceIdCache(); // Use the correctly named actual function
+    mockGetInstanceIdFn.mockReset(); // Reset any previous mock configurations (like from beforeEach)
+    mockGetInstanceIdFn.mockResolvedValue(deviceB_ID); // Set the new desired resolved value
+    actualClearInstanceIdCache(); // Clear cache of the *actual* module (good hygiene)
 
-    const stateForDeviceB = await getUnifiedState(true, deviceB_ID); // Simulate Android for DeviceB, pass deviceId
-    await processIncomingTabsAndroid(stateForDeviceB);
+    jest.resetModules(); // Clear Jest's module cache
 
-    expect(browser.tabs.create).toHaveBeenCalledWith({ url: TAB_URL, active: false });
+    // Dynamically import getUnifiedState to ensure it picks up the latest mock configuration
+    const { getUnifiedState } = await import('../core/actions.js');
+
+    const stateForDeviceB = await getUnifiedState(true); // Corrected: getUnifiedState only takes one argument
+    await processReceivedTabAndVerify(stateForDeviceB, TAB_URL);
   });
 });
 
