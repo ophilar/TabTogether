@@ -96,6 +96,48 @@ export function renderDeviceRegistryUI(deviceRegistryListDiv, currentState, hand
   deviceRegistryListDiv.appendChild(ul);
 }
 
+/**
+ * Creates a list item element for a group.
+ * @param {string} groupName - The name of the group.
+ * @param {boolean} isSubscribed - Whether the current device is subscribed to this group.
+ * @param {object} handlers - Object containing event handlers (handleSubscribe, handleUnsubscribe, handleDeleteGroup, startRenameGroup).
+ * @returns {HTMLLIElement} The created list item element.
+ */
+export function createGroupListItemUI(groupName, isSubscribed, handlers) {
+  const li = document.createElement("li");
+  li.setAttribute('role', 'listitem');
+  li.className = 'options-list-item'; // Use common class
+  li.dataset.groupName = groupName; // Add data attribute for easier selection
+
+  const nameSpan = document.createElement("span");
+  nameSpan.textContent = groupName;
+  nameSpan.className = 'group-name-label options-list-item-label';
+  nameSpan.style.cursor = 'pointer';
+  nameSpan.title = 'Click to rename group';
+  nameSpan.onclick = () => handlers.startRenameGroup(groupName, nameSpan);
+  li.appendChild(nameSpan);
+
+  const actionsDiv = document.createElement('div');
+  actionsDiv.className = 'group-actions';
+
+  const subBtn = document.createElement("button");
+  subBtn.textContent = isSubscribed ? "Unsubscribe" : "Subscribe";
+  subBtn.dataset.group = groupName;
+  subBtn.className = isSubscribed ? 'secondary' : 'primary';
+  subBtn.onclick = isSubscribed ? handlers.handleUnsubscribe : handlers.handleSubscribe;
+  actionsDiv.appendChild(subBtn);
+
+  const deleteBtn = document.createElement("button");
+  deleteBtn.textContent = "Delete";
+  deleteBtn.dataset.group = groupName;
+  deleteBtn.className = 'danger';
+  deleteBtn.onclick = handlers.handleDeleteGroup;
+  actionsDiv.appendChild(deleteBtn);
+
+  li.appendChild(actionsDiv);
+  return li;
+}
+
 export function renderGroupListUI(
   definedGroupsListDiv,
   definedGroups,
@@ -114,37 +156,9 @@ export function renderGroupListUI(
   ul.className = 'options-list'; // Use common class
 
   definedGroups.forEach((groupName) => {
-    const li = document.createElement("li");
-    li.setAttribute('role', 'listitem');
-    li.className = 'options-list-item'; // Use common class
-
-    const nameSpan = document.createElement("span");
-    nameSpan.textContent = groupName; // Initial group name text
-    nameSpan.className = 'group-name-label options-list-item-label'; // For styling and selection
-    nameSpan.style.cursor = 'pointer'; // Indicate clickable for rename
-    nameSpan.title = 'Click to rename group';
-    nameSpan.onclick = () => handlers.startRenameGroup(groupName, nameSpan); // Use handler from object
-    li.appendChild(nameSpan);
-
-    const actionsDiv = document.createElement('div');
-    actionsDiv.className = 'group-actions'; // For styling action buttons
-
     const isSubscribed = subscriptions.includes(groupName);
-    const subBtn = document.createElement("button");
-    subBtn.textContent = isSubscribed ? "Unsubscribe" : "Subscribe";
-    subBtn.dataset.group = groupName;
-    subBtn.className = isSubscribed ? 'secondary' : 'primary'; // Style based on state
-    subBtn.onclick = isSubscribed ? handlers.handleUnsubscribe : handlers.handleSubscribe; // Use handlers from object
-    actionsDiv.appendChild(subBtn);
-
-    const deleteBtn = document.createElement("button");
-    deleteBtn.textContent = "Delete";
-    deleteBtn.dataset.group = groupName;
-    deleteBtn.className = 'danger'; // Style for destructive action
-    deleteBtn.onclick = handlers.handleDeleteGroup; // Use handlers from object
-    actionsDiv.appendChild(deleteBtn);
-
-    li.appendChild(actionsDiv);
+    // Use the new helper function to create each list item
+    const li = createGroupListItemUI(groupName, isSubscribed, handlers);
     ul.appendChild(li);
   });
   definedGroupsListDiv.appendChild(ul);
