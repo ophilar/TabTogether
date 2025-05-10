@@ -1,8 +1,7 @@
-// theme.js
 // Shared dark mode logic for TabTogether
 // Apply dark mode based on user preference or system settings
-import { debounce } from './utils.js'; // storage was incorrectly imported from here
-import { storage } from '../../core/storage.js'; // Corrected storage import
+import { debounce } from './utils.js';
+import { storage } from '../../core/storage.js';
 
 // Helper to determine the effective theme based on storage and system preference
 async function determineThemePreference() {
@@ -39,7 +38,7 @@ export async function setupThemeDropdown(dropdownId) {
 
     // Apply the theme initially (ensures correct theme even if applyThemeFromStorage hasn't run)
     // This is slightly redundant if applyThemeFromStorage always runs first, but adds robustness.
-    setTheme(await determineThemePreference());
+    // setTheme(await determineThemePreference());
 
     select.addEventListener('change', async (e) => {
         const value = e.target.value;

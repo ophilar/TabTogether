@@ -8,6 +8,7 @@ import { storage } from "../core/storage.js"; // Import the storage wrapper
 import {
   getInstanceId,
   getInstanceName,
+  setInstanceName as setInstanceNameInCore,
 } from "../core/instance.js";
 import {
   renameDeviceDirect,
@@ -16,8 +17,8 @@ import {
   renameGroupDirect,
   deleteDeviceDirect,
 } from "../core/actions.js";
-import { createAndStoreGroupTask } from "../core/tasks.js";
-import { assignBitForGroup } from "../core/group-manager.js";
+import { createAndStoreGroupTask } from "../core/tasks.js"; // Keep this
+import { assignDeviceBitForGroup } from "../core/group-manager.js"; // Renamed function
 import { processIncomingTasks } from "./task-processor.js";
 import { performHeartbeat } from "./heartbeat.js";
 import { performStaleDeviceCheck, performTimeBasedTaskCleanup } from "./cleanup.js";
@@ -36,8 +37,8 @@ const DEFAULT_TASK_EXPIRY_DAYS = 14;
 // --- Initialization ---
 
 async function initializeExtension() {
+  console.log("Initializing TabTogether (Advanced)...");
   try {
-    console.log("Initializing TabTogether (Advanced)...");
     console.log("Initializing storage...");
     // Ensure storage.sync has default values if empty
     const syncKeys = Object.values(SYNC_STORAGE_KEYS);
@@ -70,24 +71,13 @@ async function initializeExtension() {
 
     // Use the data fetched earlier (syncData) instead of fetching again
     let cachedDefinedGroups = syncData[SYNC_STORAGE_KEYS.DEFINED_GROUPS] ?? [];
-    let cachedGroupState = await storage.get(
-      browser.storage.sync,
-      SYNC_STORAGE_KEYS.GROUP_STATE,
-      {} // Default to empty object
-    );
-    let cachedDeviceRegistry = await storage.get(
-      browser.storage.sync,
-      SYNC_STORAGE_KEYS.DEVICE_REGISTRY,
-      {} // Default to empty object
-    );
-
+    
     await setupAlarms();
     await updateContextMenu(cachedDefinedGroups); // Use cachedDefinedGroups if available
     await performHeartbeat(
       localInstanceId,
       localInstanceName,
       localGroupBits,
-      // cachedDeviceRegistry // performHeartbeat now fetches its own registry
     ); // Perform initial heartbeat/registry update
     console.log(`Initialization complete. Name: ${localInstanceName}`);
   } catch (error) {
@@ -227,48 +217,33 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
     tab
   ); // Log both
 
-  if (
-    !info.menuItemId.startsWith("send-to-") ||
-    info.menuItemId === "send-to-group-parent"
-  )
+  const menuItemId = info.menuItemId?.toString() || ""; // Ensure it's a string
+  if (!menuItemId.startsWith("send-to-") || menuItemId === "send-to-group-parent") {
     return;
+  }
 
-  const groupName = info.menuItemId.replace("send-to-", "");
+  const groupName = menuItemId.replace("send-to-", "");
+  const localInstanceId = await getInstanceId();
 
   // Determine URL and Title
   let urlToSend = info.pageUrl; // Default to the page URL
   let titleToSend = tab?.title || "Link"; // Default to tab title
 
   if (info.linkUrl) {
-    // Priority 1: Clicked on a link
     urlToSend = info.linkUrl;
     titleToSend = info.linkText || urlToSend;
-  } else if (info.mediaType && info.srcUrl) { // Check mediaType exists
-    // Clicked on media
+  } else if (info.mediaType && info.srcUrl) {
     urlToSend = info.srcUrl;
-    titleToSend = tab?.title || urlToSend; // Media doesn't have specific link text
+    titleToSend = tab?.title || urlToSend;
   } else if (info.selectionText) {
-    // Clicked on selected text
     urlToSend = info.pageUrl || tab?.url; // Send the page URL
     titleToSend = `"${info.selectionText}" on ${tab?.title || urlToSend}`;
   } else if (tab?.url) {
-    // Fallback to tab URL if available (covers page, frame, tab contexts)
-    // Ensure tab and tab.url exist
     urlToSend = tab.url;
     titleToSend = tab?.title || urlToSend;
   }
 
-  const taskId = crypto.randomUUID();
-  // --- Get sender's bit for processedMask ---
-  let localGroupBits = await storage.get(
-    browser.storage.local,
-    LOCAL_STORAGE_KEYS.GROUP_BITS,
-    {}
-  );
-  const senderBit = localGroupBits[groupName] || 0;
-
   if (!urlToSend || urlToSend === "about:blank") {
-    // Added check for about:blank
     console.error(
       "Could not determine a valid URL to send from context:",
       info,
@@ -284,14 +259,342 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
     return;
   }
 
-  // Set processedMask to senderBit so sender is marked as processed
-  const newTask = {
-    [taskId]: {
-      url: urlToSend,
-      title: titleToSend,
-      processedMask: senderBit,
-      creationTimestamp: Date.now(),
-    },
+  const tabData = { url: urlToSend, title: titleToSend };
+
+  // Determine recipientDeviceIds for createAndStoreGroupTask
+  // This requires fetching devices subscribed to the group.
+  let recipientDeviceIds = [];
+  try {
+    const allSubscriptions = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {});
+    const deviceRegistry = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
+
+    for (const deviceId in allSubscriptions) {
+      if (deviceId === localInstanceId) continue; // Don't send to self
+      if (allSubscriptions[deviceId] && allSubscriptions[deviceId].includes(groupName)) {
+        // Check if device is still active in registry (optional, but good practice)
+        if (deviceRegistry[deviceId]) {
+          recipientDeviceIds.push(deviceId);
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Error determining recipients for context menu send:", e);
+    // Proceed with empty recipients (task will be for anyone in group except sender if recipientDeviceIds is null/empty in createAndStoreGroupTask)
+    // or handle error more gracefully. For now, let createAndStoreGroupTask handle null.
+    recipientDeviceIds = null;
+  }
+
+  console.log(`Context Menu: Sending task to group ${groupName} from ${localInstanceId}. Recipients: ${recipientDeviceIds?.join(', ') || 'All (except sender)'}`);
+  const { success, message: taskMessage } = await createAndStoreGroupTask(
+    groupName,
+    tabData,
+    localInstanceId,
+    recipientDeviceIds
+  );
+
+  const notificationMessage = success
+    ? `Sent "${titleToSend}" to group "${groupName}".`
+    : taskMessage || "Failed to send tab.";
+
+  browser.notifications.create({
+    type: "basic",
+    iconUrl: browser.runtime.getURL("icons/icon-48.png"),
+    title: success ? "Tab Sent" : "Send Failed",
+    message: notificationMessage,
+  });
+});
+
+// --- Storage Change Listener (Updates Caches) ---
+
+browser.storage.onChanged.addListener(async (changes, areaName) => {
+  if (areaName !== 'sync') return; // Only care about sync changes
+
+  let contextMenuNeedsUpdate = false;
+  let uiNeedsRefresh = false; // Flag for UI refresh
+
+  if (changes[SYNC_STORAGE_KEYS.DEFINED_GROUPS]) {
+    console.log("Sync change detected: DEFINED_GROUPS");
+    contextMenuNeedsUpdate = true;
+    uiNeedsRefresh = true;
+  }
+  if (changes[SYNC_STORAGE_KEYS.GROUP_STATE]) {
+    console.log("Sync change detected: GROUP_STATE");
+    uiNeedsRefresh = true;
+  }
+  if (changes[SYNC_STORAGE_KEYS.DEVICE_REGISTRY]) {
+    console.log("Sync change detected: DEVICE_REGISTRY");
+    uiNeedsRefresh = true;
+  }
+  if (changes[SYNC_STORAGE_KEYS.SUBSCRIPTIONS]) { // Added SUBSCRIPTIONS check
+    console.log("Sync change detected: SUBSCRIPTIONS");
+    uiNeedsRefresh = true;
+  }
+
+  if (contextMenuNeedsUpdate) {
+    const groupsForMenu = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []);
+    await updateContextMenu(groupsForMenu);
+  }
+
+  if (changes[SYNC_STORAGE_KEYS.GROUP_TASKS]) {
+    console.log("Sync change detected: GROUP_TASKS. Processing...");
+    const newTasksObject = changes[SYNC_STORAGE_KEYS.GROUP_TASKS].newValue;
+    if (newTasksObject && typeof newTasksObject === 'object') {
+      await processIncomingTasks(newTasksObject);
+    } else if (!newTasksObject) {
+      console.log("GROUP_TASKS was deleted or set to null. No tasks to process.");
+    }
+  }
+
+  if (uiNeedsRefresh) {
+    try {
+      await browser.runtime.sendMessage({ action: "syncDataChanged" });
+    } catch (error) {
+      if (!error.message?.includes("Could not establish connection") && !error.message?.includes("Receiving end does not exist")) {
+        console.warn("Could not send syncDataChanged message:", error.message);
+      }
+    }
+  }
+});
+
+// --- Message Handling (Uses Caches for getState) ---
+
+browser.runtime.onMessage.addListener(async (request, sender) => {
+  console.log("Message received:", request.action, "Data:", request);
+
+  switch (request.action) {
+    case "getState": {
+      const localInstanceId = await getInstanceId();
+      const localInstanceName = await getInstanceName();
+      const localSubscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
+      const localGroupBits = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {});
+      // Fetch fresh sync data for getState to ensure UI has the latest
+      const definedGroups = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []);
+      const groupState = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {});
+      const deviceRegistry = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
+      const allSubscriptions = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {}); // For unified state
+
+      return {
+        instanceId: localInstanceId,
+        instanceName: localInstanceName,
+        subscriptions: localSubscriptions, // Local device's subscriptions
+        groupBits: localGroupBits,
+        definedGroups: definedGroups.sort(),
+        groupState,
+        deviceRegistry,
+        allSubscriptions, // All devices' subscriptions
+      };
+    }
+
+    case "createGroup": {
+      if (!request.groupName || typeof request.groupName !== "string" || request.groupName.trim().length === 0) {
+        return { success: false, message: "Invalid group name provided." };
+      }
+      return await createGroupDirect(request.groupName.trim());
+    }
+    case "deleteGroup": {
+      if (!request.groupName) {
+        return { success: false, message: "No group name provided." };
+      }
+      return await deleteGroupDirect(request.groupName);
+    }
+    case "renameGroup": {
+      const { oldName, newName } = request;
+      if (!oldName || !newName || typeof newName !== "string" || newName.trim().length === 0) {
+        return { success: false, message: "Invalid group name." };
+      }
+      return await renameGroupDirect(oldName, newName.trim());
+    }
+    case "renameDevice": {
+      const { deviceId, newName } = request;
+      if (!deviceId || !newName || typeof newName !== "string" || newName.trim().length === 0) {
+        return { success: false, message: "Invalid device ID or name provided." };
+      }
+      try {
+        const localInstanceId = await getInstanceId();
+        if (deviceId === localInstanceId) {
+          return await setInstanceNameInCore(newName.trim());
+        } else {
+          return await renameDeviceDirect(deviceId, newName.trim());
+        }
+      } catch (error) {
+        console.error("Error during renameDevice call:", error);
+        return { success: false, message: error.message || "An unexpected error occurred during rename." };
+      }
+    }
+    case "deleteDevice": {
+      const { deviceId } = request;
+      if (!deviceId) {
+        return { success: false, message: "No device ID provided." };
+      }
+      return await deleteDeviceDirect(deviceId);
+    }
+
+    case "subscribeToGroup": {
+      const groupToSubscribe = request.groupName;
+      const localInstanceId = await getInstanceId();
+      let localSubscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
+      let localGroupBits = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {});
+
+      if (!groupToSubscribe) {
+        return { success: false, message: "No group name provided." };
+      }
+      if (localSubscriptions.includes(groupToSubscribe)) {
+        return { success: false, message: "Already subscribed." };
+      }
+
+      // Fetch required sync state just before assigning bit
+      const initialGroupState = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {});
+      // const initialDeviceRegistry = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {}); // Not directly used by assignDeviceBitForGroup current impl.
+
+      const assignedBit = await assignDeviceBitForGroup(
+        groupToSubscribe,
+        localInstanceId,
+        initialGroupState
+        // initialDeviceRegistry // Pass if assignDeviceBitForGroup needs it
+      );
+
+      if (assignedBit !== null) {
+        localSubscriptions.push(groupToSubscribe);
+        localSubscriptions.sort();
+        localGroupBits[groupToSubscribe] = assignedBit;
+
+        await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, localSubscriptions);
+        await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, localGroupBits);
+
+        // Update this device's entry in the global subscriptions object
+        // This ensures that when other devices fetch SUBSCRIPTIONS, this device's new sub is reflected.
+        await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {
+            [localInstanceId]: localSubscriptions
+        });
+
+        // Heartbeat will ensure DEVICE_REGISTRY.groupBits is up-to-date.
+        const localInstanceName = await getInstanceName();
+        await performHeartbeat(localInstanceId, localInstanceName, localGroupBits);
+
+        return { success: true, subscribedGroup: groupToSubscribe, assignedBit: assignedBit };
+      } else {
+        return { success: false, message: "Group is full or error assigning bit." };
+      }
+    }
+    case "unsubscribeFromGroup": {
+      const groupToUnsubscribe = request.groupName;
+      const localInstanceId = await getInstanceId();
+      let localSubscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
+      let localGroupBits = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {});
+
+      if (!groupToUnsubscribe) {
+        return { success: false, message: "No group name provided." };
+      }
+      if (!localSubscriptions.includes(groupToUnsubscribe)) {
+        return { success: false, message: "Not subscribed." };
+      }
+
+      try {
+        const bitToRemove = localGroupBits[groupToUnsubscribe];
+
+        localSubscriptions = localSubscriptions.filter(g => g !== groupToUnsubscribe);
+        delete localGroupBits[groupToUnsubscribe];
+
+        await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, localSubscriptions);
+        await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, localGroupBits);
+
+        // Update this device's entry in the global subscriptions object
+        await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {
+            [localInstanceId]: localSubscriptions
+        });
+
+        // Update device registry to mark the bit for this group as null for this device
+        await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {
+          [localInstanceId]: { groupBits: { [groupToUnsubscribe]: null } },
+        });
+
+        // Clear the bit from the group's assignedMask in GROUP_STATE
+        if (bitToRemove !== undefined) {
+          const groupState = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {});
+          if (groupState[groupToUnsubscribe] && groupState[groupToUnsubscribe].assignedMask !== undefined) {
+            const currentMask = groupState[groupToUnsubscribe].assignedMask;
+            const newMask = currentMask & ~bitToRemove;
+            if (newMask !== currentMask) {
+              await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {
+                [groupToUnsubscribe]: { assignedMask: newMask },
+              });
+            }
+          }
+        }
+        console.log(`Locally unsubscribed from ${groupToUnsubscribe}. Bit ${bitToRemove} cleared.`);
+        return { success: true, unsubscribedGroup: groupToUnsubscribe };
+      } catch (error) {
+        console.error(`Error unsubscribing from group ${groupToUnsubscribe}:`, error);
+        return { success: false, message: `Error unsubscribing: ${error.message}` };
+      }
+    }
+    case "sendTabFromPopup": {
+      const { groupName, tabData } = request;
+      const senderDeviceId = await getInstanceId();
+
+      // Determine recipientDeviceIds
+      let recipientDeviceIds = [];
+      try {
+        const allSubscriptions = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {});
+        const deviceRegistry = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
+        for (const deviceId in allSubscriptions) {
+          if (deviceId === senderDeviceId) continue;
+          if (allSubscriptions[deviceId] && allSubscriptions[deviceId].includes(groupName)) {
+            if (deviceRegistry[deviceId]) { // Check if device is active
+                recipientDeviceIds.push(deviceId);
+            }
+          }
+        }
+      } catch(e) {
+        console.error("Error determining recipients for popup send:", e);
+        recipientDeviceIds = null; // Let createAndStoreGroupTask handle null as "all in group"
+      }
+
+      return await createAndStoreGroupTask(groupName, tabData, senderDeviceId, recipientDeviceIds);
+    }
+    case "heartbeat": {
+      const localInstanceId = await getInstanceId();
+      const localInstanceName = await getInstanceName();
+      const localGroupBits = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {});
+      await performHeartbeat(localInstanceId, localInstanceName, localGroupBits);
+      return { success: true };
+    }
+    case "testNotification": {
+      await browser.notifications.create({
+        type: "basic",
+        iconUrl: browser.runtime.getURL("icons/icon-48.png"),
+        title: "TabTogether Test",
+        message: "This is a test notification.",
+      });
+      return { success: true };
+    }
+    case "setSyncInterval": {
+      const minutes = Math.max(1, Math.min(120, parseInt(request.minutes, 10) || 5));
+      await browser.alarms.clear(ALARM_HEARTBEAT);
+      await browser.alarms.create(ALARM_HEARTBEAT, { periodInMinutes: minutes });
+      return { success: true };
+    }
+    default:
+      console.warn("Unknown action received:", request.action);
+      return { success: false, message: `Unknown action: ${request.action}` };
+  }
+});
+
+// Removed playNotificationSound function
+
+// Enhanced notification for tab send/receive
+async function showTabNotification({ title, url, groupName, faviconUrl }) {
+  // Removed sound and duration logic - use system defaults
+  await browser.notifications.create({
+    type: "basic",
+    iconUrl: faviconUrl || browser.runtime.getURL("icons/icon-48.png"),
+    title: `TabTogether: ${groupName ? "Group " + groupName : "Tab Received"}`,
+    message: title || url || "Tab received",
+    contextMessage: url || "",
+  });
+}
+
+// Example usage: showTabNotification({ title, url, groupName, faviconUrl }) when sending/receiving tabs
   };
   const update = { [groupName]: newTask };
 
@@ -405,34 +708,6 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
     // The following cases are kept for now to show where the logic *was*,
     // but in the refactored version, they'd be calls to handler functions.
     // For a truly concise diff, these would be replaced by handler calls.
-    case "setInstanceName":
-      if (
-        !request.name ||
-        typeof request.name !== "string" ||
-        request.name.trim().length === 0
-      ) {
-        return { success: false, message: "Invalid name provided." };
-      } else {
-        const localInstanceId = await getInstanceId(); // Fetch as needed
-        let localInstanceName = request.name.trim();
-        const localGroupBits = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {});
-        // 1. Update local storage cache
-
-        await storage.set(
-          browser.storage.local,
-          LOCAL_STORAGE_KEYS.INSTANCE_NAME,
-          localInstanceName
-        );
-        // 2. Fetch registry and trigger heartbeat to update the name
-        const registryForNameUpdate = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
-        await performHeartbeat( // Heartbeat updates the name in the registry
-          localInstanceId,
-          localInstanceName,
-          localGroupBits,
-          registryForNameUpdate // Pass the fetched registry
-        );
-        return { success: true, newName: localInstanceName };
-      }
 
     case "createGroup": {
       // Use block scope for constants if needed
@@ -485,8 +760,14 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
         };
       } else {
         try {
-          // renameDeviceDirect should already be imported
-          return await renameDeviceDirect(deviceId, newName.trim());
+          const localInstanceId = await getInstanceId();
+          if (deviceId === localInstanceId) {
+            // Renaming the current device
+            return await setInstanceNameInCore(newName.trim());
+          } else {
+            // Renaming another device (only update sync registry)
+            return await renameDeviceDirect(deviceId, newName.trim());
+          }
         } catch (error) {
           console.error("Error during renameDeviceDirect call:", error);
           return {

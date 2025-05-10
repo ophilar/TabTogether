@@ -1,10 +1,8 @@
 // core/actions.js
 
 import { storage} from "./storage.js";
-import { deepMerge } from "../common/utils.js";
 import { SYNC_STORAGE_KEYS, STRINGS } from "../common/constants.js";
-import { getInstanceId, getInstanceName } from "./instance.js";
-import { isAndroid as checkAndroidPlatform } from "./platform.js"; // Renamed to avoid conflict
+import { getInstanceId, getInstanceName, setInstanceName as setInstanceNameInCore } from "./instance.js";
 
 /**
  * Retrieves the unified state of the application.
@@ -216,14 +214,11 @@ export async function unsubscribeFromGroupUnified(groupName, isAndroid) {
 export async function renameDeviceUnified(deviceId, newName, isAndroid) {
   if (isAndroid) {
     // On Android, if it's the current device, update its name directly.
-    // Renaming other devices from Android might not be a primary use case,
-    // but if needed, it would also be a direct storage modification.
     const instanceId = await getInstanceId();
     if (deviceId === instanceId) {
-        // Update local storage for instance name if it's self
-        await storage.set(browser.storage.local, { [LOCAL_STORAGE_KEYS.INSTANCE_NAME_OVERRIDE]: newName.trim() });
-    } // Always use direct rename, even for self, to update sync storage.
-    return renameDeviceDirect(deviceId, newName); // This will correctly update both local and sync storage now.
+        return await setInstanceNameInCore(newName.trim()); // Use instance.setInstanceName for current device
+    }
+    return renameDeviceDirect(deviceId, newName.trim()); // For other devices on Android, update sync directly
   } else {
     return browser.runtime.sendMessage({ action: "renameDevice", deviceId, newName });
   }
