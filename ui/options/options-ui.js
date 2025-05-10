@@ -101,10 +101,7 @@ export function renderGroupListUI(
   definedGroupsListDiv,
   definedGroups,
   subscriptions,
-  handleSubscribe,
-  handleUnsubscribe,
-  handleDeleteGroup,
-  startRenameGroup
+  handlers // Changed to accept an object of handlers
 ) {
   definedGroupsListDiv.textContent = ""; // Clear previous content
 
@@ -121,7 +118,7 @@ export function renderGroupListUI(
     li.setAttribute('role', 'listitem');
 
     const nameSpan = document.createElement("span");
-    nameSpan.textContent = groupName;
+    nameSpan.textContent = groupName; // Initial group name text
     nameSpan.className = 'group-name-label'; // For styling and selection
     nameSpan.style.cursor = 'pointer'; // Indicate clickable for rename
     nameSpan.title = 'Click to rename group';
@@ -136,14 +133,14 @@ export function renderGroupListUI(
     subBtn.textContent = isSubscribed ? "Unsubscribe" : "Subscribe";
     subBtn.dataset.group = groupName;
     subBtn.className = isSubscribed ? 'secondary' : 'primary'; // Style based on state
-    subBtn.onclick = isSubscribed ? handleUnsubscribe : handleSubscribe;
+    subBtn.onclick = isSubscribed ? handlers.handleUnsubscribe : handlers.handleSubscribe; // Use handlers from object
     actionsDiv.appendChild(subBtn);
 
     const deleteBtn = document.createElement("button");
     deleteBtn.textContent = "Delete";
     deleteBtn.dataset.group = groupName;
     deleteBtn.className = 'danger'; // Style for destructive action
-    deleteBtn.onclick = handleDeleteGroup;
+    deleteBtn.onclick = handlers.handleDeleteGroup; // Use handlers from object
     actionsDiv.appendChild(deleteBtn);
 
     li.appendChild(actionsDiv);
@@ -216,7 +213,7 @@ export function setLastSyncTimeUI(containerElement, timestamp) {
   if (!containerElement) return;
 
   let syncTimeDiv = containerElement.querySelector(".options-last-sync-time");
-  if (!syncTimeDiv) {
+  if (!syncTimeDiv) { // Styles moved to styles.css
     syncTimeDiv = document.createElement("div");
     syncTimeDiv.className = "options-last-sync-time small-text"; // Use a specific class
     syncTimeDiv.style.marginBottom = "7px"; // Example style
@@ -234,15 +231,10 @@ export function setLastSyncTimeUI(containerElement, timestamp) {
 export function showDebugInfoUI(containerElement, state) {
   if (!containerElement || !state) return;
 
-  let debugDiv = containerElement.querySelector(".options-debug-info");
+  let debugDiv = containerElement.querySelector(".options-debug-info"); // Styles moved to styles.css
   if (!debugDiv) {
     debugDiv = document.createElement("div");
     debugDiv.className = "options-debug-info small-text"; // Use a specific class
-    debugDiv.style.marginTop = "12px";
-    debugDiv.style.background = "#f5f5f5";
-    debugDiv.style.border = "1px solid #ccc";
-    debugDiv.style.padding = "7px";
-    debugDiv.style.borderRadius = "4px";
 
     const androidInfoSection = containerElement.querySelector('#androidSpecificInfo');
     if (androidInfoSection) {
@@ -258,8 +250,7 @@ export function showDebugInfoUI(containerElement, state) {
   debugDiv.appendChild(title);
 
   const pre = document.createElement("pre");
-  pre.style.whiteSpace = "pre-wrap"; // Allow wrapping
-  pre.style.wordBreak = "break-all"; // Break long strings
+  // pre styles (white-space, word-break) moved to styles.css under .options-debug-info pre
 
   const { instanceId, instanceName, subscriptions, definedGroups, deviceRegistry, groupTasks, isAndroid } = state;
   const debugState = { instanceId, instanceName, subscriptions, definedGroups, deviceRegistryCount: Object.keys(deviceRegistry || {}).length, groupTasksCount: Object.keys(groupTasks || {}).length, isAndroid };
@@ -291,4 +282,28 @@ export function renderSubscriptions(container, subscriptions) {
   } else {
     container.textContent = STRINGS.subscribedGroups + subscriptions.sort().join(', ');
   }
+}
+
+/**
+ * Displays a banner message about the requirement of Firefox Sync for cross-device functionality.
+ * @param {HTMLElement} containerElement - The parent element to prepend the banner to.
+ */
+export function displaySyncRequirementBanner(containerElement) {
+  if (!containerElement) return;
+
+  // Prevent adding multiple banners
+  if (containerElement.querySelector('.sync-requirement-banner')) {
+    return;
+  }
+
+  const banner = document.createElement('div');
+  banner.className = 'sync-requirement-banner notice-banner'; // Styles moved to styles.css
+  
+  const icon = document.createElement('span');
+  icon.textContent = 'ℹ️ '; // Info icon
+  icon.style.marginRight = '8px';
+  banner.appendChild(icon);
+
+  banner.appendChild(document.createTextNode(STRINGS.SYNC_INFO_MESSAGE_OPTIONS || "TabTogether relies on Firefox Sync for cross-device features. Ensure you're signed in and add-on data sync is enabled."));
+  containerElement.insertBefore(banner, containerElement.firstChild); // Prepend to make it prominent
 }

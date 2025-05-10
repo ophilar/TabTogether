@@ -1,4 +1,4 @@
-import { storage } from '../common/storage.js';
+import { storage } from '../core/storage.js'; // Corrected import path
 import { STRINGS } from '../common/constants.js';
 // Potentially import other necessary modules like tab management functions
 
@@ -9,6 +9,7 @@ import { STRINGS } from '../common/constants.js';
  * @param {Array<object>} tasks - An array of task objects.
  * Each task object should have a 'type' and other relevant data.
  */
+// FIXME: This function is a placeholder and needs full implementation.
 export async function processIncomingTasks(tasks) {
     console.log('TaskProcessor: Processing incoming tasks:', tasks);
     if (!tasks || !Array.isArray(tasks)) {

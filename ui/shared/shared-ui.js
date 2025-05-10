@@ -32,19 +32,11 @@ export function injectSharedUI(containerSelector = '.container') {
 
 export const showAndroidBanner = (container, msg) => {
   let banner = container.querySelector(".android-banner");
-  if (!banner) {
-    banner = document.createElement("div");
-    banner.className = "android-banner small-text";
-    banner.style.color = "#b71c1c";
-    banner.style.marginBottom = "10px";
-    banner.style.background = "#fff3e0";
-    banner.style.border = "1px solid #ffcdd2";
-    banner.style.padding = "7px";
-    banner.style.borderRadius = "4px";
-    container.insertBefore(
-      banner,
-      container.firstChild ? container.firstChild.nextSibling : null
-    );
-  }
-  banner.textContent = msg;
+  // Consider moving these styles to a CSS class for better maintainability
+    if (!banner) { // Styles moved to styles.css under .android-banner
+        banner = document.createElement("div");
+        banner.className = "android-banner small-text"; // Existing classes for structure and font size
+        container.insertBefore(banner, container.firstChild ? container.firstChild.nextSibling : null);
+    }
+    banner.textContent = msg;
 };

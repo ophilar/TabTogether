@@ -300,6 +300,15 @@ button.inline-btn {
   border-color: var(--main-success-border);
 }
 
+/* Android Banner specific styles (from shared-ui.js) */
+.android-banner { /* Combined with .small-text in JS */
+  color: #b71c1c; /* var(--main-error-text) could also be used if it matches */
+  margin-bottom: 10px;
+  background: #fff3e0; /* var(--main-error-bg) could also be used */
+  border: 1px solid #ffcdd2; /* var(--main-error-border) could also be used */
+  padding: 7px;
+  border-radius: 4px;
+}
 /* Status messages (inline) */
 .status-message { /* Base class for inline status */
    display: block; /* Or inline-block */
@@ -517,6 +526,34 @@ button.inline-btn {
   border: none; /* Remove border from fieldsets inside details */
   margin-bottom: 0; /* Remove bottom margin */
   background-color: transparent; /* Inherit background */
+}
+
+.options-debug-info {
+  /* .small-text class handles font size and color */
+  margin-top: 12px;
+  background: #f5f5f5; /* Consider var(--main-bg) or a new variable if theming needed */
+  border: 1px solid #ccc; /* Consider var(--main-border) or a new variable */
+  padding: 7px;
+  border-radius: 4px;
+}
+
+.options-debug-info pre {
+  white-space: pre-wrap; /* Allow wrapping */
+  word-break: break-all; /* Break long strings */
+  margin-top: 5px; /* Add some space above the pre block */
+}
+
+.sync-requirement-banner { /* .notice-banner class can provide base styling */
+  padding: 10px;
+  background-color: #e6f7ff; /* Light blue info color, consider CSS var */
+  color: #00529B; /* Consider CSS var */
+  border: 1px solid #b3e0ff; /* Consider CSS var */
+  border-radius: 4px;
+  margin-bottom: 15px;
+  text-align: left;
+}
+.sync-requirement-banner .icon { /* If you add an icon span with class="icon" */
+  margin-right: 8px;
 }
 
 /* Link color override for dark theme if needed */

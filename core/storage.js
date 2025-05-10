@@ -93,7 +93,7 @@ export const storage = {
       if (dataChanged) {
         await this.set(area, key, mergedItem);
       }
-      return { success: true, mergedData: mergedItem };
+      return { success: true, mergedData: mergedItem, dataChanged };
     } catch (error) {
       console.error(`Error merging item ${key} in ${area === browser.storage.sync ? 'sync' : 'local'} storage:`, error, "Updates:", updates);
       return { success: false, mergedData: null };

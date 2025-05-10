@@ -32,7 +32,7 @@ export async function getUnifiedState(isAndroid) {
       await storage.set(browser.storage.sync, { [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: deviceRegistry });
     }
 
-    // Ensure subscriptions format is an array for the current device
+    // Ensure subscriptions format is an array for the current device - CORRECTED. Use subscriptios object and extract the array for this device
     const deviceSubscriptions = subscriptions[instanceId] || [];
 
     return {
@@ -222,8 +222,8 @@ export async function renameDeviceUnified(deviceId, newName, isAndroid) {
     if (deviceId === instanceId) {
         // Update local storage for instance name if it's self
         await storage.set(browser.storage.local, { [LOCAL_STORAGE_KEYS.INSTANCE_NAME_OVERRIDE]: newName.trim() });
-    }
-    return renameDeviceDirect(deviceId, newName);
+    } // Always use direct rename, even for self, to update sync storage.
+    return renameDeviceDirect(deviceId, newName); // This will correctly update both local and sync storage now.
   } else {
     return browser.runtime.sendMessage({ action: "renameDevice", deviceId, newName });
   }

@@ -1,7 +1,8 @@
 // theme.js
 // Shared dark mode logic for TabTogether
 // Apply dark mode based on user preference or system settings
-import { debounce, storage } from './utils.js';
+import { debounce } from './utils.js'; // storage was incorrectly imported from here
+import { storage } from '../../core/storage.js'; // Corrected storage import
 
 // Helper to determine the effective theme based on storage and system preference
 async function determineThemePreference() {
@@ -62,4 +63,3 @@ const debouncedThemeChange = debounce(async () => {
 
 // Listen for system theme changes
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', debouncedThemeChange);
-

@@ -38,7 +38,7 @@ export async function processIncomingTabsAndroid(currentState) {
 
         // Open the tab
         try {
-          console.log(`Opening tab: ${task.url} for group ${groupName}`);
+          console.log(`Processing tab: ${task.url} for group ${groupName}`);
           // In a test environment, browser.tabs.create might be a mock.
           // Ensure it's awaited if it returns a promise.
           await global.browser.tabs.create({ url: task.url, active: false });
@@ -61,8 +61,6 @@ export async function processIncomingTabsAndroid(currentState) {
   }
 }
 
-// You might add other task-related functions here, e.g.:
-
 export async function createAndStoreGroupTask(groupName, tabData, senderDeviceId, recipientDeviceIds = null) {
   const taskId = globalThis.crypto?.randomUUID?.() || `mock-task-id-${Date.now()}`;
   const groupTasks = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, {});
@@ -75,7 +73,7 @@ export async function createAndStoreGroupTask(groupName, tabData, senderDeviceId
     url: tabData.url,
     title: tabData.title || tabData.url,
     senderDeviceId: senderDeviceId,
-    processedBy: { [senderDeviceId]: true }, // Sender is marked as processed
+    recipientDeviceIds: recipientDeviceIds, // Store recipient IDs
     creationTimestamp: Date.now(),
   };
 
