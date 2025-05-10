@@ -1,11 +1,13 @@
 // Injects shared header, loading, and message area into the container
 
 export function injectSharedUI(containerSelector = '.container') {
+    console.log("[injectSharedUI] Called with selector:", containerSelector);
     const container = document.querySelector(containerSelector);
     if (!container) {
         console.warn(`Shared UI injection failed: Container "${containerSelector}" not found.`);
         return;
     }
+    console.log("[injectSharedUI] Found container:", container);
 
     // Use prepend for consistent insertion at the beginning,
     // inserting in reverse order of desired final appearance.
@@ -16,6 +18,7 @@ export function injectSharedUI(containerSelector = '.container') {
         messageDiv.id = 'messageArea';
         messageDiv.className = 'message-area hidden'; // Use class from styles.css
         container.prepend(messageDiv); // Prepend first (will end up below loading)
+        console.log("[injectSharedUI] Created and prepended #messageArea:", messageDiv);
     }
 
     // Inject Loading Indicator if not present
@@ -26,6 +29,7 @@ export function injectSharedUI(containerSelector = '.container') {
         // Add spinner span for consistency with styles.css
         loadingDiv.innerHTML = '<span class="spinner"></span> Loading...';
         container.prepend(loadingDiv); // Prepend second (will end up below header)
+        console.log("[injectSharedUI] Created and prepended #loadingIndicator:", loadingDiv);
     }
 }
 

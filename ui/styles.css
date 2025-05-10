@@ -211,23 +211,22 @@ button:disabled {
   transform: none;
   box-shadow: none;
 }
-/* Removed button:disabled:hover */
 
-button.secondary, .unsubscribe-btn { /* Combine if styles are identical */
+button.secondary, .unsubscribe-btn, button.btn-secondary { /* Added .btn-secondary for general use */
   background-color: var(--main-button-secondary-bg);
   color: var(--main-button-secondary-text);
   /* Secondary buttons might not need a shadow, or define --main-shadow-button-secondary */
   box-shadow: none;
 }
 button.secondary:hover:not(:disabled),
-.unsubscribe-btn:hover:not(:disabled) {
+.unsubscribe-btn:hover:not(:disabled),
+button.btn-secondary:hover:not(:disabled) {
   background-color: var(--main-button-secondary-hover-bg);
 }
 
-button.danger, .delete-btn { /* Combine if styles are identical */
+button.danger, .delete-btn, button.btn-danger { /* Added .btn-danger for general use */
   background-color: var(--main-button-danger-bg);
   color: var(--main-button-danger-text);
-   /* Danger buttons might not need a shadow, or define --main-shadow-button-danger */
   box-shadow: none;
 }
 button.danger:hover:not(:disabled),
@@ -302,10 +301,10 @@ button.inline-btn {
 
 /* Android Banner specific styles (from shared-ui.js) */
 .android-banner { /* Combined with .small-text in JS */
-  color: #b71c1c; /* var(--main-error-text) could also be used if it matches */
+  color: var(--main-error-text);
   margin-bottom: 10px;
-  background: #fff3e0; /* var(--main-error-bg) could also be used */
-  border: 1px solid #ffcdd2; /* var(--main-error-border) could also be used */
+  background: var(--main-error-bg);
+  border: 1px solid var(--main-error-border);
   padding: 7px;
   border-radius: 4px;
 }
@@ -379,49 +378,6 @@ button.inline-btn {
   width: 60px;
 }
 
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: rgba(0, 0, 0, 0.5); /* Consider using CSS variables if you have them */
-  z-index: 1000;
-  display: flex; /* Keep display:flex here as it's needed for centering */
-  align-items: center;
-  justify-content: center;
-}
-
-.modal-content {
-  background: var(--main-card); /* Use theme variable */
-  color: var(--main-text); /* Use theme variable */
-  padding: 32px 24px 24px 24px;
-  border-radius: 12px;
-  max-width: 420px;
-  width: 90vw;
-  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.18);
-  text-align: left;
-}
-[data-theme="dark"] .modal-content { transition: background-color var(--transition), color var(--transition); } /* Add transition */
-
-.modal-actions {
-  margin-top: 18px;
-  text-align: right;
-}
-
-.modal-button-prev {
-  margin-right: 10px;
-}
-
-.modal-button-close {
-  margin-left: 10px;
-}
-
-/* Ensure the hidden class works with the modal */
-.modal-overlay.hidden {
-    display: none; /* Override the flex display when hidden */
-}
-
 
 /* Ensure list items accommodate the inline controls */
 #definedGroupsList li > span:first-child,
@@ -430,13 +386,15 @@ button.inline-btn {
     min-width: 50px; /* Prevent shrinking too much */
 }
 
-/* Defined Groups List */
-#definedGroupsList ul {
+/* Common List Styles for Options Page */
+.options-list { /* New common class for ul */
   list-style: none;
   padding: 0;
   margin: 0;
 }
-#definedGroupsList li {
+
+/* Common List Item Styles for Options Page */
+.options-list-item { /* New common class for li */
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -444,14 +402,16 @@ button.inline-btn {
   border-bottom: 1px solid var(--main-border);
   transition: background-color var(--transition), border-color var(--transition);
 }
-#definedGroupsList li:last-child {
+.options-list-item:last-child {
   border-bottom: none;
 }
-#definedGroupsList li span {
+.options-list-item > span:first-child, /* Target the name span */
+.options-list-item > div:first-child { /* Target the info div in device registry */
   flex-grow: 1;
   margin-right: 10px;
 }
-#definedGroupsList li .group-actions button {
+.options-list-item .group-actions button, /* Target buttons within .group-actions */
+.options-list-item .registry-item-actions button { /* Target buttons within .registry-item-actions */
   margin-left: 7px;
   padding: 6px 13px;
   font-size: 1.0em;
@@ -459,38 +419,17 @@ button.inline-btn {
 /* Ensure Subscribe/Unsubscribe buttons have consistent width */
 #definedGroupsList li .group-actions .subscribe-btn,
 #definedGroupsList li .group-actions .unsubscribe-btn {
-    min-width: 110px; /* Adjust this value as needed */
+    min-width: 110px; 
 }
 
-/* Device Registry List */
-.registry-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-.registry-list-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--main-border);
-  transition: background-color var(--transition), border-color var(--transition);
-}
-.registry-list-item:last-child {
-  border-bottom: none;
-}
-.registry-item-info {
-  flex-grow: 1;
-  margin-right: 10px;
+/* Specific to Device Registry List Items */
+.registry-item-info { /* This class is on a div inside the .options-list-item */
   display: flex;
   flex-direction: column;
 }
 .registry-item-lastseen {
   font-size: 0.9em;
   opacity: 0.8;
-}
-.registry-item-actions button { /* Style action buttons in the registry */
-  margin-left: 7px; /* Consistent with group actions */
 }
 /* Inline Confirmation Buttons */
 
@@ -560,7 +499,36 @@ button.inline-btn {
 [data-theme="dark"] a {
   color: var(--main-orange); /* Use a lighter orange or accent */
 }
-[data-theme="dark"] a:hover { color: var(--main-accent); } /* Adjust hover if needed */
+[data-theme="dark"] a:hover { color: var(--main-accent); }
+
+/* Modal Styles (moved from options.html for better organization) */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal-content {
+  background: var(--main-card);
+  color: var(--main-text);
+  padding: 32px 24px 24px 24px;
+  border-radius: 12px;
+  max-width: 420px;
+  width: 90vw;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.18);
+  text-align: left;
+  transition: background-color var(--transition), color var(--transition);
+}
+.modal-actions {
+  margin-top: 18px;
+  text-align: right;
+}
 /* Responsive */
 @media (max-width: 700px) {
   .container {
