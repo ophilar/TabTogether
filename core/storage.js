@@ -1,6 +1,4 @@
-// core/storage.js
-
-import { ensureObject, ensureArray, ensureString, isObject as isObjectHelper, deepMerge } from "../common/utils.js";
+import { ensureObject, ensureArray, ensureString, deepMerge } from "../common/utils.js";
 import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from "../common/constants.js";
 
 

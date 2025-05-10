@@ -1,4 +1,3 @@
-// shared-ui.js
 // Injects shared header, loading, and message area into the container
 
 export function injectSharedUI(containerSelector = '.container') {
@@ -32,8 +31,7 @@ export function injectSharedUI(containerSelector = '.container') {
 
 export const showAndroidBanner = (container, msg) => {
   let banner = container.querySelector(".android-banner");
-  // Consider moving these styles to a CSS class for better maintainability
-    if (!banner) { // Styles moved to styles.css under .android-banner
+    if (!banner) {
         banner = document.createElement("div");
         banner.className = "android-banner small-text"; // Existing classes for structure and font size
         container.insertBefore(banner, container.firstChild ? container.firstChild.nextSibling : null);
