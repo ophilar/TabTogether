@@ -30,3 +30,11 @@
 .syncing-icon {
   animation: rotate-sync-icon 1s linear infinite;
 }
+
+/* Specific icon definitions */
+.sync-icon-settings {
+  --icon-url: url('../icons/settings.svg');
+}
+.sync-icon-refresh {
+  --icon-url: url('../icons/sync_arrows.svg');
+}

@@ -8,9 +8,9 @@ import { getPlatformInfoCached, isAndroid, _clearPlatformInfoCache } from '../co
 import { getNextAvailableBitPosition, MAX_DEVICES_PER_GROUP } from '../core/bitmask.js';
 import { createGroupDirect, renameGroupDirect, deleteGroupDirect, subscribeToGroupDirect, unsubscribeFromGroupDirect, renameDeviceDirect, deleteDeviceDirect } from '../core/actions.js';
 import { processIncomingTabsAndroid, createAndStoreGroupTask } from '../core/tasks.js';
-import { performHeartbeat } from '../background/heartbeat.js'; // Import performHeartbeat
+import { performHeartbeat } from '../background/heartbeat.js';
 import { performStaleDeviceCheck, performTimeBasedTaskCleanup } from '../background/cleanup.js';
-import { renderDeviceRegistryUI, renderGroupListUI as renderGroupList, renderDeviceName, renderSubscriptions, setLastSyncTimeUI as setLastSyncTime, showDebugInfoUI as showDebugInfo } from '../ui/options/options-ui.js'; // Corrected import path for showAndroidBanner
+import { renderDeviceRegistryUI, renderGroupListUI as renderGroupList, renderDeviceName, renderSubscriptions, setLastSyncTimeUI as setLastSyncTime, showDebugInfoUI as showDebugInfo, displaySyncRequirementBanner } from '../ui/options/options-ui.js'; // Added displaySyncRequirementBanner
 import { showAndroidBanner } from '../ui/shared/shared-ui.js'; // Corrected import path for showAndroidBanner
 import { debounce } from '../common/utils.js';
 
@@ -50,7 +50,9 @@ jest.mock('../common/constants.js', () => ({
         loadingSettingsError: error => `Error loading settings: ${error}`,
         testNotificationSent: 'Test notification sent!',
         testNotificationFailed: error => `Failed to send notification: ${error}`,
-        androidBanner: 'Note: On Firefox for Android, background processing is not available. Open this page and tap "Sync Now" to process new tabs or changes.'
+        androidBanner: 'Note: On Firefox for Android, background processing is not available. Open this page and tap "Sync Now" to process new tabs or changes.',
+        SYNC_INFO_MESSAGE_POPUP: "TabTogether uses Firefox Sync for cross-device features. Ensure you're signed in & add-on sync is enabled.",
+        SYNC_INFO_MESSAGE_OPTIONS: "TabTogether relies on Firefox Sync to share data across your devices. Please ensure you are signed into your Firefox Account and that add-on data synchronization is enabled in your Firefox settings for the best experience.",
     },
 }));
 
@@ -414,7 +416,7 @@ describe('utils', () => {
         test('subscribe/unsubscribe affects local and sync storage', async () => {
             // Setup
             await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.DEFINED_GROUPS, ['TestGroup']);
-            await mockSyncStorage.set({ [SYNC_STORAGE_KEYS.SUBSCRIPTIONS]: {} }); // Initialize subscriptions directly
+            await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {}); // Use storage.set for consistency
             await storage.set(mockStorage, LOCAL_STORAGE_KEYS.INSTANCE_ID, 'device-sub-test'); // Correct key for instanceId
             await storage.set(mockStorage, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
             await storage.set(mockStorage, LOCAL_STORAGE_KEYS.GROUP_BITS, {});
@@ -424,7 +426,7 @@ describe('utils', () => {
             const subRes = await subscribeToGroupDirect('TestGroup');
             expect(subRes.success).toBe(true);
             // We verify by checking the subscriptions storage
-            const subscriptionsAfterSub = await storage.get(mockSyncStorage, SYNC_STORAGE_KEYS.SUBSCRIPTIONS);
+            const subscriptionsAfterSub = await storage.get(mockSyncStorage, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {}); // Add default
             expect(subscriptionsAfterSub['device-sub-test']).toContain('TestGroup'); // This should now work
             // Add default to storage.get in test just in case
             // Check local storage
@@ -489,79 +491,6 @@ describe('utils', () => {
             // processedMask logic might be handled by createAndStoreGroupTask or later by processing logic
         });
 
-/* // Temporarily remove test for processIncomingTabs as the function is not exported
-        test('processIncomingTabs opens tab and updates masks', async () => {
-            // Setup: Task exists, sent by bit 1. Receiver is bit 2.
-            const taskId = 'task-abc';
-            await mockSyncStorage.set({
-                groupTasks: {
-                    G1: { [taskId]: { url: 'https://a.com', title: 'A', senderDeviceId: 'sender-device', processedBy: {}, creationTimestamp: Date.now() } }
-                }
-            });
-            await storage.set(mockStorage, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, {}); // Receiver hasn't processed it locally
-
-            const openTabFn = jest.fn(); // Mock the function that opens the tab
-            const updateProcessedFn = jest.fn(async (updatedTasks) => {
-                await mockStorage.set({ [LOCAL_STORAGE_KEYS.PROCESSED_TASKS]: updatedTasks });
-            });
-
-            // Simulate processing by a DIFFERENT device (bit 2)
-            const processingState = {
-                definedGroups: ['G1'], // Not strictly needed by processIncomingTabs
-                groupBits: { G1: 2 }, // This device has bit 2
-                subscriptions: ['G1'],
-                instanceId: 'receiver-device-id' // Current device ID
-            };
-
-            await processIncomingTabs(processingState, openTabFn); // processIncomingTabs now takes fewer args
-
-            // Assertions
-            expect(openTabFn).toHaveBeenCalledWith('https://a.com', 'A'); // Tab should be opened
-            // Local processed tasks are now handled internally by processIncomingTabs/Android
-            const localProcessed = await storage.get(mockStorage, LOCAL_STORAGE_KEYS.PROCESSED_TASKS);
-            expect(localProcessed[taskId]).toBe(true);
-
-            // Check sync storage mask update (processIncomingTabs calls set directly)
-            const updatedGroupTasks = await storage.get(mockSyncStorage, SYNC_STORAGE_KEYS.GROUP_TASKS);
-            expect(updatedGroupTasks).toEqual(expect.objectContaining({
-                    G1: expect.objectContaining({
-                        [taskId]: expect.objectContaining({ processedBy: expect.objectContaining({ 'receiver-device-id': true }) })
-                    })
-            }));
-        }); 
-*/
-/*
-        test('processIncomingTabs does not open already processed tab', async () => {
-            const taskId = 'task-xyz';
-            // Setup: Task exists, processed by bit 1 (sender) and bit 2 (this device)
-            await mockSyncStorage.set({
-                groupTasks: {
-                    G1: { [taskId]: { url: 'https://b.com', title: 'B', processedMask: 3, creationTimestamp: Date.now() } }
-                }
-            });
-            await mockStorage.set({ processedTaskIds: { [taskId]: true } }); // Also marked locally
-
-            mockSyncStorage.set.mockClear();
-            mockStorage.set.mockClear();
-
-            const openTabFn = jest.fn();
-            const updateProcessedFn = jest.fn();
-
-            const processingState = { groupBits: { G1: 2 }, subscriptions: ['G1'] };
-            await utils.processIncomingTabs(processingState, openTabFn, updateProcessedFn);
-
-            expect(openTabFn).not.toHaveBeenCalled(); // Should NOT open tab
-            expect(updateProcessedFn).not.toHaveBeenCalled(); // No local update needed
-            // Sync storage set should not have been called for this task's mask
-            expect(mockSyncStorage.set).not.toHaveBeenCalledWith(expect.objectContaining({
-                [utils.SYNC_STORAGE_KEYS.GROUP_TASKS]: expect.objectContaining({
-                    G1: expect.objectContaining({
-                        [taskId]: expect.anything()
-                    })
-                })
-            }));
-        });
-*/
     });
 
     // --- Background Logic Helpers (Heartbeat, Cleanup) ---
@@ -610,17 +539,17 @@ describe('utils', () => {
             const now = Date.now();
             const staleTime = now - (1000 * 60 * 60 * 24 * 31); // 31 days ago
             const recentTime = now - (1000 * 60 * 60); // 1 hour ago
-            await mockSyncStorage.set({
-                [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: {
-                    'stale-id': { name: 'Stale', lastSeen: staleTime },
-                    'recent-id': { name: 'Recent', lastSeen: recentTime }
-                },
-                // groupState and assignedMask are no longer used this way for stale device check
-                // Stale device check now also cleans up subscriptions
-                [SYNC_STORAGE_KEYS.SUBSCRIPTIONS]: {
-                    'stale-id': ['G1', 'G2'],
-                    'recent-id': ['G1']
-                },
+            // Set initial state explicitly for each top-level key
+            await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {
+                'stale-id': { name: 'Stale', lastSeen: staleTime, groupBits: { G1: 1, G2: 4 } }, // Add groupBits for full test
+                'recent-id': { name: 'Recent', lastSeen: recentTime, groupBits: { G1: 2 } }
+            });
+            await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {
+                'stale-id': ['G1', 'G2'],
+                'recent-id': ['G1']
+            });
+            await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.GROUP_STATE, { // Ensure groupState is also set for mask updates
+                G1: { assignedMask: 1 | 2 }, G2: { assignedMask: 4 }
             });
 
             await performStaleDeviceCheck(undefined, undefined, 1000 * 60 * 60 * 24 * 30); // Pass threshold correctly
@@ -858,6 +787,21 @@ describe('utils', () => {
             expect(debugPre).not.toBeNull();
             const parsedDebugInfo = JSON.parse(debugPre.textContent);
             expect(parsedDebugInfo).toEqual(expectedDebugState); // Expect the parsed object to match the transformed state
+        });
+
+        test('displaySyncRequirementBanner adds banner to container', () => {
+            displaySyncRequirementBanner(container);
+            const banner = container.querySelector('.sync-requirement-banner');
+            expect(banner).not.toBeNull();
+            expect(banner.textContent).toContain("TabTogether relies on Firefox Sync");
+
+            // Should not add a second banner if called again
+            displaySyncRequirementBanner(container);
+            expect(container.querySelectorAll('.sync-requirement-banner').length).toBe(1);
+        });
+
+        test('displaySyncRequirementBanner does nothing if container is null', () => {
+            expect(() => displaySyncRequirementBanner(null)).not.toThrow();
         });
     });
 });

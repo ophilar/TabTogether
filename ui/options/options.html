@@ -34,7 +34,7 @@
                 <legend>Sync</legend>
                 <div class="setting-item">
                     <button id="manualSyncBtn" type="button" aria-label="Manual Sync" title="Trigger a manual sync now">
-                        <img class="sync-icon-svg" style="--icon-url: url('icons/sync_arrows.svg');" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="" width="16" height="16"/>
+                        <img class="sync-icon-svg sync-icon-refresh" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="" width="16" height="16"/>
                     </button>
                     <span id="syncStatus">Last sync: never</span>
                 </div>
@@ -101,10 +101,7 @@
 
         <div id="messageArea" class="hidden"></div>
     </div>
-    <script type="module" src="constants.js"></script>
-    <script type="module" src="theme.js"></script>
-    <script type="module" src="utils.js"></script>
-    <script type="module" src="shared-ui.js"></script>
+    <!-- options.js should import its dependencies -->
     <script type="module" src="options.js"></script>
 </body>
 </html>

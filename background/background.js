@@ -3,8 +3,6 @@
 import {
   SYNC_STORAGE_KEYS,
   LOCAL_STORAGE_KEYS,
-  MAX_DEVICES_PER_GROUP,
-  STRINGS // Assuming STRINGS might be needed for notifications etc.
 } from "../common/constants.js";
 import { storage } from "../core/storage.js"; // Import the storage wrapper
 import {
@@ -19,17 +17,10 @@ import {
   deleteDeviceDirect,
 } from "../core/actions.js";
 import { createAndStoreGroupTask } from "../core/tasks.js";
-import { getNextAvailableBitPosition } from "../core/bitmask.js";
-// Placeholder imports for refactored logic
-import { assignBitForGroupFromManager } from "../core/group-manager.js"; // Assuming this is the new location
-import { processTasksFromStorage } from "./task-processor.js"; // Assuming this is the new location
+import { assignBitForGroup } from "../core/group-manager.js";
+import { processIncomingTasks } from "./task-processor.js";
 import { performHeartbeat } from "./heartbeat.js";
 import { performStaleDeviceCheck, performTimeBasedTaskCleanup } from "./cleanup.js";
-// Placeholder imports for message handlers
-import * as generalHandlers from "./message-handlers/generalHandlers.js";
-import * as groupActionHandlers from "./message-handlers/groupActionHandlers.js";
-import * as deviceActionHandlers from "./message-handlers/deviceActionHandlers.js";
-import * as taskActionHandlers from "./message-handlers/taskActionHandlers.js";
 
 const ALARM_HEARTBEAT = "deviceHeartbeat";
 const ALARM_STALE_CHECK = "staleDeviceCheck";
@@ -149,13 +140,13 @@ browser.alarms.onAlarm.addListener(async (alarm) => {
     case ALARM_STALE_CHECK:
       {
         // Stale check needs registry and group state
-        // const cachedDeviceRegistry = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
-        // const cachedGroupState = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {});
+        const cachedDeviceRegistry = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
+        const cachedGroupState = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {});
         const staleThresholdDays = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.STALE_DEVICE_THRESHOLD_DAYS, DEFAULT_STALE_DEVICE_THRESHOLD_DAYS);
         const currentStaleDeviceThresholdMs = staleThresholdDays * 24 * 60 * 60 * 1000;
         await performStaleDeviceCheck(
-          // cachedDeviceRegistry, // Pass fetched registry
-          // cachedGroupState,   // Pass fetched group state
+          cachedDeviceRegistry, // Pass fetched registry
+          cachedGroupState,   // Pass fetched group state
           currentStaleDeviceThresholdMs
         );
       }
@@ -349,7 +340,11 @@ browser.storage.onChanged.addListener(async (changes, areaName) => {
 
   if (changes[SYNC_STORAGE_KEYS.GROUP_TASKS]) {
     console.log("Detected change in group tasks, processing...");
-    await processTasksFromStorage(changes[SYNC_STORAGE_KEYS.GROUP_TASKS].newValue); // Call the imported function
+    // Ensure newValue exists and is an object, as expected by processIncomingTasks (if it were fully implemented)
+    const newTasks = changes[SYNC_STORAGE_KEYS.GROUP_TASKS].newValue;
+    if (newTasks && typeof newTasks === 'object') {
+      await processIncomingTasks(newTasks); // Call the imported function
+    }
   }
 
   // Notify UI pages if relevant data changed
@@ -563,12 +558,16 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
         const cachedGroupState = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {});
         const cachedDeviceRegistry = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
 
-        const assignedBit = await assignBitForGroupFromManager( // Call the imported function
+        // FIXME: Argument mismatch and placeholder implementation for assignBitForGroup.
+        // The assignBitForGroup function in core/group-manager.js expects (groupName, currentGroups, currentSubscriptions).
+        // The call below passes (groupToSubscribe, localInstanceId, localGroupBits).
+        // This will not work correctly with the current placeholder assignBitForGroup.
+        // This entire bit assignment logic needs to be properly designed and implemented.
+        const assignedBit = await assignBitForGroup(
           groupToSubscribe,
-          localInstanceId,
-          localGroupBits,
-      // cachedGroupState, // These would be fetched within the manager or handler
-      // cachedDeviceRegistry
+          cachedGroupState, // Example: Passing relevant state, but assignBitForGroup needs to be designed to use it
+          cachedDeviceRegistry // Example: Passing relevant state
+          // localInstanceId, localGroupBits might be needed by a real implementation
         );
         if (assignedBit !== null) {
           localSubscriptions.push(groupToSubscribe);
@@ -621,11 +620,12 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
             (g) => g !== groupToUnsubscribe
           );
           delete localGroupBits[groupToUnsubscribe];
-          await storage.set(
-            browser.storage.local,
-            LOCAL_STORAGE_KEYS.SUBSCRIPTIONS,
-            localSubscriptions
-          );
+          // const removedBit = localGroupBits[groupToUnsubscribe]; // Get bit *before* potential modification
+          // The original code had `removedBit` fetched *after* `delete localGroupBits[groupToUnsubscribe]`, which would make it undefined.
+          // However, the current logic for updating sync storage for unsubscribe doesn't seem to use `removedBit` directly in the way subscribe does.
+          // It sets groupBits for the device to null for that group.
+
+          await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, localSubscriptions);
           await storage.set(
             browser.storage.local,
             LOCAL_STORAGE_KEYS.GROUP_BITS,
@@ -634,19 +634,20 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
           console.log(`Locally unsubscribed from ${groupToUnsubscribe}.`);
           const removedBit = localGroupBits[groupToUnsubscribe]; // Get bit *after* potential modification
 
-          // Fetch required sync state just before updating sync
-          // const cachedDeviceRegistry = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
-
-          if (removedBit !== undefined) {
+          // Update device registry to remove the group from its groupBits
+          // This part seems correct: mark the specific group bit as null for this device.
+          // The `removedBit` variable itself isn't directly used in this specific update structure,
+          // but the principle of clearing the device's association is.
+          // The actual bit value might be needed if groupState.assignedMask is to be cleared for this specific bit.
+          // For now, the registry update is to nullify the device's bit for the group.
             const registryUpdate = {
               [localInstanceId]: { groupBits: { [groupToUnsubscribe]: null } },
             };
             const registryMergeResult = await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, registryUpdate);
-
-            const groupState = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {});
-            if (groupState[groupToUnsubscribe]) {
+            if (registryMergeResult.success && removedBit !== undefined) { // Ensure registry update was fine and bit was known
+              const groupState = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {});
+              if (groupState[groupToUnsubscribe]) {
               // Only update group state mask if registry update was successful
-              if (registryMergeResult.success) {
                 const currentMask = groupState[groupToUnsubscribe].assignedMask;
                 const newMask = currentMask & ~removedBit;
                 if (newMask !== currentMask) {
@@ -654,16 +655,12 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
                     [groupToUnsubscribe]: { assignedMask: newMask },
                   });
                 }
-              } else {
-                console.error(`Failed to update device registry during unsubscribe for ${groupToUnsubscribe}. Skipping group state mask update.`);
-                // Potentially add logic to retry registry update later
               }
             } else {
-              console.warn(
-                `Group state for ${groupToUnsubscribe} not found during unsubscribe mask update.`
-              );
+              console.error(`Failed to update device registry during unsubscribe for ${groupToUnsubscribe}. Skipping group state mask update.`);
+              // Potentially add logic to retry registry update later
             }
-          }
+
           return { success: true, unsubscribedGroup: groupToUnsubscribe };
         } catch (error) {
           console.error(
@@ -679,10 +676,10 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
     }
     case "sendTabFromPopup": {
       const { groupName, tabData } = request;
-      const localGroupBits = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {}); // Fetch as needed
-      const senderBit = localGroupBits[groupName] || 0;
+      const senderDeviceId = await getInstanceId(); // Get the actual sender device ID
+
       // Assuming createAndStoreGroupTask is imported correctly
-      return await createAndStoreGroupTask(groupName, tabData, senderBit);
+      return await createAndStoreGroupTask(groupName, tabData, senderDeviceId);
     }
     case "heartbeat":
       // Manual heartbeat

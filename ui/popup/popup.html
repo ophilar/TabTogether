@@ -10,6 +10,7 @@
 </head>
 <body>
     <div class="container">
+        <div id="syncInfoContainer"></div>
         <div id="loadingIndicator" class="loading hidden">Loading...</div>
         <div id="messageArea" class="hidden"></div>
         <div id="sendTabGroupsList" class="popup-groups">Loading...</div>
@@ -26,10 +27,10 @@
 
         <div class="popup-footer">
             <a href="#" id="openOptionsLink" class="popup-link" title="Settings">
-                <img class="sync-icon-svg" style="--icon-url: url('icons/settings.svg');" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="" width="16" height="16"/>
+                <img class="sync-icon-svg sync-icon-settings" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="" width="16" height="16"/>
             </a>
             <a href="#" id="refreshLink" class="popup-link" title="Sync">
-                <img class="sync-icon-svg" style="--icon-url: url('icons/sync_arrows.svg');" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="" width="16" height="16"/>
+                <img class="sync-icon-svg sync-icon-refresh" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="" width="16" height="16"/>
             </a>
             <button id="toggleDetailsBtn" aria-label="Show details" title="Show device info">▼</button>
         </div>
