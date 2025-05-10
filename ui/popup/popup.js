@@ -14,28 +14,42 @@ import { applyThemeFromStorage } from "../shared/theme.js";
 import { renderDeviceName } from "../options/options-ui.js"; 
 
 // Cache DOM elements at the top for repeated use
+// Initialize properties to null, they will be assigned in DOMContentLoaded
 const dom = {
-  deviceNameSpan: document.getElementById("deviceName"),
-  sendTabGroupsList: document.getElementById("sendTabGroupsList"),
-  sendTabStatus: document.getElementById("sendTabStatus"),
-  openOptionsLink: document.getElementById("openOptionsLink"),
-  refreshLink: document.getElementById("refreshLink"),
-  messageArea: document.getElementById("messageArea"), // Added for consistency
-  subscriptionsUl: document.getElementById("subscriptionsUl"),
-  toggleDetailsBtn: document.getElementById("toggleDetailsBtn"),
-  popupDetails: document.getElementById("popupDetails"),
+  deviceNameSpan: null,
+  sendTabGroupsList: null,
+  sendTabStatus: null,
+  openOptionsLink: null,
+  refreshLink: null,
+  messageArea: null,
+  subscriptionsUl: null,
+  toggleDetailsBtn: null,
+  popupDetails: null,
+  loadingIndicator: null, // Add loadingIndicator to the dom object
 };
-
-let loadingIndicator; // Declare, assign after UI injection
 
 // --- Initialization ---
 document.addEventListener("DOMContentLoaded", async () => {
-  injectSharedUI(); // Ensure shared UI elements like loading/message areas are present
-  applyThemeFromStorage(); // Apply theme early
+  try {
+    injectSharedUI(); // Ensure shared UI elements like loading/message areas are present
+    await applyThemeFromStorage(); // Apply theme early
 
-  loadingIndicator = document.getElementById("loadingIndicator");
-  dom.messageArea = document.getElementById("messageArea"); // Also re-assign if injectSharedUI creates it
+    // Assign all DOM elements now that the DOM is ready
+    // Explicitly assign critical elements first
+    dom.loadingIndicator = document.getElementById("loadingIndicator");
+    dom.messageArea = document.getElementById("messageArea");
+    dom.deviceNameSpan = document.getElementById("deviceName");
+    dom.sendTabGroupsList = document.getElementById("sendTabGroupsList");
+    dom.sendTabStatus = document.getElementById("sendTabStatus");
+    dom.openOptionsLink = document.getElementById("openOptionsLink");
+    dom.refreshLink = document.getElementById("refreshLink");
+    dom.subscriptionsUl = document.getElementById("subscriptionsUl");
+    dom.toggleDetailsBtn = document.getElementById("toggleDetailsBtn");
+    dom.popupDetails = document.getElementById("popupDetails");
 
+    if (!dom.loadingIndicator) {
+      console.error("CRITICAL: dom.loadingIndicator is null after assignment in DOMContentLoaded.");
+    }
   // Add Firefox Sync information message
   const syncInfoContainer = document.getElementById('syncInfoContainer'); // Assuming you add this to popup.html
   if (syncInfoContainer) {
@@ -48,13 +62,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (mainPopupContainer) mainPopupContainer.insertAdjacentHTML('afterbegin', `<p class="sync-info-message small-text popup-sync-info-fallback">${STRINGS.SYNC_INFO_MESSAGE_POPUP || "For cross-device sync, enable Firefox Sync for add-ons."}</p>`);
   }
 
-  if (await isAndroid()) {
+  const isAndroidPlatform = await isAndroid(); // Cache this
+  if (isAndroidPlatform) {
     const container = document.querySelector(".container");
     showAndroidBanner(
       container,
       'Note: On Firefox for Android, background processing is not available. Open this popup and tap "Sync Now" to process new tabs or changes.'
     );
-    setLastSyncTime(container, Date.now()); // Show initial time
   }
 
   // Add event listeners for footer links
@@ -80,7 +94,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       try {
         await loadStatus(); // Refresh popup view & process tabs (Android)
 
-        // After successful load/process, update local sync time and trigger heartbeat.
+        // After successful load/process, trigger heartbeat for non-Android.
         if (!isAndroidPlatform) {
           await browser.runtime.sendMessage({ action: "heartbeat" });
         } else { // On Android, heartbeat is part of loadState/getUnifiedState implicitly
@@ -88,7 +102,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
         const now = new Date();
         await storage.set(browser.storage.local, "lastSync", now.getTime());
-        showMessage(dom.messageArea, 'Sync complete.', false); // Show success in popup
+        if (dom.messageArea) showMessage(dom.messageArea, 'Sync complete.', false);
+        // Update last sync time display on Android after manual sync
+        if (isAndroidPlatform && document.querySelector(".container")) setLastSyncTime(document.querySelector(".container"), now.getTime());
       } catch (error) {
         // Log errors that might occur during loadStatus or subsequent actions
         console.error("Error during refresh action:", error);
@@ -123,7 +139,19 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   // Initial load of status
-  loadStatus();
+  await loadStatus();
+
+  } catch (e) {
+    console.error("CRITICAL ERROR during popup DOMContentLoaded:", e);
+    const msgArea = document.getElementById("messageArea"); // Try to get it directly
+    if (msgArea) {
+        msgArea.textContent = "Error initializing popup. Check console.";
+        msgArea.className = "message-area error";
+        msgArea.classList.remove("hidden");
+    }
+    // No need to touch loadingIndicator here as it might be the source of the problem
+    // or also unfindable.
+  }
 });
 
 // --- Load and Render Status ---
@@ -133,8 +161,8 @@ async function loadStatus() {
   if (syncing) return; // Prevent concurrent runs
 
   const syncIcon = dom.refreshLink?.querySelector(".sync-icon-svg"); // Select icon if refreshLink exists
-  // syncing = true; // Moved to click handler
-  showLoadingIndicator(dom.loadingIndicator, true);
+
+  if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
   try {
     const isAndroidPlatform = await isAndroid();
     let state = await getUnifiedState(isAndroidPlatform); // Pass platform info
@@ -143,7 +171,7 @@ async function loadStatus() {
     if (isAndroidPlatform) {
       await processIncomingTabsAndroid(state);
       const container = document.querySelector(".container");
-      setLastSyncTime(container, Date.now()); // Update sync time after processing
+      if (container) setLastSyncTime(container, Date.now()); // Update sync time after processing
     }
 
     // Validate state
@@ -156,19 +184,18 @@ async function loadStatus() {
     renderSendTabGroups(state.definedGroups); // Uses the combined button approach
   } catch (error) {
     console.error("Error loading popup status:", error);
-    // Use consistent message area
-    showMessage(dom.messageArea, STRINGS.loadingSettingsError(error.message), true);
+    if (dom.messageArea) showMessage(dom.messageArea, STRINGS.loadingSettingsError(error.message), true);
 
     if (dom.deviceNameSpan) dom.deviceNameSpan.textContent = STRINGS.error;
     if (dom.sendTabGroupsList) dom.sendTabGroupsList.textContent = "Error loading groups.";
     if (dom.subscriptionsUl) {
       dom.subscriptionsUl.textContent = ''; // Clear safely first
       const li = document.createElement('li');
-      li.textContent = STRINGS.error; // Set error text
+      li.textContent = STRINGS.errorLoadingSubscriptions || STRINGS.error; // Use a more specific string if available
       dom.subscriptionsUl.appendChild(li); // Append the error item
     }
   } finally {
-    showLoadingIndicator(dom.loadingIndicator, false); // Hide loading indicator
+    if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, false); // Hide loading indicator
   }
 }
 
