@@ -33,20 +33,22 @@ import { setupOnboarding } from "./options-onboarding.js";
 import { setupAdvancedTiming } from "./options-advanced-timing.js";
 
 // Cache DOM elements at the top for repeated use
+// Initialize properties to null, they will be assigned in DOMContentLoaded
 const dom = {
-  deviceRegistryListDiv: document.getElementById("deviceRegistryList"),
-  definedGroupsListDiv: document.getElementById("definedGroupsList"),
-  newGroupNameInput: document.getElementById("newGroupName"),
-  createGroupBtn: document.getElementById("createGroupBtn"),
-  // staleDeviceThresholdInput and taskExpiryInput will be handled by options-advanced-timing.js
+  deviceRegistryListDiv: null,
+  definedGroupsListDiv: null,
+  newGroupNameInput: null,
+  createGroupBtn: null,
+  loadingIndicator: null, // Added here for consistency
+  messageArea: null,      // Added here for consistency
 };
 
-let currentState = null; // Cache for state fetched from background
-let isAndroidPlatformGlobal = false; // Cache for isAndroid() result
+let currentState = null; 
+let isAndroidPlatformGlobal = false; 
 
-const manualSyncBtn = document.getElementById("manualSyncBtn"); // Or rename ID to syncNowBtn if you change HTML
-const syncIntervalInput = document.getElementById("syncIntervalInput");
-const syncStatus = document.getElementById("syncStatus");
+let manualSyncBtn = null; // Declare, will be assigned in DOMContentLoaded
+let syncIntervalInput = null; // Declare, will be assigned in DOMContentLoaded
+let syncStatus = null; // Declare, will be assigned in DOMContentLoaded
 // Manual sync handler
 if (manualSyncBtn) {
   manualSyncBtn.addEventListener("click", async () => {
@@ -130,10 +132,86 @@ document.addEventListener("DOMContentLoaded", async () => {
   applyThemeFromStorage();
   setupThemeDropdown("darkModeSelect");
   setupOnboarding(); // Initialize onboarding UI and logic
+
+  // Assign all DOM elements now that the DOM is ready
+  // Moved these assignments into DOMContentLoaded
+  manualSyncBtn = document.getElementById("manualSyncBtn");
+  syncIntervalInput = document.getElementById("syncIntervalInput");
+  syncStatus = document.getElementById("syncStatus");
+
+  dom.deviceRegistryListDiv = document.getElementById("deviceRegistryList");
+  dom.definedGroupsListDiv = document.getElementById("definedGroupsList");
+  dom.newGroupNameInput = document.getElementById("newGroupName");
+  dom.createGroupBtn = document.getElementById("createGroupBtn");
+  // Note: staleDeviceThresholdInput and taskExpiryInput are handled by options-advanced-timing.js
+  // and assigned there.
   
   // Assign DOM elements that might be created/checked by injectSharedUI or need full DOM readiness
   dom.loadingIndicator = document.getElementById("loadingIndicator");
   dom.messageArea = document.getElementById("messageArea");
+
+  // Re-attach event listeners now that elements are confirmed to exist
+  if (manualSyncBtn) {
+    manualSyncBtn.addEventListener("click", async () => {
+      const syncIcon = manualSyncBtn.querySelector('.sync-icon-svg');
+      const startTime = Date.now(); 
+      manualSyncBtn.disabled = true; 
+      if (syncIcon) syncIcon.classList.add('syncing-icon'); 
+      clearMessage(dom.messageArea);
+      try {
+        if (isAndroidPlatformGlobal) {
+          await loadState(); 
+          showMessage(dom.messageArea, 'Sync complete.', false); 
+        } else {
+          await browser.runtime.sendMessage({ action: "heartbeat" });
+          const now = new Date();
+          if (syncStatus) syncStatus.textContent = "Last sync: " + now.toLocaleString(); // Check syncStatus
+          await storage.set(browser.storage.local, "lastSync", now.getTime());
+          showMessage(dom.messageArea, 'Background sync triggered.', false); 
+        }
+      } catch (error) { 
+        console.error("Manual sync failed:", error);
+        showMessage(dom.messageArea, `Sync failed: ${error.message || 'Unknown error'}`, true);
+      } finally {
+        const duration = Date.now() - startTime;
+        const minAnimationTime = 500; 
+
+        if (syncIcon) {
+          if (duration < minAnimationTime) {
+            setTimeout(() => syncIcon.classList.remove('syncing-icon'), minAnimationTime - duration);
+          } else {
+            syncIcon.classList.remove('syncing-icon'); 
+          }
+        }
+        manualSyncBtn.disabled = false; 
+      }
+    });
+  }
+
+  if (syncIntervalInput) {
+    // Load saved value for syncIntervalInput
+    storage.get(browser.storage.local, "syncInterval", 5).then((val) => {
+      syncIntervalInput.value = val;
+    });
+    syncIntervalInput.addEventListener("change", async (e) => {
+      let val = parseInt(e.target.value, 10);
+      if (isNaN(val) || val < 1) val = 1;
+      if (val > 120) val = 120;
+      syncIntervalInput.value = val;
+      await storage.set(browser.storage.local, "syncInterval", val);
+      await browser.runtime.sendMessage({
+        action: "setSyncInterval",
+        minutes: val,
+      });
+    });
+  }
+
+  if (syncStatus) { // Check syncStatus before trying to set its textContent
+    storage.get(browser.storage.local, "lastSync", null).then((ts) => {
+      if (ts)
+        syncStatus.textContent = "Last sync: " + new Date(ts).toLocaleString();
+    });
+  }
 
   if (isAndroidPlatformGlobal) {
     const container = document.querySelector(".container");
@@ -167,7 +245,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 async function loadState() {
-  showLoadingIndicator(dom.loadingIndicator, true);
+  if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
   clearMessage(dom.messageArea);
   try {
     let state = await getUnifiedState(isAndroidPlatformGlobal);
@@ -189,11 +267,11 @@ async function loadState() {
     if (error && error.stack) {
       console.error("!!! Stack Trace:", error.stack); // Log the stack trace if available
     }
-    showMessage(dom.messageArea, STRINGS.loadingSettingsError(error.message), true); // Use showMessage
-    dom.definedGroupsListDiv.textContent = STRINGS.loadingGroups;
-    dom.deviceRegistryListDiv.textContent = STRINGS.loadingRegistry;
+    if (dom.messageArea) showMessage(dom.messageArea, STRINGS.loadingSettingsError(error.message), true);
+    if (dom.definedGroupsListDiv) dom.definedGroupsListDiv.textContent = STRINGS.loadingGroups;
+    if (dom.deviceRegistryListDiv) dom.deviceRegistryListDiv.textContent = STRINGS.loadingRegistry;
   } finally {
-    showLoadingIndicator(dom.loadingIndicator, false);
+    if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, false);
   }
 }
 
@@ -204,6 +282,7 @@ function renderAll() {
 }
 
 function renderDeviceRegistry() {
+  if (!dom.deviceRegistryListDiv) return;
   // Call the UI rendering function from options-ui.js
   renderDeviceRegistryUI(
     dom.deviceRegistryListDiv,
@@ -217,6 +296,7 @@ function renderDeviceRegistry() {
 }
 
 function renderDefinedGroups() {
+  if (!dom.definedGroupsListDiv) return;
   // Call the UI rendering function from options-ui.js
   renderGroupListUI(
     dom.definedGroupsListDiv,
@@ -232,6 +312,7 @@ function renderDefinedGroups() {
 }
 
 function ensureDeviceRegistryUl() {
+  if (!dom.deviceRegistryListDiv) return null; // Guard clause
   let ul = dom.deviceRegistryListDiv.querySelector('#device-registry-list-ul');
   if (!ul) {
     ul = document.createElement('ul');
@@ -247,6 +328,7 @@ function ensureDeviceRegistryUl() {
   return ul;
 }
 function ensureGroupsListUl() {
+  if (!dom.definedGroupsListDiv) return null; // Guard clause
   let ul = dom.definedGroupsListDiv.querySelector('#defined-groups-list-ul');
   if (!ul) {
     ul = document.createElement('ul');
@@ -297,7 +379,7 @@ async function finishRenameGroup(oldName, newName, nameSpan, inlineControlsConta
     return;
   }
 
-  showLoadingIndicator(dom.loadingIndicator, true);
+  if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
   let success = false;
   try {
     let response;
@@ -331,11 +413,11 @@ async function finishRenameGroup(oldName, newName, nameSpan, inlineControlsConta
       cancelInlineEditUI(nameSpan, inlineControlsContainer);
     }
   } catch (e) {
-    showMessage(dom.messageArea, STRINGS.groupRenameFailed + ": " + e.message, true);
+    if (dom.messageArea) showMessage(dom.messageArea, STRINGS.groupRenameFailed + ": " + e.message, true);
     // Explicitly cancel edit UI on error
     cancelInlineEditUI(nameSpan, inlineControlsContainer);
   } finally {
-    showLoadingIndicator(dom.loadingIndicator, false);
+    if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, false);
     if (!success) { // If not successful, ensure original span is visible
       nameSpan.style.display = '';
     }
@@ -383,7 +465,7 @@ async function finishRenameDevice(deviceId, newName, listItem, nameSpan, inlineC
   //     return;
   // }
 
-  showLoadingIndicator(dom.loadingIndicator, true);
+  if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
   let success = false;
   try {
     let response = await renameDeviceUnified(deviceId, newName, isAndroidPlatformGlobal);
@@ -420,13 +502,13 @@ async function finishRenameDevice(deviceId, newName, listItem, nameSpan, inlineC
       cancelInlineEditUI(nameSpan, inlineControlsContainer); // Ensure edit controls are removed
     } else {
       showMessage(dom.messageArea, response.message || STRINGS.deviceRenameFailed, true);
-      cancelInlineEditUI(nameSpan, inlineControlsContainer); // Clean up on failure
+      if (dom.messageArea) cancelInlineEditUI(nameSpan, inlineControlsContainer); // Clean up on failure
     }
   } catch (e) {
-    showMessage(dom.messageArea, STRINGS.deviceRenameFailed + ": " + e.message, true);
+    if (dom.messageArea) showMessage(dom.messageArea, STRINGS.deviceRenameFailed + ": " + e.message, true);
     cancelInlineEditUI(nameSpan, inlineControlsContainer); // Clean up on error
   } finally {
-    showLoadingIndicator(dom.loadingIndicator, false);
+    if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, false);
     if (!success) { // If not successful, ensure original span is visible
       nameSpan.style.display = '';
     }
@@ -437,7 +519,7 @@ async function handleDeleteDevice(deviceId, deviceName) {
   if (!confirm(STRINGS.confirmDeleteDevice(deviceName))) {
     return;
   }
-  showLoadingIndicator(dom.loadingIndicator, true);
+  if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
   try {
     let response;
     if (isAndroidPlatformGlobal) {
@@ -449,7 +531,7 @@ async function handleDeleteDevice(deviceId, deviceName) {
       });
     }
     if (response.success) {
-      showMessage(dom.messageArea, STRINGS.deviceDeleteSuccess(deviceName), false);
+      if (dom.messageArea) showMessage(dom.messageArea, STRINGS.deviceDeleteSuccess(deviceName), false);
       // Update local state and re-render
       if (currentState && currentState.deviceRegistry[deviceId]) {
         delete currentState.deviceRegistry[deviceId];
@@ -458,91 +540,90 @@ async function handleDeleteDevice(deviceId, deviceName) {
         if (deviceLi) {
           deviceLi.remove();
         }
-        if (Object.keys(currentState.deviceRegistry).length === 0) {
+        if (dom.deviceRegistryListDiv && Object.keys(currentState.deviceRegistry).length === 0) {
           ensureDeviceRegistryUl().parentElement.textContent = STRINGS.noDevices;
         }
       }
     } else {
-      showMessage(dom.messageArea,
-        response.message || STRINGS.deviceDeleteFailed,
-        true
-      );
+      if (dom.messageArea) {
+        showMessage(dom.messageArea,
+          response.message || STRINGS.deviceDeleteFailed,
+          true
+        );
+      }
     }
   } catch (e) {
-    showMessage(dom.messageArea, STRINGS.deviceDeleteFailed + ": " + e.message, true);
+    if (dom.messageArea) showMessage(dom.messageArea, STRINGS.deviceDeleteFailed + ": " + e.message, true);
   } finally {
-    showLoadingIndicator(dom.loadingIndicator, false);
+    if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, false);
   }
 }
 
 // --- UI Interaction Handlers ---
 
-
-dom.newGroupNameInput.addEventListener(
-  "input",
-  debounce((e) => {
-    const value = e.target.value.trim();
-    dom.createGroupBtn.disabled = value.length === 0;
-  }, 250) // Standard debounce delay
-);
-dom.createGroupBtn.addEventListener("click", async () => {
-  const groupName = dom.newGroupNameInput.value.trim();
-  if (groupName === "") return;
-  showLoadingIndicator(dom.loadingIndicator, true);
-  clearMessage(dom.messageArea);
-  try {
-    let response;
-    if (isAndroidPlatformGlobal) {
-      response = await createGroupDirect(groupName);
-    } else {
-      response = await browser.runtime.sendMessage({
-        action: "createGroup",
-        groupName: groupName,
-      });
-    }
-    if (response.success) {
-      // Update local state and re-render
-      if (currentState && !currentState.definedGroups.includes(response.newGroup)) {
-        currentState.definedGroups.push(response.newGroup);
-        currentState.definedGroups.sort();
-
-        // Targeted DOM update for adding a group
-        const ul = ensureGroupsListUl();
-        const isSubscribed = currentState.subscriptions.includes(response.newGroup); // Should be false for new group
-        const newLi = createGroupListItemUI(response.newGroup, isSubscribed, {
-          handleSubscribe,
-          handleUnsubscribe,
-          handleDeleteGroup,
-          startRenameGroup,
+if (dom.newGroupNameInput && dom.createGroupBtn) {
+  dom.newGroupNameInput.addEventListener(
+    "input",
+    debounce((e) => {
+      const value = e.target.value.trim();
+      dom.createGroupBtn.disabled = value.length === 0;
+    }, 250) // Standard debounce delay
+  );
+  dom.createGroupBtn.addEventListener("click", async () => {
+    const groupName = dom.newGroupNameInput.value.trim();
+    if (groupName === "") return;
+    if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
+    clearMessage(dom.messageArea);
+    try {
+      let response;
+      if (isAndroidPlatformGlobal) {
+        response = await createGroupDirect(groupName);
+      } else {
+        response = await browser.runtime.sendMessage({
+          action: "createGroup",
+          groupName: groupName,
         });
-        // Insert in sorted order (simplified: append, full sort is complex for targeted add)
-        // For true sorted insertion, you'd find the correct position.
-        // For now, we'll append and rely on full re-render on page load for perfect sort.
-        // Or, re-render if perfect sort on add is critical.
-        // A simple approach is to re-render if not too many items, or accept append.
-        ul.appendChild(newLi);
-        // If the "no groups" message was showing, clear it.
-        if (ul.children.length === 1 && dom.definedGroupsListDiv.textContent === STRINGS.noGroups) {
-          dom.definedGroupsListDiv.textContent = '';
-          dom.definedGroupsListDiv.appendChild(ul);
-        }
       }
-      showMessage(dom.messageArea, STRINGS.groupCreateSuccess(response.newGroup), false);
-      dom.newGroupNameInput.value = "";
-      dom.createGroupBtn.disabled = true;
-    } else {
-      showMessage(dom.messageArea, response.message || STRINGS.groupCreateFailed, true);
+      if (response.success) {
+        // Update local state and re-render
+        if (currentState && !currentState.definedGroups.includes(response.newGroup)) {
+          currentState.definedGroups.push(response.newGroup);
+          currentState.definedGroups.sort();
+
+          // Targeted DOM update for adding a group
+          const ul = ensureGroupsListUl();
+          if (ul) { // Check if ul was successfully created/found
+            const isSubscribed = currentState.subscriptions.includes(response.newGroup);
+            const newLi = createGroupListItemUI(response.newGroup, isSubscribed, {
+              handleSubscribe,
+              handleUnsubscribe,
+              handleDeleteGroup,
+              startRenameGroup,
+            });
+            ul.appendChild(newLi);
+            if (dom.definedGroupsListDiv && ul.children.length === 1 && dom.definedGroupsListDiv.textContent === STRINGS.noGroups) {
+              dom.definedGroupsListDiv.textContent = '';
+              dom.definedGroupsListDiv.appendChild(ul);
+            }
+          }
+        }
+        if (dom.messageArea) showMessage(dom.messageArea, STRINGS.groupCreateSuccess(response.newGroup), false);
+        dom.newGroupNameInput.value = "";
+        dom.createGroupBtn.disabled = true;
+      } else {
+        if (dom.messageArea) showMessage(dom.messageArea, response.message || STRINGS.groupCreateFailed, true);
+      }
+    } catch (error) {
+      if (dom.messageArea) showMessage(dom.messageArea, STRINGS.groupCreateFailed + ": " + error.message, true);
+    } finally {
+      if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, false);
     }
-  } catch (error) {
-    showMessage(dom.messageArea, STRINGS.groupCreateFailed + ": " + error.message, true);
-  } finally {
-    showLoadingIndicator(dom.loadingIndicator, false);
-  }
-});
+  });
+}
 
 async function handleSubscribe(event) {
   const groupName = event.target.dataset.group;
-  showLoadingIndicator(dom.loadingIndicator, true);
+  if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
   clearMessage(dom.messageArea);
   try {
     // Check MAX_DEVICES_PER_GROUP before attempting to subscribe
@@ -555,8 +636,8 @@ async function handleSubscribe(event) {
     }
 
     if (currentSubscribersToGroup >= MAX_DEVICES_PER_GROUP && !isAndroidPlatformGlobal) { // Check only for non-Android, Android direct call handles it
-        showMessage(dom.messageArea, `Group "${groupName}" is full. Cannot subscribe.`, true);
-        showLoadingIndicator(dom.loadingIndicator, false);
+        if (dom.messageArea) showMessage(dom.messageArea, `Group "${groupName}" is full. Cannot subscribe.`, true);
+        if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, false);
         return;
     }
     let response = await subscribeToGroupUnified(groupName, isAndroidPlatformGlobal);
@@ -565,7 +646,7 @@ async function handleSubscribe(event) {
       if (currentState && !currentState.subscriptions.includes(response.subscribedGroup)) {
         currentState.subscriptions.push(response.subscribedGroup);
         currentState.subscriptions.sort();
-        showMessage(dom.messageArea, `Subscribed to "${response.subscribedGroup}".`, false);
+        if (dom.messageArea) showMessage(dom.messageArea, `Subscribed to "${response.subscribedGroup}".`, false);
 
         // Targeted DOM update for subscription button
         const groupLi = dom.definedGroupsListDiv.querySelector(`li[data-group-name="${response.subscribedGroup}"]`);
@@ -579,18 +660,18 @@ async function handleSubscribe(event) {
         }
       }
     } else {
-      showMessage(dom.messageArea, response.message || "Failed to subscribe.", true);
+      if (dom.messageArea) showMessage(dom.messageArea, response.message || "Failed to subscribe.", true);
     }
   } catch (error) {
-    showMessage(dom.messageArea, `Error subscribing: ${error.message}`, true);
+    if (dom.messageArea) showMessage(dom.messageArea, `Error subscribing: ${error.message}`, true);
   } finally {
-    showLoadingIndicator(dom.loadingIndicator, false);
+    if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, false);
   }
 }
 
 async function handleUnsubscribe(event) {
   const groupName = event.target.dataset.group;
-  showLoadingIndicator(dom.loadingIndicator, true);
+  if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
   clearMessage(dom.messageArea);
   try {
     let response = await unsubscribeFromGroupUnified(groupName, isAndroidPlatformGlobal);
@@ -598,7 +679,7 @@ async function handleUnsubscribe(event) {
       // Update local state and re-render
       if (currentState) {
         currentState.subscriptions = currentState.subscriptions.filter(g => g !== response.unsubscribedGroup);
-        showMessage(dom.messageArea, `Unsubscribed from "${response.unsubscribedGroup}".`, false);
+        if (dom.messageArea) showMessage(dom.messageArea, `Unsubscribed from "${response.unsubscribedGroup}".`, false);
 
         // Targeted DOM update for subscription button
         const groupLi = dom.definedGroupsListDiv.querySelector(`li[data-group-name="${response.unsubscribedGroup}"]`);
@@ -612,12 +693,12 @@ async function handleUnsubscribe(event) {
         }
       }
     } else {
-      showMessage(dom.messageArea, response.message || "Failed to unsubscribe.", true);
+      if (dom.messageArea) showMessage(dom.messageArea, response.message || "Failed to unsubscribe.", true);
     }
   } catch (error) {
-    showMessage(dom.messageArea, `Error unsubscribing: ${error.message}`, true);
+    if (dom.messageArea) showMessage(dom.messageArea, `Error unsubscribing: ${error.message}`, true);
   } finally {
-    showLoadingIndicator(dom.loadingIndicator, false);
+    if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, false);
   }
 }
 
@@ -626,7 +707,7 @@ async function handleDeleteGroup(event) {
   if (!confirm(STRINGS.confirmDeleteGroup(groupName))) {
     return;
   }
-  showLoadingIndicator(dom.loadingIndicator, true);
+  if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
   clearMessage(dom.messageArea);
   try {
     let response;
@@ -648,18 +729,18 @@ async function handleDeleteGroup(event) {
         if (groupLi) {
           groupLi.remove();
         }
-        if (currentState.definedGroups.length === 0) {
+        if (dom.definedGroupsListDiv && currentState.definedGroups.length === 0) {
           dom.definedGroupsListDiv.textContent = STRINGS.noGroups;
         }
       }
-      showMessage(dom.messageArea, STRINGS.groupDeleteSuccess(response.deletedGroup), false);
+      if (dom.messageArea) showMessage(dom.messageArea, STRINGS.groupDeleteSuccess(response.deletedGroup), false);
     } else {
-      showMessage(dom.messageArea, response.message || STRINGS.groupDeleteFailed, true);
+      if (dom.messageArea) showMessage(dom.messageArea, response.message || STRINGS.groupDeleteFailed, true);
     }
   } catch (error) {
-    showMessage(dom.messageArea, STRINGS.groupDeleteFailed + ": " + error.message, true);
+    if (dom.messageArea) showMessage(dom.messageArea, STRINGS.groupDeleteFailed + ": " + error.message, true);
   } finally {
-    showLoadingIndicator(dom.loadingIndicator, false);
+    if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, false);
   }
 }
 
@@ -672,7 +753,7 @@ async function handleRemoveSelfDevice() {
   )
     return;
 
-  showLoadingIndicator(dom.loadingIndicator, true);
+  if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
   clearMessage(dom.messageArea);
   try {
     const instanceId = currentState?.instanceId;
@@ -685,7 +766,7 @@ async function handleRemoveSelfDevice() {
     });
 
     if (res.success) {
-      showMessage(dom.messageArea, "This device removed from all groups and registry.", false);
+      if (dom.messageArea) showMessage(dom.messageArea, "This device removed from all groups and registry.", false);
       // Update local state and re-render
       if (currentState && currentState.deviceRegistry[instanceId]) {
         delete currentState.deviceRegistry[instanceId];
@@ -694,16 +775,16 @@ async function handleRemoveSelfDevice() {
         if (deviceLi) {
           deviceLi.remove();
         }
-        if (Object.keys(currentState.deviceRegistry).length === 0) {
+        if (dom.deviceRegistryListDiv && Object.keys(currentState.deviceRegistry).length === 0) {
          ensureDeviceRegistryUl().parentElement.textContent = STRINGS.noDevices;
         }
       }
     } else {
-      showMessage(dom.messageArea, res.message || "Failed to remove this device.", true);
+      if (dom.messageArea) showMessage(dom.messageArea, res.message || "Failed to remove this device.", true);
     }
   } catch (e) {
-    showMessage(dom.messageArea, "Error removing this device: " + e.message, true);
+    if (dom.messageArea) showMessage(dom.messageArea, "Error removing this device: " + e.message, true);
   } finally {
-    showLoadingIndicator(dom.loadingIndicator, false);
+    if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, false);
   }
 }
