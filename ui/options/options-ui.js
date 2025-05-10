@@ -119,7 +119,7 @@ export function renderGroupListUI(
 
     const nameSpan = document.createElement("span");
     nameSpan.textContent = groupName; // Initial group name text
-    nameSpan.className = 'group-name-label'; // For styling and selection
+    nameSpan.className = 'group-name-label options-list-item-label'; // For styling and selection
     nameSpan.style.cursor = 'pointer'; // Indicate clickable for rename
     nameSpan.title = 'Click to rename group';
     nameSpan.onclick = () => startRenameGroup(groupName, nameSpan); // Pass nameSpan for context

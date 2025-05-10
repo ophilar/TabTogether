@@ -1,6 +1,6 @@
 // options.js
 
-import { STRINGS } from "./common/constants.js";
+import { STRINGS, MAX_DEVICES_PER_GROUP, SYNC_STORAGE_KEYS } from "./common/constants.js";
 import { isAndroid } from "./core/platform.js";
 import {
   createGroupDirect,
@@ -550,6 +550,20 @@ async function handleSubscribe(event) {
   showLoadingIndicator(dom.loadingIndicator, true);
   clearMessage(dom.messageArea);
   try {
+    // Check MAX_DEVICES_PER_GROUP before attempting to subscribe
+    const allSubscriptionsSync = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS_SYNC, {});
+    let currentSubscribersToGroup = 0;
+    for (const deviceId in allSubscriptionsSync) {
+        if (allSubscriptionsSync[deviceId] && allSubscriptionsSync[deviceId].includes(groupName)) {
+            currentSubscribersToGroup++;
+        }
+    }
+
+    if (currentSubscribersToGroup >= MAX_DEVICES_PER_GROUP && !isAndroidPlatformGlobal) { // Check only for non-Android, Android direct call handles it
+        showMessage(dom.messageArea, `Group "${groupName}" is full. Cannot subscribe.`, true);
+        showLoadingIndicator(dom.loadingIndicator, false);
+        return;
+    }
     let response = await subscribeToGroupUnified(groupName, isAndroidPlatformGlobal);
     if (response.success) {
       // Update local state and re-render

@@ -3,7 +3,7 @@ import { SYNC_STORAGE_KEYS } from "../common/constants.js"; // Assuming constant
 export async function performHeartbeat(
   localInstanceId,
   localInstanceName,
-  localGroupBits,
+  // localGroupBits parameter removed
 ) {
   if (!localInstanceId) {
     console.warn("Heartbeat skipped: Instance ID not available yet.");
@@ -15,7 +15,7 @@ export async function performHeartbeat(
       [localInstanceId]: {
         name: localInstanceName,
         lastSeen: Date.now(),
-        groupBits: localGroupBits,
+        // groupBits removed
       },
     },
   };

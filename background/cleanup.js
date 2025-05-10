@@ -20,9 +20,9 @@ export async function performStaleDeviceCheck(
       SYNC_STORAGE_KEYS.GROUP_STATE,
       {}
     ));
-  let subscriptions = await storage.get(
+  let subscriptionsSync = await storage.get(
     browser.storage.sync,
-    SYNC_STORAGE_KEYS.SUBSCRIPTIONS,
+    SYNC_STORAGE_KEYS.SUBSCRIPTIONS_SYNC, // Use the new sync key
     {}
   );
   const now = Date.now();
@@ -39,27 +39,10 @@ export async function performStaleDeviceCheck(
       );
       needsRegistryUpdate = true;
       registryUpdates[deviceId] = null;
-      // Also mark subscriptions for this device for deletion
-      if (subscriptions[deviceId]) {
+      // Also mark subscriptions for this device for deletion from SYNC_STORAGE_KEYS.SUBSCRIPTIONS_SYNC
+      if (subscriptionsSync[deviceId]) {
         subscriptionsUpdates[deviceId] = null;
         needsSubscriptionsUpdate = true;
-      }
-      const staleDeviceBits = registry[deviceId].groupBits || {};
-      for (const groupName in staleDeviceBits) {
-        const staleBit = staleDeviceBits[groupName];
-        if (groupState[groupName] && staleBit !== undefined) {
-          const currentAssignedMask = groupState[groupName].assignedMask;
-          const newAssignedMask = currentAssignedMask & ~staleBit;
-          if (newAssignedMask !== currentAssignedMask) {
-            if (!groupStateUpdates[groupName])
-              groupStateUpdates[groupName] = {};
-            groupStateUpdates[groupName].assignedMask = newAssignedMask;
-            needsGroupStateUpdate = true;
-            console.log(
-              `Updated assignedMask for group ${groupName} (removed bit for stale device ${deviceId})`
-            );
-          }
-        }
       }
     }
   }
@@ -69,13 +52,10 @@ export async function performStaleDeviceCheck(
     // Nest updates under the correct sync storage key
     registryMergeSuccess = await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, registryUpdates);
   }
-  if (needsGroupStateUpdate) {
-    // Nest updates under the correct sync storage key
-    groupStateMergeSuccess = await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, groupStateUpdates);
-  }
+  // groupStateUpdates related to assignedMask are removed
   if (needsSubscriptionsUpdate) {
     // Nest updates under the correct sync storage key
-    await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, subscriptionsUpdates);
+    await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS_SYNC, subscriptionsUpdates);
   }
   console.log("Stale device check complete. Registry updated:", registryMergeSuccess.success, "Group state updated:", groupStateMergeSuccess.success);
 }

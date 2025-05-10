@@ -1,5 +1,6 @@
 // test/setup.js
 import { jest } from '@jest/globals';
+import { SYNC_STORAGE_KEYS } from '../common/constants.js'; // Import SYNC_STORAGE_KEYS
 // Import the actual utils to use deepMerge
 
 // --- Mock crypto ---
@@ -84,6 +85,7 @@ beforeEach(() => {
         storage: {
             local: getMockStorage(),
             sync: getMockStorage(),
+            onChanged: { addListener: jest.fn(), removeListener: jest.fn() }, // Mock onChanged
         },
         runtime: {
             getPlatformInfo: jest.fn(async () => ({ os: 'win' })),
@@ -121,5 +123,9 @@ beforeEach(() => {
     return Promise.all([
         global.browser.storage.local.clear(),
         global.browser.storage.sync.clear()
-    ]);
+    ]).then(() => {
+        // Initialize SYNC_STORAGE_KEYS.SUBSCRIPTIONS_SYNC as it's a new key used in tests
+        // and might not be covered by general clear if not explicitly set before.
+        return global.browser.storage.sync.set({ [SYNC_STORAGE_KEYS.SUBSCRIPTIONS_SYNC]: {} });
+    });
 });

@@ -1,5 +1,3 @@
-// core/tasks.js
-
 import { storage } from "./storage.js";
 import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from "../common/constants.js";
 import { getInstanceId } from "./instance.js";
@@ -17,11 +15,11 @@ export async function processIncomingTabsAndroid(currentState) {
   let tasksProcessed = false;
   let localProcessedTasks = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, {});
 
-  console.log(`Processing incoming tabs for device ${instanceId}, subscriptions: ${mySubscriptions.join(', ')}`);
+  console.log(`Processing incoming tabs for device ${localInstanceId}, subscriptions: ${mySubscriptions.join(', ')}`);
 
-  for (const groupName in groupTasks) {
+  for (const groupName in allGroupTasks) {
     if (mySubscriptions.includes(groupName)) {
-      const tasksInGroupObject = groupTasks[groupName]; // This is an object { taskId1: data1, ...}
+      const tasksInGroupObject = allGroupTasks[groupName]; // This is an object { taskId1: data1, ...}
       // const remainingTasksForGroup = {}; // Rebuild as an object // Not needed if we don't modify sync tasks here
 
       for (const taskId in tasksInGroupObject) {
@@ -56,7 +54,7 @@ export async function processIncomingTabsAndroid(currentState) {
           // Do not mark as processed if opening failed
         }
       }
-      // groupTasks[groupName] = remainingTasksForGroup; // Update tasks for the group // Not modifying sync tasks here
+      // allGroupTasks[groupName] = remainingTasksForGroup; // Update tasks for the group // Not modifying sync tasks here
     }
   }
 
@@ -114,62 +112,5 @@ export async function createAndStoreGroupTask(groupName, tabData, senderDeviceId
     return { success: false, taskId: null, message: "Failed to save task to sync storage." };
   }
   console.log(`Task ${taskId} created for group ${groupName}:`, newTaskData);
-  return { success: true, taskId };
-}
-            continue;
-        }
-
-        // Open the tab
-        try {
-          console.log(`Processing tab: ${task.url} for group ${groupName}`);
-          // In a test environment, browser.tabs.create might be a mock.
-          // Ensure it's awaited if it returns a promise.
-          await global.browser.tabs.create({ url: task.url, active: false });
-          tasksProcessed = true;
-          // If processed successfully, DO NOT add to remainingTasksForGroup
-        } catch (e) {
-          console.error(`Failed to open tab ${task.url}:`, e);
-          remainingTasksForGroup[taskId] = task; // Keep task if opening failed
-        }
-      }
-      groupTasks[groupName] = remainingTasksForGroup; // Update tasks for the group
-    }
-  }
-
-  if (tasksProcessed) {
-    await storage.set(browser.storage.sync, { [SYNC_STORAGE_KEYS.GROUP_TASKS]: groupTasks });
-    console.log("Finished processing incoming tabs, updated tasks in storage.");
-  } else {
-    console.log("No new tabs to process for this device.");
-  }
-}
-
-export async function createAndStoreGroupTask(groupName, tabData, senderDeviceId, recipientDeviceIds = null) {
-  const taskId = globalThis.crypto?.randomUUID?.() || `mock-task-id-${Date.now()}`;
-  const groupTasks = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, {});
-
-  if (!groupTasks[groupName]) {
-    groupTasks[groupName] = {};
-  }
-
-  const newTaskData = {
-    url: tabData.url,
-    title: tabData.title || tabData.url,
-    senderDeviceId: senderDeviceId,
-    recipientDeviceIds: recipientDeviceIds, // Store recipient IDs
-    creationTimestamp: Date.now(),
-  };
-
-  if (recipientDeviceIds && Array.isArray(recipientDeviceIds) && recipientDeviceIds.length > 0) {
-    newTaskData.recipientDeviceIds = recipientDeviceIds;
-  }
-
-  groupTasks[groupName][taskId] = newTaskData;
-
-  const success = await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, groupTasks);
-  if (!success) {
-    console.error(`Failed to store task ${taskId} for group ${groupName}.`);
-    return { success: false, taskId: null };
-  }
   return { success: true, taskId };
 }

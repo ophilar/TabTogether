@@ -29,12 +29,12 @@ describe('Integration: Group and Tab Flow', () => {
 
     await browser.storage.sync.set({
       [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: {
-        'test-device-id': { name: 'Test Device', lastSeen: Date.now(), groupBits: {} }
+        'test-device-id': { name: 'Test Device', lastSeen: Date.now() } // No groupBits
       },
       [SYNC_STORAGE_KEYS.GROUP_TASKS]: {}, // Start with no tasks
       [SYNC_STORAGE_KEYS.DEFINED_GROUPS]: [],
       [SYNC_STORAGE_KEYS.GROUP_STATE]: {},
-      [SYNC_STORAGE_KEYS.SUBSCRIPTIONS]: {} // Initialize subscriptions
+      [SYNC_STORAGE_KEYS.SUBSCRIPTIONS_SYNC]: {} // Use the new sync key
     });
   });
 
@@ -47,14 +47,12 @@ describe('Integration: Group and Tab Flow', () => {
     const createRes = await createGroupDirect(GROUP_NAME);
     expect(createRes.success).toBe(true);
     expect(await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS)).toContain(GROUP_NAME);
-    // groupState is no longer used in this way
 
     // 2. Subscribe
     const subRes = await subscribeToGroupDirect(GROUP_NAME);
     expect(subRes.success).toBe(true);
-    // assignedBit is no longer part of the direct subscription model
-    const subscriptions = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS);
-    expect(subscriptions['test-device-id']).toContain(GROUP_NAME);
+    const subscriptionsSync = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS_SYNC);
+    expect(subscriptionsSync['test-device-id']).toContain(GROUP_NAME);
 
     // 3. Send tab
     // sendTabToGroupDirect is no longer used. We'd call createAndStoreGroupTask from background or a unified action.
@@ -83,14 +81,18 @@ describe('Integration: Group and Tab Flow', () => {
     // 5. Unsubscribe
     const unsubRes = await unsubscribeFromGroupDirect(GROUP_NAME);
     expect(unsubRes.success).toBe(true);
-    const finalSubscriptions = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS);
-    expect(finalSubscriptions['test-device-id']).not.toContain(GROUP_NAME);
+    const finalSubscriptionsSync = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS_SYNC);
+    expect(finalSubscriptionsSync['test-device-id']).not.toContain(GROUP_NAME);
 
     // 6. Delete group
     const delRes = await deleteGroupDirect(GROUP_NAME);
     expect(delRes.success).toBe(true);
     expect(await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS)).not.toContain(GROUP_NAME);
-    // Tasks for the group should also be gone (deleteGroupDirect handles this)
+    // deleteGroupDirect also clears subscriptions for the deleted group from SYNC_STORAGE_KEYS.SUBSCRIPTIONS_SYNC
+    const subscriptionsAfterGroupDelete = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS_SYNC);
+    for (const deviceId in subscriptionsAfterGroupDelete) {
+        expect(subscriptionsAfterGroupDelete[deviceId]).not.toContain(GROUP_NAME);
+    }
     const finalGroupTasksForDelete = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS);
     // deleteGroupDirect doesn't currently clear tasks, this might need adjustment or be handled by cleanup.
     // For now, we'll assume tasks might still exist but the group itself is gone.

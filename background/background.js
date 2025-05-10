@@ -17,8 +17,7 @@ import {
   renameGroupDirect,
   deleteDeviceDirect,
 } from "../core/actions.js";
-import { createAndStoreGroupTask } from "../core/tasks.js"; // Keep this
-import { assignDeviceBitForGroup } from "../core/group-manager.js"; // Renamed function
+import { createAndStoreGroupTask } from "../core/tasks.js";
 import { processIncomingTasks } from "./task-processor.js";
 import { performHeartbeat } from "./heartbeat.js";
 import { performStaleDeviceCheck, performTimeBasedTaskCleanup } from "./cleanup.js";
@@ -32,7 +31,7 @@ const STALE_CHECK_INTERVAL_MIN = 60 * 24; // Every day
 const TASK_CLEANUP_INTERVAL_MIN = 60 * 24 * 2; // Every 2 days
 
 const DEFAULT_STALE_DEVICE_THRESHOLD_DAYS = 30;
-const DEFAULT_TASK_EXPIRY_DAYS = 14;
+const DEFAULT_TASK_EXPIRY_DAYS = 14; // Moved from constants.js if it's only used here
 
 // --- Initialization ---
 
@@ -48,6 +47,7 @@ async function initializeExtension() {
       [SYNC_STORAGE_KEYS.GROUP_STATE]: {},
       [SYNC_STORAGE_KEYS.GROUP_TASKS]: {},
       [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: {},
+      [SYNC_STORAGE_KEYS.SUBSCRIPTIONS]: {}, // Initialize synchronized subscriptions
     };
     const updates = {};
     for (const key of syncKeys) {
@@ -63,22 +63,13 @@ async function initializeExtension() {
     // Fetch local data first
     let localInstanceId = await getInstanceId();
     let localInstanceName = await getInstanceName();
-    let localGroupBits = await storage.get(
-      browser.storage.local,
-      LOCAL_STORAGE_KEYS.GROUP_BITS,
-      {}
-    );
 
     // Use the data fetched earlier (syncData) instead of fetching again
     let cachedDefinedGroups = syncData[SYNC_STORAGE_KEYS.DEFINED_GROUPS] ?? [];
     
     await setupAlarms();
     await updateContextMenu(cachedDefinedGroups); // Use cachedDefinedGroups if available
-    await performHeartbeat(
-      localInstanceId,
-      localInstanceName,
-      localGroupBits,
-    ); // Perform initial heartbeat/registry update
+    await performHeartbeat(localInstanceId, localInstanceName); // Perform initial heartbeat
     console.log(`Initialization complete. Name: ${localInstanceName}`);
   } catch (error) {
     console.error("CRITICAL ERROR during initializeExtension:", error);
@@ -116,15 +107,7 @@ browser.alarms.onAlarm.addListener(async (alarm) => {
       { // Use block scope for variables
         const localInstanceId = await getInstanceId();
         const localInstanceName = await getInstanceName();
-        const localGroupBits = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {});
-        // Heartbeat primarily updates the registry, so fetch it
-        // const cachedDeviceRegistry = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
-        await performHeartbeat(
-          localInstanceId,
-          localInstanceName,
-          localGroupBits,
-          // cachedDeviceRegistry // Pass fetched registry
-        );
+        await performHeartbeat(localInstanceId, localInstanceName);
       }
       break;
     case ALARM_STALE_CHECK:
@@ -265,12 +248,12 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
   // This requires fetching devices subscribed to the group.
   let recipientDeviceIds = [];
   try {
-    const allSubscriptions = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {});
+    const allSubscriptionsSync = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {}); // This is SUBSCRIPTIONS_SYNC
     const deviceRegistry = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
 
-    for (const deviceId in allSubscriptions) {
+    for (const deviceId in allSubscriptionsSync) {
       if (deviceId === localInstanceId) continue; // Don't send to self
-      if (allSubscriptions[deviceId] && allSubscriptions[deviceId].includes(groupName)) {
+      if (allSubscriptionsSync[deviceId] && allSubscriptionsSync[deviceId].includes(groupName)) {
         // Check if device is still active in registry (optional, but good practice)
         if (deviceRegistry[deviceId]) {
           recipientDeviceIds.push(deviceId);
@@ -339,7 +322,12 @@ browser.storage.onChanged.addListener(async (changes, areaName) => {
     console.log("Sync change detected: GROUP_TASKS. Processing...");
     const newTasksObject = changes[SYNC_STORAGE_KEYS.GROUP_TASKS].newValue;
     if (newTasksObject && typeof newTasksObject === 'object') {
-      await processIncomingTasks(newTasksObject);
+      const openedTabs = await processIncomingTasks(newTasksObject);
+      if (openedTabs && openedTabs.length > 0) {
+        for (const tabDetail of openedTabs) {
+          await showTabNotification(tabDetail); // Call showTabNotification for each opened tab
+        }
+      }
     } else if (!newTasksObject) {
       console.log("GROUP_TASKS was deleted or set to null. No tasks to process.");
     }
@@ -366,22 +354,20 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
       const localInstanceId = await getInstanceId();
       const localInstanceName = await getInstanceName();
       const localSubscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
-      const localGroupBits = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {});
       // Fetch fresh sync data for getState to ensure UI has the latest
       const definedGroups = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []);
       const groupState = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {});
       const deviceRegistry = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
-      const allSubscriptions = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {}); // For unified state
+      const allSubscriptionsSync = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {}); // Use the correct key for sync
 
       return {
         instanceId: localInstanceId,
         instanceName: localInstanceName,
         subscriptions: localSubscriptions, // Local device's subscriptions
-        groupBits: localGroupBits,
         definedGroups: definedGroups.sort(),
         groupState,
         deviceRegistry,
-        allSubscriptions, // All devices' subscriptions
+        allSubscriptions: allSubscriptionsSync, // All devices' subscriptions from sync (already correct)
       };
     }
 
@@ -433,7 +419,6 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
       const groupToSubscribe = request.groupName;
       const localInstanceId = await getInstanceId();
       let localSubscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
-      let localGroupBits = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {});
 
       if (!groupToSubscribe) {
         return { success: false, message: "No group name provided." };
@@ -442,45 +427,41 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
         return { success: false, message: "Already subscribed." };
       }
 
-      // Fetch required sync state just before assigning bit
-      const initialGroupState = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {});
-      // const initialDeviceRegistry = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {}); // Not directly used by assignDeviceBitForGroup current impl.
+      // Check MAX_DEVICES_PER_GROUP
+      const allSubscriptionsSync = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {});
+      let currentSubscribersToGroup = 0;
+      for (const deviceId in allSubscriptionsSync) {
+        if (allSubscriptionsSync[deviceId] && allSubscriptionsSync[deviceId].includes(groupToSubscribe)) {
+          currentSubscribersToGroup++;
+        }
+      }
+      if (currentSubscribersToGroup >= MAX_DEVICES_PER_GROUP) {
+        return { success: false, message: `Group "${groupToSubscribe}" is full.` };
+      }
 
-      const assignedBit = await assignDeviceBitForGroup(
-        groupToSubscribe,
-        localInstanceId,
-        initialGroupState
-        // initialDeviceRegistry // Pass if assignDeviceBitForGroup needs it
-      );
-
-      if (assignedBit !== null) {
+      try {
         localSubscriptions.push(groupToSubscribe);
         localSubscriptions.sort();
-        localGroupBits[groupToSubscribe] = assignedBit;
 
         await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, localSubscriptions);
-        await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, localGroupBits);
 
-        // Update this device's entry in the global subscriptions object
-        // This ensures that when other devices fetch SUBSCRIPTIONS, this device's new sub is reflected.
         await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {
             [localInstanceId]: localSubscriptions
         });
 
-        // Heartbeat will ensure DEVICE_REGISTRY.groupBits is up-to-date.
         const localInstanceName = await getInstanceName();
-        await performHeartbeat(localInstanceId, localInstanceName, localGroupBits);
+        await performHeartbeat(localInstanceId, localInstanceName);
 
-        return { success: true, subscribedGroup: groupToSubscribe, assignedBit: assignedBit };
-      } else {
-        return { success: false, message: "Group is full or error assigning bit." };
+        return { success: true, subscribedGroup: groupToSubscribe };
+      } catch (error) {
+        console.error(`Error subscribing to group ${groupToSubscribe}:`, error);
+        return { success: false, message: `Error subscribing: ${error.message}` };
       }
     }
     case "unsubscribeFromGroup": {
       const groupToUnsubscribe = request.groupName;
       const localInstanceId = await getInstanceId();
       let localSubscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
-      let localGroupBits = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {});
 
       if (!groupToUnsubscribe) {
         return { success: false, message: "No group name provided." };
@@ -490,38 +471,15 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
       }
 
       try {
-        const bitToRemove = localGroupBits[groupToUnsubscribe];
-
         localSubscriptions = localSubscriptions.filter(g => g !== groupToUnsubscribe);
-        delete localGroupBits[groupToUnsubscribe];
 
         await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, localSubscriptions);
-        await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, localGroupBits);
 
-        // Update this device's entry in the global subscriptions object
         await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {
             [localInstanceId]: localSubscriptions
         });
 
-        // Update device registry to mark the bit for this group as null for this device
-        await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {
-          [localInstanceId]: { groupBits: { [groupToUnsubscribe]: null } },
-        });
-
-        // Clear the bit from the group's assignedMask in GROUP_STATE
-        if (bitToRemove !== undefined) {
-          const groupState = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {});
-          if (groupState[groupToUnsubscribe] && groupState[groupToUnsubscribe].assignedMask !== undefined) {
-            const currentMask = groupState[groupToUnsubscribe].assignedMask;
-            const newMask = currentMask & ~bitToRemove;
-            if (newMask !== currentMask) {
-              await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {
-                [groupToUnsubscribe]: { assignedMask: newMask },
-              });
-            }
-          }
-        }
-        console.log(`Locally unsubscribed from ${groupToUnsubscribe}. Bit ${bitToRemove} cleared.`);
+        console.log(`Locally unsubscribed from ${groupToUnsubscribe}.`);
         return { success: true, unsubscribedGroup: groupToUnsubscribe };
       } catch (error) {
         console.error(`Error unsubscribing from group ${groupToUnsubscribe}:`, error);
@@ -535,11 +493,11 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
       // Determine recipientDeviceIds
       let recipientDeviceIds = [];
       try {
-        const allSubscriptions = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {});
+        const allSubscriptionsSync = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {});
         const deviceRegistry = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
-        for (const deviceId in allSubscriptions) {
+        for (const deviceId in allSubscriptionsSync) {
           if (deviceId === senderDeviceId) continue;
-          if (allSubscriptions[deviceId] && allSubscriptions[deviceId].includes(groupName)) {
+          if (allSubscriptionsSync[deviceId] && allSubscriptionsSync[deviceId].includes(groupName)) {
             if (deviceRegistry[deviceId]) { // Check if device is active
                 recipientDeviceIds.push(deviceId);
             }
@@ -555,8 +513,7 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
     case "heartbeat": {
       const localInstanceId = await getInstanceId();
       const localInstanceName = await getInstanceName();
-      const localGroupBits = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_BITS, {});
-      await performHeartbeat(localInstanceId, localInstanceName, localGroupBits);
+      await performHeartbeat(localInstanceId, localInstanceName);
       return { success: true };
     }
     case "testNotification": {
@@ -580,8 +537,6 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
   }
 });
 
-// Removed playNotificationSound function
-
 // Enhanced notification for tab send/receive
 async function showTabNotification({ title, url, groupName, faviconUrl }) {
   // Removed sound and duration logic - use system defaults
@@ -593,23 +548,6 @@ async function showTabNotification({ title, url, groupName, faviconUrl }) {
     contextMessage: url || "",
   });
 }
-
-// Example usage: showTabNotification({ title, url, groupName, faviconUrl }) when sending/receiving tabs
-  };
-  const update = { [groupName]: newTask };
-
-  console.log(`Sending task ${taskId} to group ${groupName}: ${urlToSend}`);
-  const { success } = await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, update);
-
-  browser.notifications.create({
-    type: "basic",
-    iconUrl: browser.runtime.getURL("icons/icon-48.png"),
-    title: success ? "Tab Sent" : "Send Failed",
-    message: success
-      ? `Sent "${titleToSend}" to group "${groupName}".`
-      : "Failed to save task to sync storage.",
-  });
-});
 
 // --- Storage Change Listener (Updates Caches) ---
 

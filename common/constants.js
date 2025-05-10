@@ -8,8 +8,7 @@
 export const LOCAL_STORAGE_KEYS = {
   INSTANCE_ID: "tabtogether_instance_id",
   INSTANCE_NAME: "tabtogether_instance_name",
-  SUBSCRIPTIONS: "tabtogether_subscriptions", // Stores an array of group names the device is subscribed to
-  GROUP_BITS: "tabtogether_group_bits",     // Stores an object mapping groupName to the device's bit in that group
+  SUBSCRIPTIONS: "tabtogether_subscriptions", // Stores an array of group names this specific device instance is subscribed to
   PROCESSED_TASKS: "tabtogether_processed_tasks", // Stores an object mapping taskId to true if processed locally
   // Add any other local storage keys here
 };
@@ -20,17 +19,19 @@ export const LOCAL_STORAGE_KEYS = {
  */
 export const SYNC_STORAGE_KEYS = {
   DEFINED_GROUPS: "tabtogether_defined_groups",   // Array of all group names
-  GROUP_STATE: "tabtogether_group_state",       // Object mapping groupName to { assignedMask: number }
-  GROUP_TASKS: "tabtogether_group_tasks",       // Object mapping groupName to { taskId: { url, title, processedMask, creationTimestamp } }
-  DEVICE_REGISTRY: "tabtogether_device_registry", // Object mapping instanceId to { name, lastSeen, groupBits: { groupName: bit } }
+  GROUP_STATE: "tabtogether_group_state",       // Object mapping groupName to { /* other group metadata if needed */ }
+  GROUP_TASKS: "tabtogether_group_tasks",       // Object mapping groupName to { taskId: { url, title, senderDeviceId, recipientDeviceIds?, processedByDeviceIds?, creationTimestamp } }
+  DEVICE_REGISTRY: "tabtogether_device_registry", // Object mapping instanceId to { name, lastSeen }
   STALE_DEVICE_THRESHOLD_DAYS: "tabtogether_stale_device_threshold_days", // Number of days
   TASK_EXPIRY_DAYS: "tabtogether_task_expiry_days", // Number of days
+  SUBSCRIPTIONS: "tabtogether_subscriptions_sync", // SYNC version: Object mapping instanceId to [groupName1, groupName2,...]
   // Add any other sync storage keys here
 };
 
 /**
  * Maximum number of devices allowed per group.
  * This is tied to the bitmask implementation (e.g., a 16-bit mask allows 16 devices).
+ * With bitmasks removed, this is enforced by counting subscribers.
  */
 export const MAX_DEVICES_PER_GROUP = 16; // Adjust if your bitmask supports more/less
 
