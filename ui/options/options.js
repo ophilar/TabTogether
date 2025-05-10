@@ -1,3 +1,5 @@
+console.log("[OptionsPage] options.js script started parsing.");
+
 import { STRINGS, MAX_DEVICES_PER_GROUP, SYNC_STORAGE_KEYS } from "../../common/constants.js";
 import { isAndroid } from "../../core/platform.js";
 import {
@@ -121,6 +123,7 @@ storage.get(browser.storage.local, "lastSync", null).then((ts) => {
 // --- Initialization ---
 
 document.addEventListener("DOMContentLoaded", async () => {
+  try {
   isAndroidPlatformGlobal = await isAndroid(); // Cache platform info
 
   const mainOptionsContainer = document.getElementById('your-main-options-container-id'); // Replace with your actual container ID
@@ -242,6 +245,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   loadState(); // Load initial state after setting up listeners
+  } catch (error) {
+    console.error("CRITICAL ERROR during options DOMContentLoaded:", error);
+    // Optionally, try to display a very basic error message if possible
+  }
 });
 
 async function loadState() {

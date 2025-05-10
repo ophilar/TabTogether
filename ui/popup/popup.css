@@ -124,43 +124,13 @@ body {
 
 /* --- Other Styles --- */
 
-/* Action buttons (Send to Group, Sync Now) */
-.popup-action-btn {
-  padding: 8px 18px;
-  /* Match base button size */
-  font-size: 1em;
-  /* Match base button size */
-  background-color: var(--main-button-primary-bg);
-  color: var(--main-button-text);
-  box-shadow: var(--main-shadow-button-primary); /* Use variable, remove fallback */
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: background-color var(--transition), box-shadow var(--transition),
-    transform var(--transition), color var(--transition);
-}
-
-.popup-action-btn:hover:not(:disabled) {
-  background-color: var(--main-button-primary-hover-bg);
-  transform: translateY(-2px) scale(1.04);
-}
-
-.popup-action-btn:disabled {
-  background-color: var(--main-button-disabled-bg);
-  color: var(--main-button-disabled-text);
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
-
 /* Style the "Send to [Group]" buttons */
 .send-to-group-button {
   display: block;
   width: 100%;
   margin-bottom: 8px;
   text-align: center;
-  /* Inherits sizing from .popup-action-btn */
+  /* Visual styling (padding, colors, etc.) comes from base <button> styles in styles.css */
 }
 
 .send-to-group-button:last-child {
@@ -170,8 +140,8 @@ body {
 /* Style for the Sync Now button specific to the popup */
 .sync-now-button-popup {
   margin-bottom: 10px;
-  width: 100%;
-  /* Inherits sizing from .popup-action-btn */
+  width: 100%; /* Layout specific to popup */
+  /* Visual styling comes from base <button> styles */
 }
 
 /* Status Message Styling */
@@ -198,22 +168,13 @@ body {
 }
 
 /* Styles for popup.js elements */
-.popup-sync-info { /* For the dedicated syncInfoContainer */
+.popup-sync-info, /* Combined selector */
+.popup-sync-info-fallback {
   /* .small-text class handles font size */
   margin-top: 5px;
   padding: 5px;
-  background-color: #f0f0f0; /* Consider var(--main-bg) or a new variable if theming needed */
-  border: 1px solid #e0e0e0; /* Consider var(--main-border) or a new variable */
-  border-radius: 3px;
-  text-align: center;
-}
-
-.popup-sync-info-fallback { /* For the dynamically inserted paragraph */
-  /* .small-text class handles font size */
-  margin-top: 5px;
-  padding: 5px;
-  background-color: #f0f0f0; /* Consider var(--main-bg) or a new variable */
-  border: 1px solid #e0e0e0; /* Consider var(--main-border) or a new variable */
+  background-color: var(--main-bg); /* Use theme variable */
+  border: 1px solid var(--main-border); /* Use theme variable */
   border-radius: 3px;
   text-align: center;
 }
