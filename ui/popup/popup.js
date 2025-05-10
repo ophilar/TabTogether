@@ -9,8 +9,7 @@ import {
   setLastSyncTimeUI as setLastSyncTime, // Alias to match existing usage
   showLoadingIndicator,
   showMessage,
-} from "../shared/ui-helpers.js";
-import { injectSharedUI } from "../shared/shared-ui.js";
+  injectSharedUI } from "../shared/shared-ui.js";
 import { applyThemeFromStorage } from "../shared/theme.js"; // Corrected path
 
 function renderDeviceNameUI(container, name) { // Keep as local helper or move to popup-ui.js if it grows

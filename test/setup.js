@@ -126,6 +126,6 @@ beforeEach(() => {
     ]).then(() => {
         // Initialize SYNC_STORAGE_KEYS.SUBSCRIPTIONS_SYNC as it's a new key used in tests
         // and might not be covered by general clear if not explicitly set before.
-        return global.browser.storage.sync.set({ [SYNC_STORAGE_KEYS.SUBSCRIPTIONS_SYNC]: {} });
+        return global.browser.storage.sync.set({ [SYNC_STORAGE_KEYS.SUBSCRIPTIONS]: {} }); // Use SUBSCRIPTIONS
     });
 });
