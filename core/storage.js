@@ -22,7 +22,7 @@ export const storage = {
       if (key === LOCAL_STORAGE_KEYS.GROUP_BITS ||
           key === SYNC_STORAGE_KEYS.GROUP_STATE ||
           key === SYNC_STORAGE_KEYS.DEVICE_REGISTRY ||
-          key === SYNC_STORAGE_KEYS.GROUP_TASKS ||
+          key === SYNC_STORAGE_KEYS.GROUP_TASKS || // Ensure SYNC_STORAGE_KEYS.SUBSCRIPTIONS is handled as object
           key === SYNC_STORAGE_KEYS.SUBSCRIPTIONS // Ensure SYNC subscriptions are treated as an object
       ) {
         value = ensureObject(value, defaultValue ?? {});
@@ -30,7 +30,7 @@ export const storage = {
                  key === SYNC_STORAGE_KEYS.DEFINED_GROUPS) {
         value = ensureArray(value, defaultValue ?? []);
       } else if (key === LOCAL_STORAGE_KEYS.INSTANCE_ID ||
-                 key === LOCAL_STORAGE_KEYS.INSTANCE_NAME_OVERRIDE) {
+                 key === LOCAL_STORAGE_KEYS.INSTANCE_NAME_OVERRIDE) { // Use the standardized override key
         value = ensureString(value, defaultValue ?? "");
       }
       return value;

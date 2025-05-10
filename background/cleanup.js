@@ -22,7 +22,7 @@ export async function performStaleDeviceCheck(
     ));
   let subscriptionsSync = await storage.get(
     browser.storage.sync,
-    SYNC_STORAGE_KEYS.SUBSCRIPTIONS_SYNC, // Use the new sync key
+    SYNC_STORAGE_KEYS.SUBSCRIPTIONS, // Corrected to use the defined constant
     {}
   );
   const now = Date.now();
@@ -55,7 +55,7 @@ export async function performStaleDeviceCheck(
   // groupStateUpdates related to assignedMask are removed
   if (needsSubscriptionsUpdate) {
     // Nest updates under the correct sync storage key
-    await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS_SYNC, subscriptionsUpdates);
+    await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, subscriptionsUpdates); // Corrected to use the defined constant
   }
   console.log("Stale device check complete. Registry updated:", registryMergeSuccess.success, "Group state updated:", groupStateMergeSuccess.success);
 }
