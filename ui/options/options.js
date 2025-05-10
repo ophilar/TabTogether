@@ -1,6 +1,6 @@
 // options.js
 
-import { STRINGS, SYNC_STORAGE_KEYS } from "./common/constants.js";
+import { STRINGS } from "./common/constants.js";
 import { isAndroid } from "./core/platform.js";
 import {
   createGroupDirect,
@@ -31,7 +31,8 @@ import {
   createDeviceListItemUI, // Import for device list items (though not used for adding in options.js directly)
   cancelInlineEditUI,
   setLastSyncTimeUI,
-  showDebugInfoUI
+  showDebugInfoUI,
+  displaySyncRequirementBanner, 
 } from "./ui/options/options-ui.js";
 import { setupOnboarding } from "./ui/options/options-onboarding.js";
 import { setupAdvancedTiming } from "./ui/options/options-advanced-timing.js";
@@ -125,6 +126,11 @@ storage.get(browser.storage.local, "lastSync", null).then((ts) => {
 document.addEventListener("DOMContentLoaded", async () => {
   isAndroidPlatformGlobal = await isAndroid(); // Cache platform info
 
+  const mainOptionsContainer = document.getElementById('your-main-options-container-id'); // Replace with your actual container ID
+  if (mainOptionsContainer) {
+      displaySyncRequirementBanner(mainOptionsContainer);
+  }
+
   injectSharedUI();
   applyThemeFromStorage();
   setupThemeDropdown("darkModeSelect");
@@ -133,12 +139,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Assign DOM elements that might be created/checked by injectSharedUI or need full DOM readiness
   dom.loadingIndicator = document.getElementById("loadingIndicator");
   dom.messageArea = document.getElementById("messageArea");
-  
+
   if (isAndroidPlatformGlobal) {
     const container = document.querySelector(".container");
     showAndroidBanner(
       'Note: On Firefox for Android, background processing is not available. Open this page and tap "Sync Now" to process new tabs or changes.'
-    );
+    ); // Corrected argument passing
     setLastSyncTimeUI(container, Date.now()); // Use UI function
     showDebugInfoUI(container, currentState);      // Use UI function
 

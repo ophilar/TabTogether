@@ -1,5 +1,5 @@
-import { storage } from '../../common/storage.js';
-import { STRINGS } from '../../common/constants.js';
+import { storage } from '../../core/storage.js'; // Corrected import path
+import { SYNC_STORAGE_KEYS, STRINGS } from '../../common/constants.js'; // Added SYNC_STORAGE_KEYS
 import { assignBitForGroup } from '../../core/group-manager.js';
 
 export async function handleCreateGroup(requestData) {
@@ -9,15 +9,15 @@ export async function handleCreateGroup(requestData) {
     }
 
     const {
-        [STRINGS.STORAGE_GROUPS]: currentGroups,
-        [STRINGS.STORAGE_SUBSCRIPTIONS]: currentSubscriptions
-    } = await storage.getItems([STRINGS.STORAGE_GROUPS, STRINGS.STORAGE_SUBSCRIPTIONS]);
+        [SYNC_STORAGE_KEYS.DEFINED_GROUPS]: currentGroups, // Use SYNC_STORAGE_KEYS
+        [SYNC_STORAGE_KEYS.SUBSCRIPTIONS]: currentSubscriptions // Use SYNC_STORAGE_KEYS
+    } = await storage.getItems([SYNC_STORAGE_KEYS.DEFINED_GROUPS, SYNC_STORAGE_KEYS.SUBSCRIPTIONS]); // Use SYNC_STORAGE_KEYS
 
     const { bit, updatedGroups, updatedSubscriptions } = await assignBitForGroup(groupName.trim(), currentGroups, currentSubscriptions);
 
     await storage.setItems({
-        [STRINGS.STORAGE_GROUPS]: updatedGroups,
-        [STRINGS.STORAGE_SUBSCRIPTIONS]: updatedSubscriptions
+        [SYNC_STORAGE_KEYS.DEFINED_GROUPS]: updatedGroups, // Use SYNC_STORAGE_KEYS
+        [SYNC_STORAGE_KEYS.SUBSCRIPTIONS]: updatedSubscriptions // Use SYNC_STORAGE_KEYS
     });
 
     return { bit, groupName: groupName.trim() }; // Return data for the response

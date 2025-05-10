@@ -1,4 +1,4 @@
-import { STRINGS } from "../../common/constants.js";
+import { STRINGS, LOCAL_STORAGE_KEYS } from "../../common/constants.js"; // Added LOCAL_STORAGE_KEYS
 import { storage } from "../../core/storage.js";
 import { isAndroid } from "../../core/platform.js";
 import { getUnifiedState } from "../../core/actions.js";
@@ -42,6 +42,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   loadingIndicator = document.getElementById("loadingIndicator");
   dom.messageArea = document.getElementById("messageArea"); // Also re-assign if injectSharedUI creates it
 
+  // Add Firefox Sync information message
+  const syncInfoContainer = document.getElementById('syncInfoContainer'); // Assuming you add this to popup.html
+  if (syncInfoContainer) {
+    syncInfoContainer.textContent = STRINGS.SYNC_INFO_MESSAGE_POPUP || "For cross-device sync, enable Firefox Sync for add-ons."; // Fallback text
+    syncInfoContainer.className = 'sync-info-message small-text popup-sync-info'; // Added popup-sync-info for specific styles
+  } else {
+    // Fallback if the dedicated container isn't there, prepend to the main container
+    const mainPopupContainer = document.querySelector('.container');
+    // Styles for this fallback are now in popup.css under .popup-sync-info-fallback
+    if (mainPopupContainer) mainPopupContainer.insertAdjacentHTML('afterbegin', `<p class="sync-info-message small-text popup-sync-info-fallback">${STRINGS.SYNC_INFO_MESSAGE_POPUP || "For cross-device sync, enable Firefox Sync for add-ons."}</p>`);
+  }
+
   if (await isAndroid()) {
     const container = document.querySelector(".container");
     showAndroidBanner(
@@ -75,7 +87,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         await loadStatus(); // Refresh popup view & process tabs (Android)
 
         // After successful load/process, update local sync time and trigger heartbeat.
-        if (!(await isAndroid())) {
+        if (!isAndroidPlatform) {
           await browser.runtime.sendMessage({ action: "heartbeat" });
         } else { // On Android, heartbeat is part of loadState/getUnifiedState implicitly
             console.log("Android refresh: Heartbeat implicitly handled by getUnifiedState.");
@@ -143,7 +155,7 @@ async function loadStatus() {
     // Validate state
     if (!state) throw new Error("Failed to retrieve extension state.");
     if (state.error) throw new Error(state.error); // Propagate error from background
-
+    console.log("Popup received state:", state); // Log received state for debugging
     // Render UI components
     renderDeviceNameUI(dom.deviceNameSpan, state.instanceName);
     renderSubscriptionsUI(state.subscriptions);

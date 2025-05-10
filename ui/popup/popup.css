@@ -197,6 +197,26 @@ body {
   }
 }
 
+/* Styles for popup.js elements */
+.popup-sync-info { /* For the dedicated syncInfoContainer */
+  /* .small-text class handles font size */
+  margin-top: 5px;
+  padding: 5px;
+  background-color: #f0f0f0; /* Consider var(--main-bg) or a new variable if theming needed */
+  border: 1px solid #e0e0e0; /* Consider var(--main-border) or a new variable */
+  border-radius: 3px;
+  text-align: center;
+}
+
+.popup-sync-info-fallback { /* For the dynamically inserted paragraph */
+  /* .small-text class handles font size */
+  margin-top: 5px;
+  padding: 5px;
+  background-color: #f0f0f0; /* Consider var(--main-bg) or a new variable */
+  border: 1px solid #e0e0e0; /* Consider var(--main-border) or a new variable */
+  border-radius: 3px;
+  text-align: center;
+}
 /* --- Responsive Adjustments --- */
 @media (max-width: 480px) {
   body {

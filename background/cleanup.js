@@ -67,22 +67,18 @@ export async function performStaleDeviceCheck(
   let groupStateMergeSuccess = true;
   if (needsRegistryUpdate) {
     // Nest updates under the correct sync storage key
-    await storage.mergeSyncStorage({ [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: registryUpdates });
-    // Removed ineffective update to cachedDeviceRegistry argument
+    registryMergeSuccess = await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, registryUpdates);
   }
   if (needsGroupStateUpdate) {
     // Nest updates under the correct sync storage key
-    await storage.mergeSyncStorage({ [SYNC_STORAGE_KEYS.GROUP_STATE]: groupStateUpdates });
-    // Removed ineffective update to cachedGroupState argument
+    groupStateMergeSuccess = await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, groupStateUpdates);
   }
   if (needsSubscriptionsUpdate) {
     // Nest updates under the correct sync storage key
-    await storage.mergeSyncStorage({ [SYNC_STORAGE_KEYS.SUBSCRIPTIONS]: subscriptionsUpdates });
+    await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, subscriptionsUpdates);
   }
-  console.log("Stale device check complete.");
+  console.log("Stale device check complete. Registry updated:", registryMergeSuccess.success, "Group state updated:", groupStateMergeSuccess.success);
 }
-
-
 export async function performTimeBasedTaskCleanup(
   localProcessedTasks,
   thresholdMs // Add threshold parameter
@@ -124,10 +120,6 @@ export async function performTimeBasedTaskCleanup(
   if (needsUpdate) {
     // Nest updates under the correct sync storage key
     await storage.mergeSyncStorage({ [SYNC_STORAGE_KEYS.GROUP_TASKS]: groupTasksUpdates });
-    // if (Object.keys(processedTasksUpdates).length !== Object.keys(localProcessedTasks).length) {
-    // localProcessedTasks = processedTasksUpdates;
-    // await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, localProcessedTasks);
-    // }
   }
   // Save the updated local processed tasks if changes were made
   if (processedTasksChanged) {
