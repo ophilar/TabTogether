@@ -186,10 +186,13 @@ describe('Integration: Group and Tab Flow', () => {
 
     jest.resetModules(); // Clear Jest's module cache
 
+    // Re-import instanceModule to ensure it's fresh after resetModules and mock re-config
+    const freshInstanceModule = await import('../core/instance.js');
     // Dynamically import getUnifiedState to ensure it picks up the latest mock configuration
     const { getUnifiedState } = await import('../core/actions.js');
 
     const stateForDeviceB = await getUnifiedState(true); // Corrected: getUnifiedState only takes one argument
+    expect(stateForDeviceB.instanceId).toBe(deviceB_ID); // Add this check
     await processReceivedTabAndVerify(stateForDeviceB, TAB_URL);
   });
 });
