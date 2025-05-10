@@ -111,24 +111,15 @@ if (syncIntervalInput) {
     syncIntervalInput.value = val;
   });
 }
-// Show last sync time
-storage.get(browser.storage.local, "lastSync", null).then((ts) => {
-  if (ts)
-    syncStatus.textContent = "Last sync: " + new Date(ts).toLocaleString();
-});
-
-// --- Advanced Timing Settings ---
-// Logic moved to ui/options/options-advanced-timing.js
-
 // --- Initialization ---
 
 document.addEventListener("DOMContentLoaded", async () => {
   try {
   isAndroidPlatformGlobal = await isAndroid(); // Cache platform info
-
-  const mainOptionsContainer = document.getElementById('your-main-options-container-id'); // Replace with your actual container ID
+  
+  const mainOptionsContainer = document.querySelector('.container'); // Target the main container
   if (mainOptionsContainer) {
-      displaySyncRequirementBanner(mainOptionsContainer);
+      await displaySyncRequirementBanner(mainOptionsContainer, storage); // Pass storage and await
   }
 
   injectSharedUI();
@@ -209,12 +200,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
-  if (syncStatus) { // Check syncStatus before trying to set its textContent
+  // Show last sync time - Moved inside DOMContentLoaded
+  if (syncStatus) { 
     storage.get(browser.storage.local, "lastSync", null).then((ts) => {
       if (ts)
         syncStatus.textContent = "Last sync: " + new Date(ts).toLocaleString();
     });
   }
+  // --- Advanced Timing Settings ---
+  // Logic moved to ui/options/options-advanced-timing.js
 
   if (isAndroidPlatformGlobal) {
     const container = document.querySelector(".container");

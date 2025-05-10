@@ -246,8 +246,8 @@ function renderSendTabGroups(groups) {
   groups.sort().forEach((groupName) => {
     const btn = document.createElement("button");
     btn.textContent = `Send to ${groupName}`;
-    // Apply consistent button classes
-    btn.className = "popup-action-btn send-to-group-button";
+    // Visual styling comes from base button styles (styles.css) and layout from send-to-group-button (popup.css)
+    btn.className = "send-to-group-button";
     btn.title = STRINGS.sendTabToGroup(groupName);
     btn.setAttribute("aria-label", STRINGS.sendTabToGroupAria(groupName));
     btn.tabIndex = 0; // Ensure keyboard accessibility

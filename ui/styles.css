@@ -491,6 +491,21 @@ button.inline-btn {
   margin-bottom: 15px;
   text-align: left;
 }
+.sync-requirement-banner .banner-dismiss-button {
+  background: none;
+  border: none;
+  color: inherit; /* Inherit color from banner text */
+  font-size: 1.1em; /* Make it slightly larger */
+  font-weight: bold;
+  padding: 0 5px;
+  margin-left: 10px;
+  cursor: pointer;
+  float: right; /* Position to the right */
+  opacity: 0.7;
+}
+.sync-requirement-banner .banner-dismiss-button:hover {
+  opacity: 1;
+}
 .sync-requirement-banner .icon { /* If you add an icon span with class="icon" */
   margin-right: 8px;
 }
