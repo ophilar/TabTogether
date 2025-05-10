@@ -932,15 +932,15 @@ describe('utils', () => {
             // Need a child for insertBefore logic
             container.appendChild(document.createElement('span'));
             setLastSyncTime(container, 1234567890000); // Call the function
-            const time1 = container.querySelector('.options-last-sync-time'); // Correct selector
+            const time1 = container.querySelector('.last-sync-time'); // Corrected selector
             expect(time1).not.toBeNull();
             expect(time1.textContent).toContain('Last sync (this view):'); // Updated assertion
 
             setLastSyncTime(container, 1234567891000);
-            const time2 = container.querySelector('.options-last-sync-time'); // Correct selector
+            const time2 = container.querySelector('.last-sync-time'); // Corrected selector
             expect(time2).not.toBeNull();
             expect(time2.textContent).toContain('Last sync (this view):'); // Updated assertion
-            expect(container.querySelectorAll('.options-last-sync-time').length).toBe(1); // Corrected selector
+            expect(container.querySelectorAll('.last-sync-time').length).toBe(1); // Corrected selector
         });
 
         test('showDebugInfo displays debug info', () => {

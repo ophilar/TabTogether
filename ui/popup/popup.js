@@ -10,13 +10,8 @@ import {
   showLoadingIndicator,
   showMessage,
   injectSharedUI } from "../shared/shared-ui.js";
-import { applyThemeFromStorage } from "../shared/theme.js"; // Corrected path
-
-function renderDeviceNameUI(container, name) { // Keep as local helper or move to popup-ui.js if it grows
-  if (container) {
-    container.textContent = name || STRINGS.deviceNameNotSet;
-  }
-}
+import { applyThemeFromStorage } from "../shared/theme.js";
+import { renderDeviceName } from "../options/options-ui.js"; 
 
 // Cache DOM elements at the top for repeated use
 const dom = {
@@ -156,7 +151,7 @@ async function loadStatus() {
     if (state.error) throw new Error(state.error); // Propagate error from background
     console.log("Popup received state:", state); // Log received state for debugging
     // Render UI components
-    renderDeviceNameUI(dom.deviceNameSpan, state.instanceName);
+    renderDeviceName(dom.deviceNameSpan, state.instanceName); // Use imported function
     renderSubscriptionsUI(state.subscriptions);
     renderSendTabGroups(state.definedGroups); // Uses the combined button approach
   } catch (error) {
