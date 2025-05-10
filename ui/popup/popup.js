@@ -1,4 +1,4 @@
-import { STRINGS, LOCAL_STORAGE_KEYS } from "../../common/constants.js"; // Added LOCAL_STORAGE_KEYS
+import { STRINGS, LOCAL_STORAGE_KEYS, SYNC_STORAGE_KEYS } from "../../common/constants.js"; // Added SYNC_STORAGE_KEYS
 import { storage } from "../../core/storage.js";
 import { isAndroid } from "../../core/platform.js";
 import { getUnifiedState } from "../../core/actions.js";
@@ -265,7 +265,7 @@ async function sendTabToGroup(groupName) {
     // Send differently based on platform
     if (await isAndroid()) {
       const instanceId = await getInstanceId();
-      response = await createAndStoreGroupTask(groupName, tabData, instanceId);
+      response = await createAndStoreGroupTask(groupName, tabData, instanceId, await getRecipientDeviceIdsForGroup(groupName, instanceId));
     } else {
       // Send message to background script for desktop platforms
       response = await browser.runtime.sendMessage({
@@ -308,4 +308,28 @@ function showSendStatus(message, isError) {
     statusArea.textContent = "";
     statusArea.classList.remove("error", "success");
   }, 3000); // 3-second display duration
+}
+
+/**
+ * Helper to get recipient device IDs for a group, excluding the sender.
+ * @param {string} groupName
+ * @param {string} senderDeviceId
+ * @returns {Promise<string[]|null>}
+ */
+async function getRecipientDeviceIdsForGroup(groupName, senderDeviceId) {
+    let recipientDeviceIds = [];
+    try {
+        const allSubscriptionsSync = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS_SYNC, {});
+        const deviceRegistry = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
+        for (const deviceId in allSubscriptionsSync) {
+            if (deviceId === senderDeviceId) continue;
+            if (allSubscriptionsSync[deviceId] && allSubscriptionsSync[deviceId].includes(groupName) && deviceRegistry[deviceId]) {
+                recipientDeviceIds.push(deviceId);
+            }
+        }
+        return recipientDeviceIds.length > 0 ? recipientDeviceIds : null; // Return null if no other recipients
+    } catch (e) {
+        console.error("Error determining recipients for group:", e);
+        return null; // Let createAndStoreGroupTask handle null as "all in group" (excluding sender)
+    }
 }
