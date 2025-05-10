@@ -25,23 +25,18 @@ export async function processIncomingTabsAndroid(currentState) {
       for (const taskId in tasksInGroupObject) {
         const task = tasksInGroupObject[taskId];
 
-        // 1. Skip if sent by self
-        if (task.senderDeviceId === localInstanceId) {
-            continue;
-        }
+        // Determine if the task should be skipped
+        const sentBySelf = task.senderDeviceId === localInstanceId;
+        const alreadyProcessed = localProcessedTasks[taskId];
+        // Check if recipients are specified and this device is not among them
+        const notDesignatedRecipient = task.recipientDeviceIds &&
+                                     Array.isArray(task.recipientDeviceIds) &&
+                                     task.recipientDeviceIds.length > 0 &&
+                                     !task.recipientDeviceIds.includes(localInstanceId);
 
-        // 2. Skip if already processed locally
-        if (localProcessedTasks[taskId]) {
-            continue;
+        if (sentBySelf || alreadyProcessed || notDesignatedRecipient) {
+          continue;
         }
-
-        // 3. Skip if recipients are specified and this device is not one of them
-        if (task.recipientDeviceIds && Array.isArray(task.recipientDeviceIds) && task.recipientDeviceIds.length > 0) {
-            if (!task.recipientDeviceIds.includes(localInstanceId)) {
-                continue;
-            }
-        }
-        // If no recipientDeviceIds, it's for all subscribed members of the group (excluding sender)
 
         // Open the tab
         try {
@@ -91,12 +86,9 @@ export async function createAndStoreGroupTask(groupName, tabData, senderDeviceId
     title: tabData.title || tabData.url,
     senderDeviceId: senderDeviceId,
     creationTimestamp: Date.now(),
+    // Conditionally add recipientDeviceIds if it's a valid, non-empty array
+    ...(recipientDeviceIds && Array.isArray(recipientDeviceIds) && recipientDeviceIds.length > 0 && { recipientDeviceIds }),
   };
-
-  // Only add recipientDeviceIds if it's a non-empty array
-  if (recipientDeviceIds && Array.isArray(recipientDeviceIds) && recipientDeviceIds.length > 0) {
-    newTaskData.recipientDeviceIds = recipientDeviceIds;
-  }
 
   allGroupTasks[groupName][taskId] = newTaskData;
 
