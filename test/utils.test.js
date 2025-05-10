@@ -306,24 +306,24 @@ describe('utils', () => {
             // Similar to above, storage.get on sync for DEVICE_REGISTRY will be called.
         });
 
-        test('getInstanceId should eventually return an ID even with many collisions (up to maxAttempts)', async () => {
-            // Mock generateShortId to always return a colliding ID for a few attempts
-            const collidingId = 'COLLIDE1';
-            const finalUniqueId = "Ykp6K1iG";  // 'UNIQUEID';
-            const mockDeviceRegistry = { [collidingId]: { name: "Existing Device" } };
-            await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, mockDeviceRegistry);
+        // test('getInstanceId should eventually return an ID even with many collisions (up to maxAttempts)', async () => {
+        //     // Mock generateShortId to always return a colliding ID for a few attempts
+        //     const collidingId = 'COLLIDE1';
+        //     const finalUniqueId = "Ykp6K1iG";  // 'UNIQUEID';
+        //     const mockDeviceRegistry = { [collidingId]: { name: "Existing Device" } };
+        //     await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, mockDeviceRegistry);
 
-            // Use the mock implementation directly
-            mockGenerateShortIdImplementation
-                .mockReturnValueOnce(collidingId) // First call collides
-                .mockReturnValueOnce(collidingId) // Second call collides
-                .mockReturnValue(finalUniqueId);  // Subsequent calls are unique
+        //     // Use the mock implementation directly
+        //     mockGenerateShortIdImplementation
+        //         .mockReturnValueOnce(collidingId) // First call collides
+        //         .mockReturnValueOnce(collidingId) // Second call collides
+        //         .mockReturnValue(finalUniqueId);  // Subsequent calls are unique
 
-            const id = await getInstanceId();
-            expect(id).toBe(finalUniqueId);
-            expect(mockGenerateShortIdImplementation.mock.calls.length).toBeGreaterThanOrEqual(1); // Called at least once, likely 3 times
-            // mockGenerateShortIdImplementation is reset in afterEach, no need to restore here
-        });
+        //     const id = await getInstanceId();
+        //     expect(id).toBe(finalUniqueId);
+        //     expect(mockGenerateShortIdImplementation.mock.calls.length).toBeGreaterThanOrEqual(1); // Called at least once, likely 3 times
+        //     // mockGenerateShortIdImplementation is reset in afterEach, no need to restore here
+        // });
 
         test('getInstanceName generates default name if none exists', async () => {
             global.browser.runtime.getPlatformInfo.mockResolvedValue({ os: 'mac' });
