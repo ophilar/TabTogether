@@ -212,10 +212,10 @@ export function createInlineEditControlsUI(currentValue, onSaveCallback, onCance
 export function setLastSyncTimeUI(containerElement, timestamp) {
   if (!containerElement) return;
 
-  let syncTimeDiv = containerElement.querySelector(".options-last-sync-time");
+  let syncTimeDiv = containerElement.querySelector(".last-sync-time"); // Corrected selector
   if (!syncTimeDiv) { // Styles moved to styles.css
     syncTimeDiv = document.createElement("div");
-    syncTimeDiv.className = "options-last-sync-time small-text"; // Use a specific class
+    syncTimeDiv.className = "last-sync-time small-text"; // Standardize to last-sync-time
     syncTimeDiv.style.marginBottom = "7px"; // Example style
     // Prepend to a specific section if available, or just the container
     const androidInfoSection = containerElement.querySelector('#androidSpecificInfo'); // Assuming such an ID exists in options.html
