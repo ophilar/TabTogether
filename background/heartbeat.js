@@ -15,8 +15,7 @@ export async function performHeartbeat(
     [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: { // Nest the update under DEVICE_REGISTRY
       [localInstanceId]: {
         name: localInstanceName,
-        lastSeen: Date.now(),
-        // groupBits removed
+        lastSeen: Date.now()
       },
     },
   };
