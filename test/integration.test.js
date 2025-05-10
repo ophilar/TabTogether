@@ -1,18 +1,25 @@
 import { jest } from '@jest/globals';
 
+// Import actual functions from 'core/instance' before mocking the module if needed
+const { _clearInstanceIdCache: clearInstanceIdCacheActual } = jest.requireActual('../core/instance.js');
+
+// Mock the core/instance module
+jest.mock('../core/instance.js', () => ({
+  __esModule: true, // Important for ES modules
+  getInstanceId: jest.fn(),
+  // Note: _clearInstanceIdCache is NOT mocked here because we are using the actual one obtained above.
+  // If other functions from instance.js were used via `instanceModule.otherFunction()`,
+  // they would also need to be explicitly mocked, or the entire actual module spread
+  // (e.g., ...jest.requireActual('../core/instance.js')) and then getInstanceId overridden.
+  // For this specific test suite, only getInstanceId from the mocked 'instanceModule' is critical.
+}));
+
+// Now, import everything else, including the mocked instanceModule
 import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from '../common/constants.js';
 import { createGroupDirect, subscribeToGroupDirect, unsubscribeFromGroupDirect, deleteGroupDirect, getUnifiedState } from '../core/actions.js';
 import { processIncomingTabsAndroid } from '../core/tasks.js';
 import { storage } from '../core/storage.js';
 import { showDebugInfoUI } from '../ui/options/options-ui.js'; // Assuming this is where showDebugInfo moved
-import { _clearInstanceIdCache as clearInstanceIdCacheActual } from '../core/instance.js';
-
-// Mock the core/instance module
-jest.mock('../core/instance.js', () => ({
-  // Mock other functions from this module if needed, otherwise they'll be undefined
-  getInstanceId: jest.fn(),
-}));
-
 // Import the mocked module. instanceModule will now be the object returned by the mock factory.
 import * as instanceModule from '../core/instance.js';
 
