@@ -7,10 +7,10 @@ import { storage } from '../core/storage.js';
 import { showDebugInfoUI } from '../ui/options/options-ui.js'; // Assuming this is where showDebugInfo moved
 import { _clearInstanceIdCache as clearInstanceIdCacheActual } from '../core/instance.js';
 
-// Mock the instance module
+// Mock the core/instance module
 jest.mock('../core/instance.js', () => ({
-  ...jest.requireActual('../core/instance.js'), // Import and retain actual implementations
-  getInstanceId: jest.fn(() => Promise.resolve('default-mock-id')), // Mock getInstanceId specifically, provide a default mock implementation
+  // Mock other functions from this module if needed, otherwise they'll be undefined
+  getInstanceId: jest.fn(),
 }));
 
 // Import the mocked module. instanceModule will now be the object returned by the mock factory.

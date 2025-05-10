@@ -1,4 +1,4 @@
-import { STRINGS, LOCAL_STORAGE_KEYS, SYNC_STORAGE_KEYS } from "../../common/constants.js"; // Added SYNC_STORAGE_KEYS
+import { STRINGS, SYNC_STORAGE_KEYS } from "../../common/constants.js"; // Added SYNC_STORAGE_KEYS
 import { storage } from "../../core/storage.js";
 import { isAndroid } from "../../core/platform.js";
 import { getUnifiedState } from "../../core/actions.js";
@@ -6,7 +6,7 @@ import { processIncomingTabsAndroid, createAndStoreGroupTask } from "../../core/
 import { getInstanceId } from "../../core/instance.js";
 import {
   showAndroidBanner,
-  setLastSyncTimeUI as setLastSyncTime, // Alias to match existing usage
+  setLastSyncTime, // Import the correct function name
   showLoadingIndicator,
   showMessage,
   injectSharedUI } from "../shared/shared-ui.js";
@@ -318,7 +318,7 @@ function showSendStatus(message, isError) {
 async function getRecipientDeviceIdsForGroup(groupName, senderDeviceId) {
     let recipientDeviceIds = [];
     try {
-        const allSubscriptionsSync = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS_SYNC, {});
+        const allSubscriptionsSync = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {});
         const deviceRegistry = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
         for (const deviceId in allSubscriptionsSync) {
             if (deviceId === senderDeviceId) continue;

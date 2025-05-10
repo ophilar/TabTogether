@@ -13,14 +13,12 @@ import {
 import { storage } from "../../core/storage.js";
 import { processIncomingTabsAndroid } from "../../core/tasks.js";
 import { debounce } from "../../common/utils.js";
-import { injectSharedUI } from "../shared/shared-ui.js";
-import { applyThemeFromStorage, setupThemeDropdown } from "../shared/theme.js";
-import {
-  showAndroidBanner,
+import { injectSharedUI, showAndroidBanner,
   showLoadingIndicator,
   showMessage,
   clearMessage,
-} from "../shared/ui-helpers.js";
+ } from "../shared/shared-ui.js";
+import { applyThemeFromStorage, setupThemeDropdown } from "../shared/theme.js";
 import {
   renderDeviceRegistryUI,
   renderGroupListUI,
