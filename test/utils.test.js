@@ -1,11 +1,10 @@
 import { jest } from '@jest/globals';
 
-import { STRINGS, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from '../common/constants.js';
+import { STRINGS, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, MAX_DEVICES_PER_GROUP } from '../common/constants.js';
 import { deepMerge, isObject as isObjectUtil, ensureObject, ensureArray, ensureString } from '../common/utils.js';
 import { storage, addToList, removeFromList, renameInList, updateObjectKey, removeObjectKey } from '../core/storage.js';
-import { getInstanceId, getInstanceName, _clearInstanceIdCache } from '../core/instance.js';
+import { getInstanceId, getInstanceName, _clearInstanceIdCache, _clearInstanceNameCache, generateShortId as generateShortIdActual } from '../core/instance.js';
 import { getPlatformInfoCached, isAndroid, _clearPlatformInfoCache } from '../core/platform.js'; // Import cache clearer
-import { getNextAvailableBitPosition, MAX_DEVICES_PER_GROUP } from '../core/bitmask.js';
 import { createGroupDirect, renameGroupDirect, deleteGroupDirect, subscribeToGroupDirect, unsubscribeFromGroupDirect, renameDeviceDirect, deleteDeviceDirect } from '../core/actions.js';
 import { processIncomingTabsAndroid, createAndStoreGroupTask } from '../core/tasks.js';
 import { performHeartbeat } from '../background/heartbeat.js';
@@ -69,6 +68,7 @@ describe('utils', () => {
         if (mockStorage._getStore) {
             delete mockStorage._getStore().platformInfo;
             _clearInstanceIdCache(); // Clear instance ID cache as well
+            _clearInstanceNameCache(); // Clear instance name cache
             _clearPlatformInfoCache(); // Clear platform info cache
         }
         // global.browser.runtime.getPlatformInfo.mockResolvedValue({ os: 'win' });
@@ -223,11 +223,12 @@ describe('utils', () => {
     // --- Instance ID/Name ---
     describe('Instance ID/Name', () => {
         test('getInstanceId generates new ID if none exists', async () => {
+            // getInstanceId now generates short IDs and checks DEVICE_REGISTRY
+            await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {}); // Ensure registry is empty for collision check
             const id = await getInstanceId(); // Call without argument
-            expect(id).toBe('mock-uuid-1234');
+            expect(id).toHaveLength(8); // Assuming SHORT_ID_LENGTH is 8
             // Check it saves the new ID ONLY to local storage
-            expect(globalThis.crypto.randomUUID).toHaveBeenCalledTimes(1); // Ensure UUID was generated
-            expect(mockStorage.set).toHaveBeenCalledWith({ [LOCAL_STORAGE_KEYS.INSTANCE_ID]: 'mock-uuid-1234' });
+            expect(mockStorage.set).toHaveBeenCalledWith({ [LOCAL_STORAGE_KEYS.INSTANCE_ID]: id });
             expect(mockSyncStorage.set).not.toHaveBeenCalled();
         });
 
@@ -235,27 +236,31 @@ describe('utils', () => {
             mockStorage._getStore()[LOCAL_STORAGE_KEYS.INSTANCE_ID] = 'local-id';
             const id = await getInstanceId(); // Call without argument
             expect(id).toBe('local-id');
-            expect(globalThis.crypto.randomUUID).not.toHaveBeenCalled(); // Ensure UUID was NOT generated
             // Check it doesn't try to write to sync storage
             expect(mockSyncStorage.set).not.toHaveBeenCalled();
         });
 
-        test('getInstanceId retrieves from sync storage if local is empty', async () => {
-            // This scenario is no longer valid - ID is local only
-            // mockSyncStorage._getStore()[LOCAL_STORAGE_KEYS.INSTANCE_ID] = 'sync-id';
+        test('getInstanceId generates unique short ID on collision', async () => {
+            const existingId = generateShortIdActual(); // Use actual generator for realism
+            await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, { [existingId]: { name: "Existing Device" } });
+
             const id = await getInstanceId(); // Call without argument
-            expect(id).toBe('mock-uuid-1234'); // Should generate a new one if local is empty
-            expect(globalThis.crypto.randomUUID).toHaveBeenCalledTimes(1); // Ensure UUID was generated
-            expect(mockStorage.set).toHaveBeenCalledWith({ [LOCAL_STORAGE_KEYS.INSTANCE_ID]: 'mock-uuid-1234' });
+            expect(id).toHaveLength(8);
+            expect(id).not.toBe(existingId); // Should be different from the one in registry
+            expect(mockStorage.set).toHaveBeenCalledWith({ [LOCAL_STORAGE_KEYS.INSTANCE_ID]: id });
             expect(mockSyncStorage.set).not.toHaveBeenCalled();
         });
 
         test('getInstanceName generates default name if none exists', async () => {
             global.browser.runtime.getPlatformInfo.mockResolvedValue({ os: 'mac' });
+            // Ensure instanceId is set for getInstanceName to query registry
+            const mockId = 'test-inst-id';
+            await storage.set(mockStorage, LOCAL_STORAGE_KEYS.INSTANCE_ID, mockId);
+            await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {}); // Empty registry
+
             const name = await getInstanceName();
-            expect(name).toBe('My Device'); // Default fallback if not in registry
-            // getInstanceName does not call getPlatformInfo if it falls back to default "My Device"
-            expect(global.browser.runtime.getPlatformInfo).not.toHaveBeenCalled();
+            expect(name).toBe('Mac Device'); // Now generates platform specific default
+            expect(global.browser.runtime.getPlatformInfo).toHaveBeenCalled();
             // Check it saves to local storage
             // expect(mockStorage.set).toHaveBeenCalledWith(LOCAL_STORAGE_KEYS.INSTANCE_NAME_OVERRIDE, 'My Device'); // No longer sets default locally
             // Check it attempts to update the deviceRegistry in sync storage
@@ -264,31 +269,32 @@ describe('utils', () => {
 
         test('getInstanceName handles windows platform name', async () => {
             global.browser.runtime.getPlatformInfo.mockResolvedValue({ os: 'win' });
+            const mockId = 'test-inst-id-win';
+            await storage.set(mockStorage, LOCAL_STORAGE_KEYS.INSTANCE_ID, mockId);
+            await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
+
             const name = await getInstanceName();
-            expect(name).toBe('My Device'); // Default fallback if not in registry
-            // getInstanceName does not call getPlatformInfo if it falls back to default "My Device"
-            expect(global.browser.runtime.getPlatformInfo).not.toHaveBeenCalled();
+            expect(name).toBe('Windows Device');
+            expect(global.browser.runtime.getPlatformInfo).toHaveBeenCalled();
             // expect(mockStorage.set).toHaveBeenCalledWith(LOCAL_STORAGE_KEYS.INSTANCE_NAME_OVERRIDE, 'My Device');
             // This is now handled by getUnifiedState or heartbeat
         });
 
-        test('getInstanceName retrieves from local storage first', async () => {
-            // This test needs to be adapted. getInstanceName now primarily checks SYNC_STORAGE_KEYS.DEVICE_REGISTRY
-            await mockSyncStorage.set({ [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: { 'mock-uuid-1234': { name: 'Registry Name' } } });
-            // Ensure instanceId is set locally so getInstanceId returns the expected ID
-            await storage.set(mockStorage, LOCAL_STORAGE_KEYS.INSTANCE_ID, 'mock-uuid-1234');
+        test('getInstanceName retrieves from local override first', async () => {
+            await storage.set(mockStorage, LOCAL_STORAGE_KEYS.INSTANCE_NAME_OVERRIDE, 'Local Override Name');
             const name = await getInstanceName();
-            expect(name).toBe('Registry Name');
-            expect(global.browser.runtime.getPlatformInfo).not.toHaveBeenCalled();
+            expect(name).toBe('Local Override Name');
+            expect(global.browser.runtime.getPlatformInfo).not.toHaveBeenCalled(); // Shouldn't need platform info
         });
 
-        test('getInstanceName retrieves from sync storage if local is empty', async () => {
-            // This scenario is no longer valid - name is cached locally, source of truth is registry (handled by heartbeat)
-            // Default name generation requires platform info
-            // platformInfoSpy = jest.spyOn(utils, 'getPlatformInfoCached').mockResolvedValue({ os: 'win' });
-            const name = await getInstanceName(); // Should trigger default name logic if not in registry
-            expect(name).toBe('My Device'); // Should generate default if local is empty
-            // getPlatformInfo is not directly called by getInstanceName anymore for default name generation
+        test('getInstanceName retrieves from sync registry if local override is empty', async () => {
+            const mockId = 'id-for-registry';
+            // Ensure instanceId is set locally so getInstanceId returns the expected ID
+            await storage.set(mockStorage, LOCAL_STORAGE_KEYS.INSTANCE_ID, mockId);
+            await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, { [mockId]: { name: 'Registry Name' } });
+
+            const name = await getInstanceName();
+            expect(name).toBe('Registry Name');
         });
     });
 
@@ -339,12 +345,6 @@ describe('utils', () => {
             expect(info).toEqual({ os: 'fetched-os' });
             expect(global.browser.runtime.getPlatformInfo).toHaveBeenCalledTimes(1);
             // No longer caches in browser.storage.local, uses module-level variable
-        });
-
-        test('getNextAvailableBitPosition finds first zero bit', () => {
-            // This function is now a placeholder, so the test might not be meaningful
-            // until it's fully implemented.
-            expect(getNextAvailableBitPosition(0b0000)).toBe(-1); // Placeholder returns -1
         });
     });
 
@@ -413,38 +413,26 @@ describe('utils', () => {
             expect(await storage.get(mockSyncStorage, SYNC_STORAGE_KEYS.DEFINED_GROUPS)).not.toContain('G2');
         });
 
-        test('subscribe/unsubscribe affects local and sync storage', async () => {
+        test('subscribe/unsubscribe affects sync storage', async () => {
             // Setup
             await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.DEFINED_GROUPS, ['TestGroup']);
-            await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {}); // Use storage.set for consistency
+            await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.SUBSCRIPTIONS_SYNC, {});
             await storage.set(mockStorage, LOCAL_STORAGE_KEYS.INSTANCE_ID, 'device-sub-test'); // Correct key for instanceId
             await storage.set(mockStorage, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
-            await storage.set(mockStorage, LOCAL_STORAGE_KEYS.GROUP_BITS, {});
-
 
             // Subscribe
             const subRes = await subscribeToGroupDirect('TestGroup');
             expect(subRes.success).toBe(true);
-            // We verify by checking the subscriptions storage
-            const subscriptionsAfterSub = await storage.get(mockSyncStorage, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {}); // Add default
+            const subscriptionsAfterSub = await storage.get(mockSyncStorage, SYNC_STORAGE_KEYS.SUBSCRIPTIONS_SYNC, {});
             expect(subscriptionsAfterSub['device-sub-test']).toContain('TestGroup'); // This should now work
-            // Add default to storage.get in test just in case
-            // Check local storage
-            // subscribeToGroupDirect updates sync storage. Local state is updated by other mechanisms (e.g. getUnifiedState)
-            // For this direct test, we focus on sync storage.
-
-            // Check sync storage
-            // The groupState and deviceRegistry.groupBits are managed by background processes, not directly by subscribeToGroupDirect
+            // Local subscriptions are updated by the background script message handler, not by Direct actions.
 
             // Unsubscribe
             const unsubRes = await unsubscribeFromGroupDirect('TestGroup');
             expect(unsubRes.success).toBe(true);
 
-            // Check local storage
-            // Similar to subscribe, local state is not directly managed by unsubscribeFromGroupDirect
-
             // Check sync storage
-            const subscriptionsAfterUnsub = await storage.get(mockSyncStorage, SYNC_STORAGE_KEYS.SUBSCRIPTIONS);
+            const subscriptionsAfterUnsub = await storage.get(mockSyncStorage, SYNC_STORAGE_KEYS.SUBSCRIPTIONS_SYNC);
             expect(subscriptionsAfterUnsub['device-sub-test']).not.toContain('TestGroup');
         });
 
@@ -498,14 +486,12 @@ describe('utils', () => {
         test('performHeartbeat merges correct data into deviceRegistry', async () => {
             const instanceId = 'test-id-1';
             const instanceName = 'Test Device';
-            const subscriptionsForHeartbeat = { groupA: true, groupB: true };
-            // groupBits are no longer directly passed to performHeartbeat; it gets them from subscriptions.
             const initialRegistry = {
                 'other-id': { name: 'Other', lastSeen: Date.now() - 10000 }
             };
             await mockSyncStorage.set({ [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: initialRegistry }); // Set initial state
             const beforeTimestamp = Date.now();
-            await performHeartbeat(instanceId, instanceName, subscriptionsForHeartbeat, {}); // Pass subscriptions and empty cache
+            await performHeartbeat(instanceId, instanceName); // No longer passes groupBits
             const afterTimestamp = Date.now(); // Capture time after the async call
 
             const registry = await storage.get(mockSyncStorage, SYNC_STORAGE_KEYS.DEVICE_REGISTRY);
@@ -513,12 +499,10 @@ describe('utils', () => {
             expect(registry['other-id']).toEqual(initialRegistry['other-id']);
             expect(registry[instanceId]).toBeDefined(); // This should now pass
             expect(registry[instanceId].name).toBe(instanceName);
-            expect(registry[instanceId].groupBits).toEqual(subscriptionsForHeartbeat); // Assert against the input subscriptions
+            expect(registry[instanceId].groupBits).toBeUndefined(); // groupBits removed
             expect(registry[instanceId].lastSeen).toBeGreaterThanOrEqual(beforeTimestamp);
             expect(registry[instanceId].lastSeen).toBeLessThanOrEqual(afterTimestamp);
 
-            // Check merge was called correctly (via storage.set in mergeSyncStorage)
-            // performHeartbeat calls storage.mergeSyncStorage which calls browser.storage.sync.set
             expect(mockSyncStorage.set).toHaveBeenCalledWith(expect.objectContaining({
                 [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: expect.objectContaining({
                     [instanceId]: expect.objectContaining({ // Check the specific device update within the merged object
@@ -530,7 +514,7 @@ describe('utils', () => {
         });
 
         test('performHeartbeat handles missing instanceId', async () => {
-            await performHeartbeat(null, 'Test Name', {}, {});
+            await performHeartbeat(null, 'Test Name');
             expect(mockSyncStorage.set).not.toHaveBeenCalled();
             expect(console.warn).toHaveBeenCalledWith("Heartbeat skipped: Instance ID not available yet.");
         });
@@ -541,20 +525,18 @@ describe('utils', () => {
             const recentTime = now - (1000 * 60 * 60); // 1 hour ago
             // Set initial state explicitly for each top-level key
             await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {
-                'stale-id': { name: 'Stale', lastSeen: staleTime, groupBits: { G1: 1, G2: 4 } }, // Add groupBits for full test
-                'recent-id': { name: 'Recent', lastSeen: recentTime, groupBits: { G1: 2 } }
+                'stale-id': { name: 'Stale', lastSeen: staleTime },
+                'recent-id': { name: 'Recent', lastSeen: recentTime }
             });
-            await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {
+            await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.SUBSCRIPTIONS_SYNC, {
                 'stale-id': ['G1', 'G2'],
                 'recent-id': ['G1']
             });
-            await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.GROUP_STATE, { // Ensure groupState is also set for mask updates
-                G1: { assignedMask: 1 | 2 }, G2: { assignedMask: 4 }
-            });
+            // GROUP_STATE no longer has assignedMask
 
             await performStaleDeviceCheck(undefined, undefined, 1000 * 60 * 60 * 24 * 30); // Pass threshold correctly
             const finalRegistry = await storage.get(mockSyncStorage, SYNC_STORAGE_KEYS.DEVICE_REGISTRY);
-            const finalSubscriptions = await storage.get(mockSyncStorage, SYNC_STORAGE_KEYS.SUBSCRIPTIONS);
+            const finalSubscriptions = await storage.get(mockSyncStorage, SYNC_STORAGE_KEYS.SUBSCRIPTIONS_SYNC);
 
             expect(finalRegistry['stale-id']).toBeUndefined();
             expect(finalRegistry['recent-id']).toBeDefined();
@@ -568,8 +550,8 @@ describe('utils', () => {
             await mockSyncStorage.set({
                 [SYNC_STORAGE_KEYS.GROUP_TASKS]: {
                     G1: {
-                        'expired-task': { url: 'a', title: 'A', senderDeviceId: 'dev1', processedBy: {}, creationTimestamp: expiredTime },
-                        'recent-task': { url: 'b', title: 'B', senderDeviceId: 'dev2', processedBy: {}, creationTimestamp: recentTime }
+                        'expired-task': { url: 'a', title: 'A', senderDeviceId: 'dev1', processedByDeviceIds: [], creationTimestamp: expiredTime },
+                        'recent-task': { url: 'b', title: 'B', senderDeviceId: 'dev2', processedByDeviceIds: [], creationTimestamp: recentTime }
                     }
                 }
             });
@@ -685,11 +667,13 @@ describe('utils', () => {
         });
 
         test('renderGroupList renders groups and buttons correctly', () => {
-            const onSubscribe = jest.fn();
-            const onUnsubscribe = jest.fn();
-            const onDelete = jest.fn();
-            const onRename = jest.fn();
-            renderGroupList(container, ['G1', 'G2'], ['G2'], onSubscribe, onUnsubscribe, onDelete, onRename);
+            const mockHandlers = {
+                handleSubscribe: jest.fn(),
+                handleUnsubscribe: jest.fn(),
+                handleDeleteGroup: jest.fn(),
+                startRenameGroup: jest.fn()
+            };
+            renderGroupList(container, ['G1', 'G2'], ['G2'], mockHandlers);
 
             const items = container.querySelectorAll('li');
             expect(items.length).toBe(2);
@@ -710,18 +694,18 @@ describe('utils', () => {
 
             // Simulate clicks
             if (subBtn) subBtn.click();
-            expect(onSubscribe).toHaveBeenCalledTimes(1);
+            expect(mockHandlers.handleSubscribe).toHaveBeenCalledTimes(1);
 
             if (unsubBtn) unsubBtn.click();
-            expect(onUnsubscribe).toHaveBeenCalledTimes(1);
+            expect(mockHandlers.handleUnsubscribe).toHaveBeenCalledTimes(1);
 
             const g1DeleteBtn = g1Item.querySelector('.danger'); // Correct selector
             g1DeleteBtn.click();
-            expect(onDelete).toHaveBeenCalledTimes(1);
+            expect(mockHandlers.handleDeleteGroup).toHaveBeenCalledTimes(1);
 
             const g2NameSpan = g2Item.querySelector('.group-name-label');
             g2NameSpan.click();
-            expect(onRename).toHaveBeenCalledTimes(1);
+            expect(mockHandlers.startRenameGroup).toHaveBeenCalledTimes(1);
         });
 
         test('renderDeviceName fallback', () => {

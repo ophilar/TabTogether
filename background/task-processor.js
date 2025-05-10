@@ -11,17 +11,18 @@ import { getInstanceId } from '../core/instance.js'; // To identify self
  * @param {object} allGroupTasksFromStorage - The complete GROUP_TASKS object from sync storage.
  *                                         Format: { groupName: { taskId: taskData, ... }, ... }
  */
-export async function processIncomingTasks(allGroupTasksFromStorage) {
+export async function processIncomingTasks(allGroupTasksFromStorage) { // Returns array of processed tab details
     console.log('TaskProcessor: Processing incoming tasks from storage change...');
     if (!allGroupTasksFromStorage || typeof allGroupTasksFromStorage !== 'object' || Object.keys(allGroupTasksFromStorage).length === 0) {
         console.log('TaskProcessor: No group tasks found in storage or tasks object is empty.');
-        return;
+        return [];
     }
 
     const localInstanceId = await getInstanceId();
     const localSubscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
     let localProcessedTasks = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, {});
     let newTasksProcessedThisRun = false;
+    const openedTabsDetails = []; // Array to store details of successfully opened tabs
 
     for (const groupName in allGroupTasksFromStorage) {
         if (!localSubscriptions.includes(groupName)) {
@@ -48,6 +49,7 @@ export async function processIncomingTasks(allGroupTasksFromStorage) {
                 console.log(`TaskProcessor: Opening tab for task ${taskId} from group ${groupName}: ${taskData.url}`);
                 await browser.tabs.create({ url: taskData.url, active: false });
                 localProcessedTasks[taskId] = Date.now(); // Mark as processed with timestamp
+                openedTabsDetails.push({ title: taskData.title, url: taskData.url, groupName: groupName });
                 newTasksProcessedThisRun = true;
             } catch (error) {
                 console.error(`TaskProcessor: Failed to open tab for task ${taskId} (${taskData.url}):`, error);
@@ -61,4 +63,5 @@ export async function processIncomingTasks(allGroupTasksFromStorage) {
     } else {
         console.log('TaskProcessor: No new tasks were processed in this run.');
     }
+    return openedTabsDetails;
 }

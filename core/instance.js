@@ -7,6 +7,18 @@ import { getPlatformInfoCached } from "./platform.js"; // Import missing functio
 let instanceIdCache = null;
 let instanceNameCache = null; // Add cache for instance name
 
+const SHORT_ID_LENGTH = 8; // Length of the new device IDs
+
+// Export for testing or other utility purposes if needed
+export function generateShortId(length = SHORT_ID_LENGTH) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
 /**
  * Gets the unique ID for this browser instance.
  * Generates and stores it if not already present.
@@ -18,9 +30,21 @@ export async function getInstanceId() {
   }
   let id = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID);
   if (!id) {
-    // Ensure crypto.randomUUID is available, provide fallback if in a weird environment
-    id = globalThis.crypto?.randomUUID?.() || `fallback-uuid-${Date.now()}-${Math.random()}`;
-    await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID, id);
+    let attempts = 0;
+    const maxAttempts = 10; // Prevent infinite loop in extreme (unlikely) collision scenarios
+    let newId;
+    let isUnique = false;
+    const deviceRegistry = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
+
+    while (!isUnique && attempts < maxAttempts) {
+      newId = generateShortId();
+      if (!deviceRegistry[newId]) {
+        isUnique = true;
+      }
+      attempts++;
+    }
+    id = newId; // Use the generated short ID
+    await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_ID, id); // Store the short ID
   }
   instanceIdCache = id;
   return id;
