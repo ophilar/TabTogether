@@ -32,8 +32,8 @@
 
 /* Specific icon definitions */
 .sync-icon-settings {
-  --icon-url: url('../icons/settings.svg');
+  --icon-url: url('../../icons/settings.svg'); /* Corrected path */
 }
 .sync-icon-refresh {
-  --icon-url: url('../icons/sync_arrows.svg');
+  --icon-url: url('../../icons/sync_arrows.svg'); /* Corrected path */
 }

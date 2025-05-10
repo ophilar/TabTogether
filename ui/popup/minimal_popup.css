@@ -1,0 +1,76 @@
+/* d:\OneDrive\Documents\GitHub\TabTogether\ui\popup\minimal-popup.css */
+body {
+    min-width: 300px; /* Ensure popup has some width */
+    padding: 10px;
+    margin: 0;
+    font-family: sans-serif;
+    background-color: #f0f0f0; /* Light grey to see if body is there */
+    color: #333; /* Dark text to see if text is there */
+    border: 2px solid orange; /* Make body itself visible */
+}
+
+.container {
+    border: 2px solid blue !important; /* Make container visible */
+    padding: 10px !important;
+    background-color: white !important;
+    min-height: 50px; /* Ensure it has some height */
+}
+
+/* Force normally hidden elements to be visible for testing */
+.hidden {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    border: 1px dashed red !important;
+    padding: 5px !important;
+    margin: 5px !important;
+    background-color: #ffeeee !important;
+    color: black !important;
+}
+
+/* Force key content areas to be visible */
+#loadingIndicator,
+#messageArea,
+#sendTabGroupsList,
+#sendTabStatus,
+#popupDetails,
+#deviceName,
+#subscriptionsUl {
+    display: block !important; /* Ensure they are block elements */
+    visibility: visible !important;
+    opacity: 1 !important;
+    border: 2px solid green !important;
+    padding: 5px !important;
+    margin: 5px !important;
+    min-height: 20px !important;
+    background-color: #eeffee !important;
+    color: black !important;
+}
+
+/* Force button visibility */
+button, .popup-link {
+    display: inline-block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    padding: 8px 15px !important;
+    margin: 5px !important;
+    border: 2px solid purple !important;
+    background-color: #e0e0e0 !important;
+    color: black !important; /* Ensure text is visible */
+    min-width: 50px !important; /* Give some width */
+    min-height: 20px !important; /* Give some height */
+}
+
+.popup-footer {
+    border: 2px solid cyan !important;
+    padding: 5px !important;
+    margin-top: 10px !important;
+}
+
+/* Make sure images in buttons don't cause issues */
+.sync-icon-svg {
+    display: inline-block !important;
+    width: 16px !important;
+    height: 16px !important;
+    background-color: magenta !important; /* Make icon area visible */
+}

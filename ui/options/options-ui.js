@@ -14,7 +14,7 @@ export function createDeviceListItemUI(deviceId, deviceData, localInstanceId, ha
   const li = document.createElement('li');
   li.setAttribute('role', 'listitem');
   li.dataset.deviceId = deviceId;
-  li.className = 'registry-list-item';
+  li.className = 'options-list-item'; // Use common class
 
   const nameAndInfoDiv = document.createElement('div');
   nameAndInfoDiv.className = 'registry-item-info';
@@ -78,8 +78,7 @@ export function renderDeviceRegistryUI(deviceRegistryListDiv, currentState, hand
 
   const localId = currentState.instanceId;
   const ul = document.createElement('ul');
-  ul.setAttribute('role', 'list');
-  ul.className = 'registry-list'; // Add class for styling
+  ul.className = 'options-list'; // Use common class
 
   Object.entries(devices)
     .sort((a, b) => {
@@ -112,10 +111,12 @@ export function renderGroupListUI(
 
   const ul = document.createElement("ul");
   ul.setAttribute('role', 'list');
+  ul.className = 'options-list'; // Use common class
 
   definedGroups.forEach((groupName) => {
     const li = document.createElement("li");
     li.setAttribute('role', 'listitem');
+    li.className = 'options-list-item'; // Use common class
 
     const nameSpan = document.createElement("span");
     nameSpan.textContent = groupName; // Initial group name text
