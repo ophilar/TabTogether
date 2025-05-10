@@ -1,5 +1,3 @@
-// core/platform.js
-
 let platformInfoCache = null;
 
 /**

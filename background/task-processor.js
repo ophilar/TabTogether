@@ -1,31 +1,64 @@
+// background/task-processor.js
+
 import { storage } from '../core/storage.js'; // Corrected import path
-import { STRINGS } from '../common/constants.js';
-// Potentially import other necessary modules like tab management functions
+import { LOCAL_STORAGE_KEYS } from '../common/constants.js';
+import { getInstanceId } from '../core/instance.js'; // To identify self
 
 /**
- * Processes an array of incoming tasks from other devices.
- * This could involve creating tabs, updating groups, etc.
+ * Processes incoming tasks from sync storage for the current device.
+ * Opens tabs for relevant tasks and marks them as processed locally.
  *
- * @param {Array<object>} tasks - An array of task objects.
- * Each task object should have a 'type' and other relevant data.
+ * @param {object} allGroupTasksFromStorage - The complete GROUP_TASKS object from sync storage.
+ *                                         Format: { groupName: { taskId: taskData, ... }, ... }
  */
-// FIXME: This function is a placeholder and needs full implementation.
-export async function processIncomingTasks(tasks) {
-    console.log('TaskProcessor: Processing incoming tasks:', tasks);
-    if (!tasks || !Array.isArray(tasks)) {
-        console.warn('TaskProcessor: No tasks to process or tasks is not an array.');
+export async function processIncomingTasks(allGroupTasksFromStorage) {
+    console.log('TaskProcessor: Processing incoming tasks from storage change...');
+    if (!allGroupTasksFromStorage || typeof allGroupTasksFromStorage !== 'object' || Object.keys(allGroupTasksFromStorage).length === 0) {
+        console.log('TaskProcessor: No group tasks found in storage or tasks object is empty.');
         return;
     }
 
-    for (const task of tasks) {
-        console.log('TaskProcessor: Processing task:', task);
-        // Example: Implement logic based on task.type
-        // if (task.type === 'NEW_TAB_RECEIVED') {
-        //     await browser.tabs.create({ url: task.url, windowId: task.windowId, active: task.active });
-        // } else if (task.type === 'GROUP_UPDATE_RECEIVED') {
-        //     // ... handle group updates ...
-        // }
+    const localInstanceId = await getInstanceId();
+    const localSubscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
+    let localProcessedTasks = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, {});
+    let newTasksProcessedThisRun = false;
+
+    for (const groupName in allGroupTasksFromStorage) {
+        if (!localSubscriptions.includes(groupName)) {
+            continue; // Not subscribed to this group
+        }
+
+        const tasksInGroup = allGroupTasksFromStorage[groupName];
+        for (const taskId in tasksInGroup) {
+            const taskData = tasksInGroup[taskId];
+
+            if (!taskData || taskData.senderDeviceId === localInstanceId || localProcessedTasks[taskId]) {
+                continue; // Invalid task, sent by self, or already processed
+            }
+
+            // Check recipientDeviceIds if present
+            if (taskData.recipientDeviceIds && Array.isArray(taskData.recipientDeviceIds) && taskData.recipientDeviceIds.length > 0) {
+                if (!taskData.recipientDeviceIds.includes(localInstanceId)) {
+                    continue; // Task has specific recipients, and this device is not one of them
+                }
+            }
+            // If no recipientDeviceIds, task is for all subscribed (handled by group subscription check)
+
+            try {
+                console.log(`TaskProcessor: Opening tab for task ${taskId} from group ${groupName}: ${taskData.url}`);
+                await browser.tabs.create({ url: taskData.url, active: false });
+                localProcessedTasks[taskId] = Date.now(); // Mark as processed with timestamp
+                newTasksProcessedThisRun = true;
+            } catch (error) {
+                console.error(`TaskProcessor: Failed to open tab for task ${taskId} (${taskData.url}):`, error);
+            }
+        }
     }
-    // This function might interact with browser APIs (tabs, windows)
-    // and update local storage based on the tasks.
+
+    if (newTasksProcessedThisRun) {
+        await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, localProcessedTasks);
+        console.log('TaskProcessor: Updated local processed tasks list.');
+    } else {
+        console.log('TaskProcessor: No new tasks were processed in this run.');
+    }
 }
