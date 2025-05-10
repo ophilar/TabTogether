@@ -965,13 +965,13 @@ describe('utils', () => {
         });
 
         test('displaySyncRequirementBanner adds banner to container', () => {
-            displaySyncRequirementBanner(container);
+            displaySyncRequirementBanner(container, storageAPI); // Pass the storageAPI mock
             const banner = container.querySelector('.sync-requirement-banner');
             expect(banner).not.toBeNull();
             expect(banner.textContent).toContain("TabTogether relies on Firefox Sync");
 
             // Should not add a second banner if called again
-            displaySyncRequirementBanner(container);
+            displaySyncRequirementBanner(container, storageAPI); // Pass the storageAPI mock
             expect(container.querySelectorAll('.sync-requirement-banner').length).toBe(1);
         });
 
