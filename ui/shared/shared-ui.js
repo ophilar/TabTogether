@@ -96,3 +96,15 @@ export function clearMessage(messageArea) {
     messageArea.className = "message-area hidden"; // Add hidden class
   }
 }
+
+export const setLastSyncTime = (container, date) => {
+  let syncDiv = container.querySelector(".last-sync-time");
+  if (!syncDiv) {
+    syncDiv = document.createElement("div");
+    syncDiv.className = "last-sync-time small-text";
+    syncDiv.style.marginBottom = "7px";
+    container.insertBefore(syncDiv, container.firstChild.nextSibling);
+  }
+  syncDiv.textContent =
+    "Last sync: " + (date ? new Date(date).toLocaleString() : "Never");
+};
