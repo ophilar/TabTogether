@@ -24,25 +24,24 @@ import { debounce } from '../common/utils.js';
 // Define the STRINGS object that will be used for mocking.
 const mockedStringsObject = {
     deviceNameNotSet: '(Not Set)',
-        noDevices: 'No devices registered.',
-        noGroups: 'No groups defined. Use Settings to create one.',
-        notSubscribed: 'Not subscribed to any groups.',
-        subscribedGroups: 'Subscribed groups: ',
-        loadingGroups: 'Loading groups...',
-        loadingRegistry: 'Loading registry...',
-        error: 'Error',
-        sendTabFailed: 'Send failed.',
-        sendTabCannot: 'Cannot send this type of tab.',
-        groupCreateFailed: 'Failed to create group.',
-        groupRenameFailed: 'Rename failed.',
-        groupDeleteFailed: 'Failed to delete group.',
-        deviceRenameFailed: 'Rename failed.',
-        deviceDeleteFailed: 'Delete failed.',
-        testNotificationSent: 'Test notification sent!',
-        androidBanner: 'Note: On Firefox for Android, background processing is not available. Open this page and tap "Sync Now" to process new tabs or changes.',
-        SYNC_INFO_MESSAGE_POPUP: "TabTogether uses Firefox Sync for cross-device features. Ensure you're signed in & add-on sync is enabled.",
+    noDevices: 'No devices registered.',
+    noGroups: 'No groups defined. Use Settings to create one.',
+    notSubscribed: 'Not subscribed to any groups.',
+    subscribedGroups: 'Subscribed groups: ',
+    loadingGroups: 'Loading groups...',
+    loadingRegistry: 'Loading registry...',
+    error: 'Error',
+    sendTabFailed: 'Send failed.',
+    sendTabCannot: 'Cannot send this type of tab.',
+    groupCreateFailed: 'Failed to create group.',
+    groupRenameFailed: 'Rename failed.',
+    groupDeleteFailed: 'Failed to delete group.',
+    deviceRenameFailed: 'Rename failed.',
+    deviceDeleteFailed: 'Delete failed.',
+    testNotificationSent: 'Test notification sent!',
+    androidBanner: 'Note: On Firefox for Android, background processing is not available. Open this page and tap "Sync Now" to process new tabs or changes.',
+    SYNC_INFO_MESSAGE_POPUP: "TabTogether uses Firefox Sync for cross-device features. Ensure you're signed in & add-on sync is enabled.",
     SYNC_INFO_MESSAGE_OPTIONS: "TabTogether relies on Firefox Sync to share data across your devices. Please ensure you are signed into your Firefox Account and that add-on data synchronization is enabled in your Firefox settings for the best experience.",
-    // Add any functions from STRINGS that are used in tests, e.g., groupExists
     groupExists: (groupName) => `${groupName} already exists.`,
 };
 
@@ -310,7 +309,7 @@ describe('utils', () => {
         test('getInstanceId should eventually return an ID even with many collisions (up to maxAttempts)', async () => {
             // Mock generateShortId to always return a colliding ID for a few attempts
             const collidingId = 'COLLIDE1';
-            const finalUniqueId = 'UNIQUEID';
+            const finalUniqueId = "Ykp6K1iG";  // 'UNIQUEID';
             const mockDeviceRegistry = { [collidingId]: { name: "Existing Device" } };
             await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, mockDeviceRegistry);
 
