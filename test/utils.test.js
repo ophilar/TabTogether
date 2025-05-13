@@ -965,7 +965,12 @@ describe('utils', () => {
         });
 
         test('displaySyncRequirementBanner adds banner to container', () => {
-            displaySyncRequirementBanner(container, storageAPI); // Pass the storageAPI mock
+            const mockStorageAPI = {
+                get: jest.fn().mockResolvedValue(false), // Simulate banner not dismissed
+                set: jest.fn().mockResolvedValue(undefined),
+            };
+
+            displaySyncRequirementBanner(container, mockStorageAPI);
             const banner = container.querySelector('.sync-requirement-banner');
             expect(banner).not.toBeNull();
             expect(banner.textContent).toContain("TabTogether relies on Firefox Sync");

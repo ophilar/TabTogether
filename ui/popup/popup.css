@@ -36,13 +36,13 @@ body {
   transition: background-color var(--transition);
 }
 
-#subscriptionsUl li .list-item-label {
+/* Apply directly to li if no inner .list-item-label span is used for subscription text */
+#subscriptionsUl li {
   flex-grow: 1;
   font-weight: 500; /* Use main text color, remove fallback */
   color: var(--main-text);
   font-size: 1em;
 }
-
 #subscriptionsUl li.this-device {
   background-color: var(--main-blue-light);
   padding-left: 7px;
@@ -55,7 +55,7 @@ body {
   margin-top: 10px; /* Keep margin */
   padding: 10px 0 5px 0; /* Adjust padding (top, sides, bottom) */
   font-size: 0.95em; /* Slightly larger base font for details */
-  color: var(--main-grey-dark); /* Use variable, remove fallback */
+  color: var(--main-text); /* Use main theme text color for better contrast */
   /* line-height is handled by list items now */
   /* Divider appears when details are shown */
   border-top: 1px solid var(--main-border);
@@ -111,13 +111,14 @@ body {
 }
 
 /* --- Dark Theme Adjustments for List Items --- */
-[data-theme="dark"] #subscriptionsUl li .list-item-label {
+/* Apply directly to li if no inner .list-item-label span is used for subscription text */
+[data-theme="dark"] #subscriptionsUl li {
   color: var(--main-text); /* Use main-text which is updated for dark theme */
 }
 
 /* --- Dark Theme Adjustments for Details --- */
 [data-theme="dark"] .popup-details {
-  color: var(--main-grey-light); /* Use variable, remove fallback */
+  color: var(--main-text); /* Use main theme text color for better contrast */
   border-top-color: var(--main-border); /* Use main-border which is updated for dark theme */
   /* Background is inherited from .container */
 }
