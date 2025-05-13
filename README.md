@@ -43,6 +43,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Privacy
 
 TabTogether uses Firefox Sync for communication and stores group/device information locally and within Sync's private storage. It does not send your data to any external servers. See the [SECURITY.md](SECURITY.md) for more details.
+For specific details on data handling, please refer to our [Privacy Policy](PRIVACY_POLICY.md).
 
 ## Contributing & Development Notes
 
