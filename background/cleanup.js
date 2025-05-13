@@ -1,9 +1,9 @@
-import { storage } from "../core/storage.js"; // Import storage
-import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from "../common/constants.js"; // Assuming constants are needed
+import { storage } from "../core/storage.js";
+import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from "../common/constants.js";
 export async function performStaleDeviceCheck(
   cachedDeviceRegistry,
   cachedGroupState,
-  thresholdMs // Add threshold parameter
+  thresholdMs
 ) {
   console.log("Performing stale device check...");
   let registry =
@@ -22,7 +22,7 @@ export async function performStaleDeviceCheck(
     ));
   let subscriptionsSync = await storage.get(
     browser.storage.sync,
-    SYNC_STORAGE_KEYS.SUBSCRIPTIONS, // Corrected to use the defined constant
+    SYNC_STORAGE_KEYS.SUBSCRIPTIONS,
     {}
   );
   const now = Date.now();
@@ -33,13 +33,12 @@ export async function performStaleDeviceCheck(
   let needsGroupStateUpdate = false;
   let needsSubscriptionsUpdate = false;
   for (const deviceId in registry) {
-    if (now - (registry[deviceId]?.lastSeen || 0) > thresholdMs && deviceId !== 'test-device-id') { // Use parameter, skip self for test
+    if (now - (registry[deviceId]?.lastSeen || 0) > thresholdMs && deviceId !== 'test-device-id') {
       console.log(
         `Device ${deviceId} (${registry[deviceId].name}) is stale. Pruning...`
       );
       needsRegistryUpdate = true;
       registryUpdates[deviceId] = null;
-      // Also mark subscriptions for this device for deletion from SYNC_STORAGE_KEYS.SUBSCRIPTIONS_SYNC
       if (subscriptionsSync[deviceId]) {
         subscriptionsUpdates[deviceId] = null;
         needsSubscriptionsUpdate = true;
@@ -49,19 +48,16 @@ export async function performStaleDeviceCheck(
   let registryMergeSuccess = true;
   let groupStateMergeSuccess = true;
   if (needsRegistryUpdate) {
-    // Nest updates under the correct sync storage key
     registryMergeSuccess = await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, registryUpdates);
   }
-  // groupStateUpdates related to assignedMask are removed
   if (needsSubscriptionsUpdate) {
-    // Nest updates under the correct sync storage key
-    await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, subscriptionsUpdates); // Corrected to use the defined constant
+    await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, subscriptionsUpdates);
   }
   console.log("Stale device check complete. Registry updated:", registryMergeSuccess.success, "Group state updated:", groupStateMergeSuccess.success);
 }
 export async function performTimeBasedTaskCleanup(
   localProcessedTasks,
-  thresholdMs // Add threshold parameter
+  thresholdMs
 ) {
   console.log("Performing time-based task cleanup...");
   const allGroupTasks = await storage.get(
@@ -72,21 +68,20 @@ export async function performTimeBasedTaskCleanup(
   let groupTasksUpdates = {};
   let needsUpdate = false;
   const now = Date.now();
-  let processedTasksChanged = false; // Track if local processed tasks need saving
-  let currentProcessedTasks = { ...localProcessedTasks }; // Work on a copy
+  let processedTasksChanged = false;
+  let currentProcessedTasks = { ...localProcessedTasks };
 
   for (const groupName in allGroupTasks) {
     for (const taskId in allGroupTasks[groupName]) {
       const task = allGroupTasks[groupName][taskId];
-      if (task && (now - (task.creationTimestamp || 0) > thresholdMs)) { // Use parameter and check task exists
+      if (task && (now - (task.creationTimestamp || 0) > thresholdMs)) {
         console.log(`Task ${taskId} in group ${groupName} expired. Deleting.`);
         if (!groupTasksUpdates[groupName]) groupTasksUpdates[groupName] = {};
         groupTasksUpdates[groupName][taskId] = null;
         needsUpdate = true;
-        // Delete from the working copy if it exists
         if (currentProcessedTasks[taskId]) {
           delete currentProcessedTasks[taskId];
-          processedTasksChanged = true; // Mark that we need to save the local changes
+          processedTasksChanged = true;
         }
       }
     }
@@ -98,10 +93,8 @@ export async function performTimeBasedTaskCleanup(
   );
 
   if (needsUpdate) {
-    // Nest updates under the correct sync storage key
     await storage.mergeSyncStorage({ [SYNC_STORAGE_KEYS.GROUP_TASKS]: groupTasksUpdates });
   }
-  // Save the updated local processed tasks if changes were made
   if (processedTasksChanged) {
     console.log(`[Cleanup] Saving updated local processed tasks...`);
     await storage.set(

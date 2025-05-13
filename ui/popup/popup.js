@@ -11,7 +11,6 @@ import {
   showMessage,
   injectSharedUI } from "../shared/shared-ui.js";
 import { applyThemeFromStorage } from "../shared/theme.js";
-import { renderDeviceName } from "../options/options-ui.js"; 
 
 // Cache DOM elements at the top for repeated use
 // Initialize properties to null, they will be assigned in DOMContentLoaded
@@ -52,25 +51,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       // Log to the main console if the popup's console isn't visible or working
       console.error("POPUP CRITICAL: dom.loadingIndicator is null after DOMContentLoaded assignment.");
     }
-  // // Add Firefox Sync information message
-  // const syncInfoContainer = document.getElementById('syncInfoContainer'); // Assuming you add this to popup.html
-  // if (syncInfoContainer) {
-  //   syncInfoContainer.textContent = STRINGS.SYNC_INFO_MESSAGE_POPUP || "For cross-device sync, enable Firefox Sync for add-ons."; // Fallback text
-  //   syncInfoContainer.className = 'sync-info-message small-text popup-sync-info'; // Added popup-sync-info for specific styles
-  // } else {
-  //   // Fallback if the dedicated container isn't there, prepend to the main container
-  //   const mainPopupContainer = document.querySelector('.container');
-  //   // Styles for this fallback are now in popup.css under .popup-sync-info-fallback
-  //   if (mainPopupContainer) mainPopupContainer.insertAdjacentHTML('afterbegin', `<p class="sync-info-message small-text popup-sync-info-fallback">${STRINGS.SYNC_INFO_MESSAGE_POPUP || "For cross-device sync, enable Firefox Sync for add-ons."}</p>`);
-  // }
 
   const isAndroidPlatform = await isAndroid(); 
   if (isAndroidPlatform) {
     const container = document.querySelector(".container");
     if (container) { // Check if container exists before using it
       showAndroidBanner(
-        container,
-        'Note: On Firefox for Android, background processing is not available. Open this popup and tap "Sync Now" to process new tabs or changes.'
+        container, STRINGS.androidBannerPopup
       );
     }
   }
@@ -106,14 +93,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
         const now = new Date();
         await storage.set(browser.storage.local, "lastSync", now.getTime());
-        if (dom.messageArea) showMessage(dom.messageArea, 'Sync complete.', false); // Check dom.messageArea
+        if (dom.messageArea) showMessage(dom.messageArea, STRINGS.syncComplete, false); // Check dom.messageArea
         // Update last sync time display on Android after manual sync
         const popupContainer = document.querySelector(".container");
         if (isAndroidPlatform && popupContainer) setLastSyncTime(popupContainer, now.getTime());
       } catch (error) {
         // Log errors that might occur during loadStatus or subsequent actions
         console.error("Error during refresh action:", error);
-        if (dom.messageArea) showMessage(dom.messageArea, `Refresh failed: ${error.message || 'Unknown error'}`, true);
+        if (dom.messageArea) showMessage(dom.messageArea, STRINGS.popupRefreshFailed(error.message || 'Unknown error'), true);
       } finally {
         const duration = Date.now() - startTime;
         const minAnimationTime = 500; // Minimum animation time
@@ -154,7 +141,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Try to display an error message directly, in case dom.messageArea wasn't assigned
     const msgArea = document.getElementById("messageArea") || dom.messageArea; 
     if (msgArea) {
-        msgArea.textContent = "Error initializing popup. Check console.";
+        msgArea.textContent = STRINGS.errorInitializingPopup || "Error initializing popup. Check console."; // Add to STRINGS if needed
         msgArea.className = "message-area error";
         msgArea.classList.remove("hidden");
     }
@@ -193,7 +180,7 @@ async function loadStatus() {
     renderSendTabGroups(state.definedGroups); // Uses the combined button approach
   } catch (error) {
     console.error("Error loading popup status:", error);
-    if (dom.messageArea) showMessage(dom.messageArea, STRINGS.loadingSettingsError(error.message || "Unknown error"), true);
+    if (dom.messageArea) showMessage(dom.messageArea, STRINGS.loadingSettingsError(error.message || "Unknown error"), true); // STRINGS.loadingSettingsError is good
 
     if (dom.deviceNameSpan) dom.deviceNameSpan.textContent = STRINGS.error;
     if (dom.sendTabGroupsList) dom.sendTabGroupsList.textContent = "Error loading groups.";
@@ -208,6 +195,16 @@ async function loadStatus() {
   }
 }
 
+/**
+ * Renders the device name in a given container element. (Moved from options-ui.js)
+ * @param {HTMLElement} container - The container element to render the name into.
+ * @param {string} name - The device name.
+ */
+function renderDeviceName(container, name) {
+  if (container) {
+    container.textContent = name || STRINGS.deviceNameNotSet;
+  }
+}
 // Renders the list of subscribed groups in the details section
 function renderSubscriptionsUI(subscriptions) {
   const ul = dom.subscriptionsUl;
@@ -267,14 +264,14 @@ function renderSendTabGroups(groups) {
 
 // Function to handle sending the current tab to a selected group
 async function sendTabToGroup(groupName) {
-  showSendStatus("Sending...", false); // Initial status message
+  showSendStatus(STRINGS.sendingTab, false); // Initial status message
   try {
     let response;
     const tabs = await browser.tabs.query({
       active: true,
       currentWindow: true,
     });
-    if (!tabs || tabs.length === 0) throw new Error("No active tab found.");
+    if (!tabs || tabs.length === 0) throw new Error(STRINGS.noActiveTabFound);
 
     const currentTab = tabs[0];
     // Validate tab URL - prevent sending internal/blank pages
@@ -307,7 +304,7 @@ async function sendTabToGroup(groupName) {
 
     // Handle the response from the send action
     if (response && response.success) {
-      showSendStatus(`Sent to ${groupName}!`, false); // Success feedback
+      showSendStatus(STRINGS.sentToGroup(groupName), false); // Success feedback
     } else {
       // Show specific error message from response, or generic failure
       showSendStatus(response?.message || STRINGS.sendTabFailed, true);
