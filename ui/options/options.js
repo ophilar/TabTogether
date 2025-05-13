@@ -466,10 +466,13 @@ async function finishRenameDevice(deviceId, newName, listItem, nameSpan, inlineC
       showMessage(dom.messageArea, STRINGS.deviceRenameSuccess(newName), false);
       success = true;
       // Update local state and re-render
-      if (currentState && currentState.deviceRegistry[deviceId]) {
-        currentState.deviceRegistry[deviceId].name = newName;
+      if (currentState) {
         if (deviceId === currentState.instanceId) {
           currentState.instanceName = newName; // Update local name cache if it's this device
+        }
+        // Ensure deviceRegistry also reflects the new name if the deviceId exists there
+        if (currentState.deviceRegistry && currentState.deviceRegistry[deviceId]) {
+          currentState.deviceRegistry[deviceId].name = newName;
         }
         // Targeted DOM update for device rename
         const deviceLi = dom.deviceRegistryListDiv.querySelector(`li[data-device-id="${deviceId}"]`);
@@ -480,7 +483,8 @@ async function finishRenameDevice(deviceId, newName, listItem, nameSpan, inlineC
             deviceNameSpan.textContent = '';
             if (deviceId === currentState.instanceId) {
               const strong = document.createElement('strong');
-              strong.textContent = newName;
+              // Use the just-updated currentState.instanceName for "This Device"
+              strong.textContent = currentState.instanceName; 
               deviceNameSpan.appendChild(strong);
               deviceNameSpan.appendChild(document.createTextNode(' (This Device)'));
             } else {
