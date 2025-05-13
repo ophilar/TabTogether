@@ -52,17 +52,17 @@ document.addEventListener("DOMContentLoaded", async () => {
       // Log to the main console if the popup's console isn't visible or working
       console.error("POPUP CRITICAL: dom.loadingIndicator is null after DOMContentLoaded assignment.");
     }
-  // Add Firefox Sync information message
-  const syncInfoContainer = document.getElementById('syncInfoContainer'); // Assuming you add this to popup.html
-  if (syncInfoContainer) {
-    syncInfoContainer.textContent = STRINGS.SYNC_INFO_MESSAGE_POPUP || "For cross-device sync, enable Firefox Sync for add-ons."; // Fallback text
-    syncInfoContainer.className = 'sync-info-message small-text popup-sync-info'; // Added popup-sync-info for specific styles
-  } else {
-    // Fallback if the dedicated container isn't there, prepend to the main container
-    const mainPopupContainer = document.querySelector('.container');
-    // Styles for this fallback are now in popup.css under .popup-sync-info-fallback
-    if (mainPopupContainer) mainPopupContainer.insertAdjacentHTML('afterbegin', `<p class="sync-info-message small-text popup-sync-info-fallback">${STRINGS.SYNC_INFO_MESSAGE_POPUP || "For cross-device sync, enable Firefox Sync for add-ons."}</p>`);
-  }
+  // // Add Firefox Sync information message
+  // const syncInfoContainer = document.getElementById('syncInfoContainer'); // Assuming you add this to popup.html
+  // if (syncInfoContainer) {
+  //   syncInfoContainer.textContent = STRINGS.SYNC_INFO_MESSAGE_POPUP || "For cross-device sync, enable Firefox Sync for add-ons."; // Fallback text
+  //   syncInfoContainer.className = 'sync-info-message small-text popup-sync-info'; // Added popup-sync-info for specific styles
+  // } else {
+  //   // Fallback if the dedicated container isn't there, prepend to the main container
+  //   const mainPopupContainer = document.querySelector('.container');
+  //   // Styles for this fallback are now in popup.css under .popup-sync-info-fallback
+  //   if (mainPopupContainer) mainPopupContainer.insertAdjacentHTML('afterbegin', `<p class="sync-info-message small-text popup-sync-info-fallback">${STRINGS.SYNC_INFO_MESSAGE_POPUP || "For cross-device sync, enable Firefox Sync for add-ons."}</p>`);
+  // }
 
   const isAndroidPlatform = await isAndroid(); 
   if (isAndroidPlatform) {
