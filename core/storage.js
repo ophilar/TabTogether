@@ -80,21 +80,26 @@ export const storage = {
    * @param {browser.storage.StorageArea} area - The storage area.
    * @param {string} key - The key of the item to merge.
    * @param {object} updates - The updates to merge into the item.
-   * @returns {Promise<{success: boolean, mergedData: object|null}>}
+   * @returns {Promise<{success: boolean, mergedData: object|null, dataChanged: boolean, message?: string}>}
    */
   async mergeItem(area, key, updates) {
     try {
       const currentItem = await this.get(area, key, {}); // Get the specific item, defaulting to {}
       const mergedItem = deepMerge(currentItem, updates);
       let dataChanged = JSON.stringify(currentItem) !== JSON.stringify(mergedItem);
+      let setSuccess = true; // Assume success unless set fails
 
       if (dataChanged) {
-        await this.set(area, key, mergedItem);
+        setSuccess = await this.set(area, key, mergedItem); // Capture success of the set operation
+        if (!setSuccess) {
+          // If set failed, the merge operation is not truly successful.
+          return { success: false, mergedData: currentItem, dataChanged: false, message: `Failed to save merged item for key '${key}'.` };
+        }
       }
-      return { success: true, mergedData: mergedItem, dataChanged };
+      return { success: true, mergedData: mergedItem, dataChanged, message: undefined };
     } catch (error) {
       console.error(`Error merging item ${key} in ${area === browser.storage.sync ? 'sync' : 'local'} storage:`, error, "Updates:", updates);
-      return { success: false, mergedData: null };
+      return { success: false, mergedData: null, dataChanged: false, message: `Error during merge for key '${key}': ${error.message}` };
     }
   }
 };
