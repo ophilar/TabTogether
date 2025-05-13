@@ -6,11 +6,11 @@ import { STRINGS } from "../../common/constants.js";
  * Creates a list item element for a device.
  * @param {string} deviceId - The ID of the device.
  * @param {object} deviceData - The data object for the device.
- * @param {string} localInstanceId - The ID of the current local instance.
+ * @param {{id: string, name: string}} localInstance - Object containing the ID and name of the current local instance.
  * @param {object} handlers - Object containing event handlers (startRenameDevice, handleRemoveSelfDevice, handleDeleteDevice).
  * @returns {HTMLLIElement} The created list item element.
  */
-export function createDeviceListItemUI(deviceId, deviceData, localInstanceId, handlers) {
+export function createDeviceListItemUI(deviceId, deviceData, localInstance, handlers) {
   const li = document.createElement('li');
   li.setAttribute('role', 'listitem');
   li.dataset.deviceId = deviceId;
@@ -21,19 +21,30 @@ export function createDeviceListItemUI(deviceId, deviceData, localInstanceId, ha
 
   const nameSpan = document.createElement('span');
   nameSpan.className = 'device-name-label';
-  let displayName = deviceData.name || STRINGS.deviceNameNotSet;
 
-  if (deviceId === localInstanceId) {
+  // Determine the authoritative name for display and for the rename handler
+  let nameForDisplay = deviceData.name || STRINGS.deviceNameNotSet;
+  let nameForRenameHandlerStart = nameForDisplay;
+
+  if (deviceId === localInstance.id) {
+    // For "This Device", prioritize the name from local storage (passed via localInstance.name)
+    nameForDisplay = localInstance.name || deviceData.name || STRINGS.deviceNameNotSet;
+    nameForRenameHandlerStart = nameForDisplay; // Use this authoritative name for the rename handler too
+  }
+
+  // Make the name span clickable for renaming for ALL devices
+  nameSpan.style.cursor = 'pointer';
+  nameSpan.title = `Click to rename device: ${nameForDisplay}`; // Dynamic title using authoritative name
+  nameSpan.onclick = () => handlers.startRenameDevice(deviceId, nameForRenameHandlerStart, li, nameSpan);
+
+  if (deviceId === localInstance.id) {
     const strong = document.createElement('strong');
-    strong.textContent = displayName;
+    strong.textContent = nameForDisplay; // Use the authoritative name
     nameSpan.appendChild(strong);
     nameSpan.appendChild(document.createTextNode(' (This Device)'));
     li.classList.add('this-device');
-    nameSpan.style.cursor = 'pointer';
-    nameSpan.title = 'Click to rename this device';
-    nameSpan.onclick = () => handlers.startRenameDevice(deviceId, displayName, li, nameSpan);
   } else {
-    nameSpan.textContent = displayName;
+    nameSpan.textContent = nameForDisplay;
   }
   nameAndInfoDiv.appendChild(nameSpan);
 
@@ -76,7 +87,8 @@ export function renderDeviceRegistryUI(deviceRegistryListDiv, currentState, hand
     return;
   }
 
-  const localId = currentState.instanceId;
+  const localInstance = { id: currentState.instanceId, name: currentState.instanceName };
+
   const ul = document.createElement('ul');
   ul.className = 'options-list'; // Use common class
 
@@ -84,13 +96,13 @@ export function renderDeviceRegistryUI(deviceRegistryListDiv, currentState, hand
     .sort((a, b) => {
       const [idA] = a;
       const [idB] = b;
-      if (idA === localId) return -1;
-      if (idB === localId) return 1;
+      if (idA === localInstance.id) return -1;
+      if (idB === localInstance.id) return 1;
       return (a[1]?.name || '').localeCompare(b[1]?.name || '');
     })
     .forEach(([id, device]) => {
       // Use the new helper function to create each list item
-      const li = createDeviceListItemUI(id, device, localId, handlers);
+      const li = createDeviceListItemUI(id, device, localInstance, handlers);
       ul.appendChild(li);
     });
   deviceRegistryListDiv.appendChild(ul);

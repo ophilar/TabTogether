@@ -180,7 +180,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           dom.newGroupNameInput.value = "";
           dom.createGroupBtn.disabled = true;
         } else {
-          if (dom.messageAreadom.messageArea) showMessage(dom.messageArea, response.message || STRINGS.groupCreateFailed, true);
+          if (dom.messageArea) showMessage(dom.messageArea, response.message || STRINGS.groupCreateFailed, true);
         }
       } catch (error) {
         if (dom.messageArea) showMessage(dom.messageArea, STRINGS.groupCreateFailed + ": " + error.message, true);
@@ -486,8 +486,8 @@ async function finishRenameDevice(deviceId, newName, listItem, nameSpan, inlineC
             } else {
               deviceNameSpan.textContent = newName;
             }
-            // Re-attach rename handler to the updated span
-            deviceNameSpan.onclick = () => startRenameDevice(deviceId, newName, deviceLi, deviceNameSpan);
+            // ALWAYS re-attach rename handler to the updated span for consistency
+            if (deviceNameSpan) deviceNameSpan.onclick = () => startRenameDevice(deviceId, newName, deviceLi, deviceNameSpan);
           }
         }
       }
