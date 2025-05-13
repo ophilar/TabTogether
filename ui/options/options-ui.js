@@ -62,7 +62,7 @@ export function createDeviceListItemUI(deviceId, deviceData, localInstance, hand
   const deleteBtn = document.createElement('button');
   deleteBtn.className = 'inline-btn danger';
 
-  if (deviceId === localInstanceId) {
+  if (deviceId === localInstance.id) {
     deleteBtn.textContent = 'Remove';
     deleteBtn.title = 'Remove this device from all groups and registry. This cannot be undone.';
     deleteBtn.setAttribute('aria-label', 'Remove this device from registry');
@@ -249,9 +249,9 @@ export function setLastSyncTimeUI(containerElement, timestamp) {
         androidInfoSection.insertBefore(syncTimeDiv, androidInfoSection.firstChild);
     } else {
         // Fallback: if no androidSpecificInfo, maybe prepend to a general settings area or log an error
-        console.warn("TabTogether: #androidSpecificInfo container not found for last sync time.");
-        // As a robust fallback, one might append to containerElement.firstChild, but it's better if #androidSpecificInfo exists.
-        // containerElement.insertBefore(syncTimeDiv, containerElement.firstChild); 
+        // console.warn("TabTogether: #androidSpecificInfo container not found for last sync time. Appending to main container.");
+        // As a robust fallback, append to containerElement.firstChild.
+        containerElement.insertBefore(syncTimeDiv, containerElement.firstChild);
     }
   }
   syncTimeDiv.textContent = "Last sync (this view): " + (timestamp ? new Date(timestamp).toLocaleString() : "Never");
@@ -269,8 +269,8 @@ export function showDebugInfoUI(containerElement, state) {
     if (androidInfoSection) {
         androidInfoSection.appendChild(debugDiv);
     } else {
-        console.warn("TabTogether: #androidSpecificInfo container not found for debug info.");
-        // containerElement.appendChild(debugDiv); // Fallback
+        // console.warn("TabTogether: #androidSpecificInfo container not found for debug info. Appending to main container.");
+        containerElement.appendChild(debugDiv); // Fallback
     }
   }
 

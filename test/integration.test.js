@@ -180,11 +180,11 @@ describe('Integration: Group and Tab Flow', () => {
     await sendTabAndVerify(GROUP_NAME, { url: TAB_URL, title: TAB_TITLE }, deviceA_ID, [deviceB_ID]);
 
     // 4. Simulate DeviceB processing the task
-    mockGetInstanceIdFn.mockReset(); // Reset any previous mock configurations (like from beforeEach)
+    // Clear any module-level cache that getInstanceId might use
+    actualClearInstanceIdCache(); // Make sure this clears the cache used by the *actual* getInstanceId
+    // Set the mock for getInstanceId to return Device B's ID
     mockGetInstanceIdFn.mockResolvedValue(deviceB_ID); // Set the new desired resolved value
-    actualClearInstanceIdCache(); // Clear cache of the *actual* module (good hygiene)
 
-    jest.resetModules(); // Clear Jest's module cache
 
     // Re-import instanceModule to ensure it's fresh after resetModules and mock re-config
     const freshInstanceModule = await import('../core/instance.js');
