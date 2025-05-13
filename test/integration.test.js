@@ -182,18 +182,31 @@ describe('Integration: Group and Tab Flow', () => {
     // 4. Simulate DeviceB processing the task
     // Clear any module-level cache that getInstanceId might use
     actualClearInstanceIdCache(); // Make sure this clears the cache used by the *actual* getInstanceId
+    
+    // Save the original browser.storage.local.get
+    const originalLocalStorageGet = browser.storage.local.get;
+
+    // Mock browser.storage.local.get specifically for Device B's context
+    // to ensure getUnifiedState reads the correct instanceId from local storage.
+    browser.storage.local.get = jest.fn(async (keys) => {
+      if (keys === COMMON_LOCAL_STORAGE_KEYS.INSTANCE_ID || (Array.isArray(keys) && keys.includes(COMMON_LOCAL_STORAGE_KEYS.INSTANCE_ID))) {
+        return { [COMMON_LOCAL_STORAGE_KEYS.INSTANCE_ID]: deviceB_ID };
+      }
+      // For any other keys, delegate to the original mock or provide other specific values for Device B
+      return originalLocalStorageGet(keys); 
+    });
+
     // Set the mock for getInstanceId to return Device B's ID
+    // This is a fallback if local storage didn't have the ID, or if getInstanceId is called directly elsewhere.
     mockGetInstanceIdFn.mockResolvedValue(deviceB_ID); // Set the new desired resolved value
 
-
-    // Re-import instanceModule to ensure it's fresh after resetModules and mock re-config
-    const freshInstanceModule = await import('../core/instance.js');
-    // Dynamically import getUnifiedState to ensure it picks up the latest mock configuration
-    const { getUnifiedState } = await import('../core/actions.js');
-
-    const stateForDeviceB = await getUnifiedState(true); // Corrected: getUnifiedState only takes one argument
+    const { getUnifiedState: getUnifiedStateForDeviceB } = await import('../core/actions.js'); // Dynamically import for Device B context
+    const stateForDeviceB = await getUnifiedStateForDeviceB(true); // Corrected: getUnifiedState only takes one argument
     expect(stateForDeviceB.instanceId).toBe(deviceB_ID); // Add this check
     await processReceivedTabAndVerify(stateForDeviceB, TAB_URL);
+
+    // Restore the original browser.storage.local.get
+    browser.storage.local.get = originalLocalStorageGet;
   });
 });
 

@@ -330,7 +330,7 @@ export async function displaySyncRequirementBanner(containerElement, storageAPI)
   }
 
   // Prevent adding multiple banners
-  if (containerElement.querySelector('.sync-requirement-banner.tabtogether-banner')) { // More specific selector
+  if (containerElement.querySelector('.sync-requirement-banner')) { // Simpler check for existing banner
     return;
   }
 

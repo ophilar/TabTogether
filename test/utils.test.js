@@ -964,19 +964,19 @@ describe('utils', () => {
             expect(parsedDebugInfo).toEqual(expectedDebugState); // Expect the parsed object to match the transformed state
         });
 
-        test('displaySyncRequirementBanner adds banner to container', () => {
+        test('displaySyncRequirementBanner adds banner to container', async () => {
             const mockStorageAPI = {
                 get: jest.fn().mockResolvedValue(false), // Simulate banner not dismissed
                 set: jest.fn().mockResolvedValue(undefined),
             };
 
-            displaySyncRequirementBanner(container, mockStorageAPI);
+            await displaySyncRequirementBanner(container, mockStorageAPI);
             const banner = container.querySelector('.sync-requirement-banner');
             expect(banner).not.toBeNull();
             expect(banner.textContent).toContain("TabTogether relies on Firefox Sync");
 
             // Should not add a second banner if called again
-            displaySyncRequirementBanner(container, storageAPI); // Pass the storageAPI mock
+            await displaySyncRequirementBanner(container, mockStorageAPI); // Use mockStorageAPI and await
             expect(container.querySelectorAll('.sync-requirement-banner').length).toBe(1);
         });
 
