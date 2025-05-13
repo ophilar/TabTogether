@@ -11,6 +11,7 @@ import { STRINGS } from "../../common/constants.js";
  * @returns {HTMLLIElement} The created list item element.
  */
 export function createDeviceListItemUI(deviceId, deviceData, localInstance, handlers) {
+  console.log(new Date().toISOString(), `[createDeviceListItemUI] START. deviceId: ${deviceId}, deviceData.name: ${deviceData?.name}, localInstance.id: ${localInstance?.id}, localInstance.name: ${localInstance?.name}`);
   const li = document.createElement('li');
   li.setAttribute('role', 'listitem');
   li.dataset.deviceId = deviceId;
@@ -30,6 +31,7 @@ export function createDeviceListItemUI(deviceId, deviceData, localInstance, hand
     // For "This Device", prioritize the name from local storage (passed via localInstance.name)
     nameForDisplay = localInstance.name || deviceData.name || STRINGS.deviceNameNotSet;
     nameForRenameHandlerStart = nameForDisplay; // Use this authoritative name for the rename handler too
+    console.log(new Date().toISOString(), `[createDeviceListItemUI] "This Device" (${deviceId}). Determined nameForDisplay: ${nameForDisplay} (from localInstance.name: ${localInstance.name}, fallback deviceData.name: ${deviceData.name})`);
   }
 
   // Make the name span clickable for renaming for ALL devices
@@ -79,6 +81,7 @@ export function createDeviceListItemUI(deviceId, deviceData, localInstance, hand
   return li;
 }
 export function renderDeviceRegistryUI(deviceRegistryListDiv, currentState, handlers) {
+  console.log(new Date().toISOString(), `[renderDeviceRegistryUI] START. currentState.instanceName: ${currentState?.instanceName}, deviceRegistry for instanceId ('${currentState?.instanceId}') name: ${currentState?.deviceRegistry?.[currentState?.instanceId]?.name}`);
   const devices = currentState.deviceRegistry;
   deviceRegistryListDiv.textContent = ''; // Clear previous content safely
 

@@ -107,25 +107,43 @@ export async function getInstanceName() {
 /**
  * Sets a user-defined name for this browser instance.
  * This will override any generated default or name from the sync registry (until next sync from another device).
- * @param {string} newName - The new name for the instance.
- * @returns {Promise<boolean>} True if successful.
+ * @param {string} name - The new name for the instance.
+ * @returns {Promise<{success: boolean, message?: string, newName?: string}>} Result object.
  */
-export async function setInstanceName(newName) {
-    const trimmedName = newName.trim();
+export async function setInstanceName(name) {
+    const trimmedName = name.trim();
     if (!trimmedName) {
-        console.error("Instance name cannot be empty.");
-        return false;
+        console.warn(new Date().toISOString(), "[setInstanceName] Attempted to set empty name.");
+        return { success: false, message: "Device name cannot be empty." };
     }
-    await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_NAME_OVERRIDE, trimmedName);
-    instanceNameCache = trimmedName; // Update cache
+    console.log(new Date().toISOString(), `[setInstanceName] Setting local override to: "${trimmedName}"`);
 
+    const localSetSuccess = await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_NAME_OVERRIDE, trimmedName);
+    if (!localSetSuccess) {
+        console.error(new Date().toISOString(), "[setInstanceName] FAILED to set local instance name override.");
+        return { success: false, message: "Failed to save device name locally." };
+    }
+    _clearInstanceNameCache(); // Clear cache so next getInstanceName fetches fresh
+
+    console.log(new Date().toISOString(), "[setInstanceName] Attempting to get instanceId to update sync registry.");
     const instanceId = await getInstanceId();
-    if (instanceId) {
-        await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {
+    if (!instanceId) {
+        console.error(new Date().toISOString(), "[setInstanceName] FAILED to get instanceId for sync registry update.");
+        return { success: false, message: "Could not retrieve instance ID to update registry." };
+    }
+
+        console.log(new Date().toISOString(), `[setInstanceName] Got instanceId: ${instanceId}. Preparing sync update.`);
+        const mergeResult = await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {
             [instanceId]: { name: trimmedName, lastSeen: Date.now() } // Ensure lastSeen is also updated
         });
+
+    if (!mergeResult.success) {
+        console.error(new Date().toISOString(), `[setInstanceName] FAILED to mergeItem into sync device registry for ${instanceId}. Message: ${mergeResult.message}`);
+        // Propagate the message from mergeItem if available
+        return { success: false, message: mergeResult.message || "Failed to update device name in synchronized registry." };
     }
-    return true;
+    console.log(new Date().toISOString(), `[setInstanceName] Successfully merged into sync device registry for ${instanceId}.`);
+    return { success: true, newName: trimmedName };
 }
 
 /**
