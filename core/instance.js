@@ -1,29 +1,12 @@
-// core/instance.js
-
 import { storage } from "./storage.js";
 import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from "../common/constants.js";
 import { getPlatformInfoCached } from "./platform.js"; // Import missing function
+import { generateShortId } from './id-utils.js'; // Import it
 
 let instanceIdCache = null;
 let instanceNameCache = null; // Add cache for instance name
 
-const SHORT_ID_LENGTH = 8; // Length of the new device IDs
 
-// Export for testing or other utility purposes if needed
-export function generateShortId(length = SHORT_ID_LENGTH) {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let result = '';
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
-}
-
-/**
- * Gets the unique ID for this browser instance.
- * Generates and stores it if not already present.
- * @returns {Promise<string>} The instance ID.
- */
 export async function getInstanceId() {
   if (instanceIdCache) {
     return instanceIdCache;

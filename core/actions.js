@@ -50,11 +50,6 @@ export async function getUnifiedState(isAndroid) {
   }
 }
 
-async function updateStorageAndGetResponse(updates, successMessage, itemIdentifier) {
-  await storage.mergeSyncStorage(updates);
-  return { success: true, message: successMessage, ...itemIdentifier };
-}
-
 // --- Direct Actions (primarily for Android or when background script is unavailable) ---
 
 export async function createGroupDirect(groupName) {
@@ -67,11 +62,12 @@ export async function createGroupDirect(groupName) {
     return { success: false, message: STRINGS.groupExists(trimmedGroupName) };
   }
   definedGroups.push(trimmedGroupName);
-  return updateStorageAndGetResponse(
-    { [SYNC_STORAGE_KEYS.DEFINED_GROUPS]: definedGroups.sort() },
-    STRINGS.groupCreateSuccess(trimmedGroupName),
-    { newGroup: trimmedGroupName }
-  );
+  definedGroups.sort();
+  const success = await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, definedGroups);
+  if (success) {
+    return { success: true, message: STRINGS.groupCreateSuccess(trimmedGroupName), newGroup: trimmedGroupName };
+  }
+  return { success: false, message: "Failed to save new group." };
 }
 
 export async function deleteGroupDirect(groupName) {
@@ -83,15 +79,13 @@ export async function deleteGroupDirect(groupName) {
     subscriptions[deviceId] = subscriptions[deviceId].filter(sub => sub !== groupName);
   }
   // Consider also deleting tasks associated with this group from GROUP_TASKS
+  const groupsSuccess = await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, definedGroups);
+  const subsSuccess = await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, subscriptions);
 
-  return updateStorageAndGetResponse(
-    {
-      [SYNC_STORAGE_KEYS.DEFINED_GROUPS]: definedGroups,
-      [SYNC_STORAGE_KEYS.SUBSCRIPTIONS]: subscriptions,
-    },
-    STRINGS.groupDeleteSuccess(groupName),
-    { deletedGroup: groupName }
-  );
+  if (groupsSuccess && subsSuccess) {
+    return { success: true, message: STRINGS.groupDeleteSuccess(groupName), deletedGroup: groupName };
+  }
+  return { success: false, message: "Failed to fully delete group and update subscriptions." };
 }
 
 export async function renameGroupDirect(oldName, newName) {
@@ -111,14 +105,13 @@ export async function renameGroupDirect(oldName, newName) {
     subscriptions[deviceId] = subscriptions[deviceId].map(sub => (sub === oldName ? trimmedNewName : sub));
   }
 
-  return updateStorageAndGetResponse(
-    {
-      [SYNC_STORAGE_KEYS.DEFINED_GROUPS]: definedGroups.sort(),
-      [SYNC_STORAGE_KEYS.SUBSCRIPTIONS]: subscriptions,
-    },
-    STRINGS.groupRenameSuccess(trimmedNewName),
-    { renamedGroup: trimmedNewName }
-  );
+  const groupsSuccess = await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, definedGroups.sort());
+  const subsSuccess = await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, subscriptions);
+
+  if (groupsSuccess && subsSuccess) {
+    return { success: true, message: STRINGS.groupRenameSuccess(trimmedNewName), renamedGroup: trimmedNewName };
+  }
+  return { success: false, message: "Failed to fully rename group and update subscriptions." };
 }
 
 export async function subscribeToGroupDirect(groupName) {
@@ -131,11 +124,11 @@ export async function subscribeToGroupDirect(groupName) {
     subscriptions[instanceId].push(groupName);
     subscriptions[instanceId].sort();
   }
-  return updateStorageAndGetResponse(
-    { [SYNC_STORAGE_KEYS.SUBSCRIPTIONS]: subscriptions },
-    `Subscribed to "${groupName}".`, // Consider moving to STRINGS
-    { subscribedGroup: groupName }
-  );
+  const success = await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, subscriptions);
+  if (success) {
+    return { success: true, message: `Subscribed to "${groupName}".`, subscribedGroup: groupName };
+  }
+  return { success: false, message: "Failed to save subscription." };
 }
 
 export async function unsubscribeFromGroupDirect(groupName) {
@@ -144,11 +137,11 @@ export async function unsubscribeFromGroupDirect(groupName) {
   if (subscriptions[instanceId]) {
     subscriptions[instanceId] = subscriptions[instanceId].filter(sub => sub !== groupName);
   }
-  return updateStorageAndGetResponse(
-    { [SYNC_STORAGE_KEYS.SUBSCRIPTIONS]: subscriptions },
-    `Unsubscribed from "${groupName}".`, // Consider moving to STRINGS
-    { unsubscribedGroup: groupName }
-  );
+  const success = await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, subscriptions);
+  if (success) {
+    return { success: true, message: `Unsubscribed from "${groupName}".`, unsubscribedGroup: groupName };
+  }
+  return { success: false, message: "Failed to save unsubscription." };
 }
 
 export async function renameDeviceDirect(deviceId, newName) {
@@ -163,11 +156,11 @@ export async function renameDeviceDirect(deviceId, newName) {
   } else {
     return { success: false, message: "Device not found in registry." }; // STRINGS
   }
-  return updateStorageAndGetResponse(
-    { [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: deviceRegistry },
-    STRINGS.deviceRenameSuccess(trimmedNewName),
-    { renamedDevice: trimmedNewName }
-  );
+  const success = await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, deviceRegistry);
+  if (success) {
+    return { success: true, message: STRINGS.deviceRenameSuccess(trimmedNewName), renamedDevice: trimmedNewName };
+  }
+  return { success: false, message: "Failed to save device rename." };
 }
 
 export async function deleteDeviceDirect(deviceId) {
@@ -183,14 +176,13 @@ export async function deleteDeviceDirect(deviceId) {
   }
   // Consider cleaning up tasks sent BY this device if relevant
 
-  return updateStorageAndGetResponse(
-    {
-      [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: deviceRegistry,
-      [SYNC_STORAGE_KEYS.SUBSCRIPTIONS]: subscriptions,
-    },
-    STRINGS.deviceDeleteSuccess(deviceName),
-    { deletedDevice: deviceName }
-  );
+  const registrySuccess = await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, deviceRegistry);
+  const subsSuccess = await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, subscriptions);
+
+  if (registrySuccess && subsSuccess) {
+    return { success: true, message: STRINGS.deviceDeleteSuccess(deviceName), deletedDevice: deviceName };
+  }
+  return { success: false, message: "Failed to fully delete device and update subscriptions." };
 }
 
 // --- Unified Actions (decide between direct call or background message) ---
