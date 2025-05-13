@@ -51,66 +51,7 @@ let isAndroidPlatformGlobal = false;
 let manualSyncBtn = null; // Declare, will be assigned in DOMContentLoaded
 let syncIntervalInput = null; // Declare, will be assigned in DOMContentLoaded
 let syncStatus = null; // Declare, will be assigned in DOMContentLoaded
-// Manual sync handler
-if (manualSyncBtn) {
-  manualSyncBtn.addEventListener("click", async () => {
-    const syncIcon = manualSyncBtn.querySelector('.sync-icon-svg');
-    // showLoadingIndicator(dom.loadingIndicator, true);
-    const startTime = Date.now(); // Record start time
-    manualSyncBtn.disabled = true; // Disable button during operation
-    if (syncIcon) syncIcon.classList.add('syncing-icon'); // Start animation
-    clearMessage(dom.messageArea);
-    try {
-      if (isAndroidPlatformGlobal) {
 
-        // On Android, perform the direct foreground sync
-        await loadState(); // This handles UI updates and messages internally for Android
-        showMessage(dom.messageArea, 'Sync complete.', false); // Show success message after loadState finishes
-      } else {
-        // On Desktop, trigger background sync via heartbeat
-        await browser.runtime.sendMessage({ action: "heartbeat" });
-        const now = new Date();
-        syncStatus.textContent = "Last sync: " + now.toLocaleString();
-        await storage.set(browser.storage.local, "lastSync", now.getTime());
-        showMessage(dom.messageArea, 'Background sync triggered.', false); // Inform user
-      }
-    } catch (error) { // Catch errors from loadState or sendMessage
-      console.error("Manual sync failed:", error);
-      showMessage(dom.messageArea, `Sync failed: ${error.message || 'Unknown error'}`, true);
-    } finally {
-      // showLoadingIndicator(dom.loadingIndicator, false); // Don't show/hide the separate indicator
-      const duration = Date.now() - startTime;
-      const minAnimationTime = 500; // Minimum animation time in milliseconds (0.5 seconds)
-
-      if (syncIcon) {
-        if (duration < minAnimationTime) {
-          setTimeout(() => syncIcon.classList.remove('syncing-icon'), minAnimationTime - duration);
-        } else {
-          syncIcon.classList.remove('syncing-icon'); // Stop animation immediately
-        }
-      }
-      manualSyncBtn.disabled = false; // Re-enable button
-    }
-  });
-}
-// Auto-sync interval setting
-if (syncIntervalInput) {
-  syncIntervalInput.addEventListener("change", async (e) => {
-    let val = parseInt(e.target.value, 10);
-    if (isNaN(val) || val < 1) val = 1;
-    if (val > 120) val = 120;
-    syncIntervalInput.value = val;
-    await storage.set(browser.storage.local, "syncInterval", val);
-    await browser.runtime.sendMessage({
-      action: "setSyncInterval",
-      minutes: val,
-    });
-  });
-  // Load saved value
-  storage.get(browser.storage.local, "syncInterval", 5).then((val) => {
-    syncIntervalInput.value = val;
-  });
-}
 // --- Initialization ---
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -200,6 +141,54 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
+  // --- Event Listeners for Group Creation (Moved inside DOMContentLoaded) ---
+  if (dom.newGroupNameInput && dom.createGroupBtn) {
+    dom.newGroupNameInput.addEventListener(
+      "input",
+      debounce((e) => {
+        const value = e.target.value.trim();
+        dom.createGroupBtn.disabled = value.length === 0;
+      }, 250)
+    );
+    dom.createGroupBtn.addEventListener("click", async () => {
+      const groupName = dom.newGroupNameInput.value.trim();
+      if (groupName === "") return;
+      if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
+      clearMessage(dom.messageArea);
+      try {
+        let response;
+        if (isAndroidPlatformGlobal) {
+          response = await createGroupDirect(groupName);
+        } else {
+          response = await browser.runtime.sendMessage({
+            action: "createGroup",
+            groupName: groupName,
+          });
+        }
+        if (response.success) {
+          if (currentState && !currentState.definedGroups.includes(response.newGroup)) {
+            currentState.definedGroups.push(response.newGroup);
+            currentState.definedGroups.sort();
+            const ul = ensureGroupsListUl(); // ensureGroupsListUl should handle clearing "no groups" text
+            if (ul) {
+              const isSubscribed = currentState.subscriptions.includes(response.newGroup);
+              const newLi = createGroupListItemUI(response.newGroup, isSubscribed, { handleSubscribe, handleUnsubscribe, handleDeleteGroup, startRenameGroup });
+              ul.appendChild(newLi);
+            }
+          }
+          if (dom.messageArea) showMessage(dom.messageArea, STRINGS.groupCreateSuccess(response.newGroup), false);
+          dom.newGroupNameInput.value = "";
+          dom.createGroupBtn.disabled = true;
+        } else {
+          if (dom.messageAreadom.messageArea) showMessage(dom.messageArea, response.message || STRINGS.groupCreateFailed, true);
+        }
+      } catch (error) {
+        if (dom.messageArea) showMessage(dom.messageArea, STRINGS.groupCreateFailed + ": " + error.message, true);
+      } finally {
+        if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, false);
+      }
+    });
+  }
   // Show last sync time - Moved inside DOMContentLoaded
   if (syncStatus) { 
     storage.get(browser.storage.local, "lastSync", null).then((ts) => {
@@ -212,9 +201,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   if (isAndroidPlatformGlobal) {
     const container = document.querySelector(".container");
-    showAndroidBanner(
-      'Note: On Firefox for Android, background processing is not available. Open this page and tap "Sync Now" to process new tabs or changes.'
-    ); // Corrected argument passing
+    if (container) { // Ensure container exists before passing
+      showAndroidBanner(container,
+        'Note: On Firefox for Android, background processing is not available. Open this page and tap "Sync Now" to process new tabs or changes.'
+      );
+    }
     setLastSyncTimeUI(container, Date.now()); // Use UI function
     showDebugInfoUI(container, currentState);      // Use UI function
 
@@ -316,14 +307,14 @@ function ensureDeviceRegistryUl() {
   if (!dom.deviceRegistryListDiv) return null; // Guard clause
   let ul = dom.deviceRegistryListDiv.querySelector('#device-registry-list-ul');
   if (!ul) {
+    // If the div was showing "no devices", clear it before adding the new ul
+    if (dom.deviceRegistryListDiv.textContent.trim() === STRINGS.noDevices) {
+      dom.deviceRegistryListDiv.textContent = '';
+    }
     ul = document.createElement('ul');
     ul.id = 'device-registry-list-ul';
+    ul.className = 'options-list'; // Assuming a common class
     ul.setAttribute('role', 'list');
-    dom.deviceRegistryListDiv.appendChild(ul);
-  }
-  // Clear "no devices" message if it exists
-  if (dom.deviceRegistryListDiv.textContent === STRINGS.noDevices) {
-    dom.deviceRegistryListDiv.textContent = '';
     dom.deviceRegistryListDiv.appendChild(ul);
   }
   return ul;
@@ -333,13 +324,13 @@ function ensureGroupsListUl() {
   let ul = dom.definedGroupsListDiv.querySelector('#defined-groups-list-ul');
   if (!ul) {
     ul = document.createElement('ul');
+    // If the div was showing "no groups", clear it before adding the new ul
+    if (dom.definedGroupsListDiv.textContent.trim() === STRINGS.noGroups) {
+      dom.definedGroupsListDiv.textContent = '';
+    }
     ul.id = 'defined-groups-list-ul';
+    ul.className = 'options-list'; // Assuming a common class
     ul.setAttribute('role', 'list');
-    dom.definedGroupsListDiv.appendChild(ul);
-  }
-  // Clear "no groups" message if it exists
-  if (dom.definedGroupsListDiv.textContent === STRINGS.noGroups) {
-    dom.definedGroupsListDiv.textContent = '';
     dom.definedGroupsListDiv.appendChild(ul);
   }
   return ul;
@@ -542,7 +533,9 @@ async function handleDeleteDevice(deviceId, deviceName) {
           deviceLi.remove();
         }
         if (dom.deviceRegistryListDiv && Object.keys(currentState.deviceRegistry).length === 0) {
-          ensureDeviceRegistryUl().parentElement.textContent = STRINGS.noDevices;
+          const ul = dom.deviceRegistryListDiv.querySelector('#device-registry-list-ul');
+          if (ul) ul.remove(); // Remove the UL itself
+          dom.deviceRegistryListDiv.textContent = STRINGS.noDevices; // Set the "no devices" message
         }
       }
     } else {
@@ -558,68 +551,6 @@ async function handleDeleteDevice(deviceId, deviceName) {
   } finally {
     if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, false);
   }
-}
-
-// --- UI Interaction Handlers ---
-
-if (dom.newGroupNameInput && dom.createGroupBtn) {
-  dom.newGroupNameInput.addEventListener(
-    "input",
-    debounce((e) => {
-      const value = e.target.value.trim();
-      dom.createGroupBtn.disabled = value.length === 0;
-    }, 250) // Standard debounce delay
-  );
-  dom.createGroupBtn.addEventListener("click", async () => {
-    const groupName = dom.newGroupNameInput.value.trim();
-    if (groupName === "") return;
-    if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
-    clearMessage(dom.messageArea);
-    try {
-      let response;
-      if (isAndroidPlatformGlobal) {
-        response = await createGroupDirect(groupName);
-      } else {
-        response = await browser.runtime.sendMessage({
-          action: "createGroup",
-          groupName: groupName,
-        });
-      }
-      if (response.success) {
-        // Update local state and re-render
-        if (currentState && !currentState.definedGroups.includes(response.newGroup)) {
-          currentState.definedGroups.push(response.newGroup);
-          currentState.definedGroups.sort();
-
-          // Targeted DOM update for adding a group
-          const ul = ensureGroupsListUl();
-          if (ul) { // Check if ul was successfully created/found
-            const isSubscribed = currentState.subscriptions.includes(response.newGroup);
-            const newLi = createGroupListItemUI(response.newGroup, isSubscribed, {
-              handleSubscribe,
-              handleUnsubscribe,
-              handleDeleteGroup,
-              startRenameGroup,
-            });
-            ul.appendChild(newLi);
-            if (dom.definedGroupsListDiv && ul.children.length === 1 && dom.definedGroupsListDiv.textContent === STRINGS.noGroups) {
-              dom.definedGroupsListDiv.textContent = '';
-              dom.definedGroupsListDiv.appendChild(ul);
-            }
-          }
-        }
-        if (dom.messageArea) showMessage(dom.messageArea, STRINGS.groupCreateSuccess(response.newGroup), false);
-        dom.newGroupNameInput.value = "";
-        dom.createGroupBtn.disabled = true;
-      } else {
-        if (dom.messageArea) showMessage(dom.messageArea, response.message || STRINGS.groupCreateFailed, true);
-      }
-    } catch (error) {
-      if (dom.messageArea) showMessage(dom.messageArea, STRINGS.groupCreateFailed + ": " + error.message, true);
-    } finally {
-      if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, false);
-    }
-  });
 }
 
 async function handleSubscribe(event) {
@@ -731,7 +662,9 @@ async function handleDeleteGroup(event) {
           groupLi.remove();
         }
         if (dom.definedGroupsListDiv && currentState.definedGroups.length === 0) {
-          dom.definedGroupsListDiv.textContent = STRINGS.noGroups;
+          const ul = dom.definedGroupsListDiv.querySelector('#defined-groups-list-ul');
+          if (ul) ul.remove(); // Remove the UL itself
+          dom.definedGroupsListDiv.textContent = STRINGS.noGroups; // Set the "no groups" message
         }
       }
       if (dom.messageArea) showMessage(dom.messageArea, STRINGS.groupDeleteSuccess(response.deletedGroup), false);
@@ -777,7 +710,9 @@ async function handleRemoveSelfDevice() {
           deviceLi.remove();
         }
         if (dom.deviceRegistryListDiv && Object.keys(currentState.deviceRegistry).length === 0) {
-         ensureDeviceRegistryUl().parentElement.textContent = STRINGS.noDevices;
+         const ul = dom.deviceRegistryListDiv.querySelector('#device-registry-list-ul');
+         if (ul) ul.remove(); // Remove the UL itself
+         dom.deviceRegistryListDiv.textContent = STRINGS.noDevices; // Set the "no devices" message
         }
       }
     } else {

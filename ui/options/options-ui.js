@@ -230,14 +230,16 @@ export function setLastSyncTimeUI(containerElement, timestamp) {
   let syncTimeDiv = containerElement.querySelector(".last-sync-time"); // Corrected selector
   if (!syncTimeDiv) { // Styles moved to styles.css
     syncTimeDiv = document.createElement("div");
-    syncTimeDiv.className = "last-sync-time small-text"; // Standardize to last-sync-time
-    syncTimeDiv.style.marginBottom = "7px"; // Example style
+    syncTimeDiv.className = "last-sync-time"; // Class for styling from CSS
     // Prepend to a specific section if available, or just the container
     const androidInfoSection = containerElement.querySelector('#androidSpecificInfo'); // Assuming such an ID exists in options.html
     if (androidInfoSection) {
         androidInfoSection.insertBefore(syncTimeDiv, androidInfoSection.firstChild);
     } else {
-        containerElement.insertBefore(syncTimeDiv, containerElement.firstChild); // Fallback
+        // Fallback: if no androidSpecificInfo, maybe prepend to a general settings area or log an error
+        console.warn("TabTogether: #androidSpecificInfo container not found for last sync time.");
+        // As a robust fallback, one might append to containerElement.firstChild, but it's better if #androidSpecificInfo exists.
+        // containerElement.insertBefore(syncTimeDiv, containerElement.firstChild); 
     }
   }
   syncTimeDiv.textContent = "Last sync (this view): " + (timestamp ? new Date(timestamp).toLocaleString() : "Never");
@@ -249,13 +251,14 @@ export function showDebugInfoUI(containerElement, state) {
   let debugDiv = containerElement.querySelector(".options-debug-info"); // Styles moved to styles.css
   if (!debugDiv) {
     debugDiv = document.createElement("div");
-    debugDiv.className = "options-debug-info small-text"; // Use a specific class
+    debugDiv.className = "options-debug-info"; // Class for styling from CSS
 
     const androidInfoSection = containerElement.querySelector('#androidSpecificInfo');
     if (androidInfoSection) {
         androidInfoSection.appendChild(debugDiv);
     } else {
-        containerElement.appendChild(debugDiv); // Fallback
+        console.warn("TabTogether: #androidSpecificInfo container not found for debug info.");
+        // containerElement.appendChild(debugDiv); // Fallback
     }
   }
 

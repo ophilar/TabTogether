@@ -559,3 +559,25 @@ button.inline-btn {
     padding: 12px 8px;
   }
 }
+/* In shared-ui.css or styles.css */
+.android-specific-info-container {
+    /* Add any specific container styling if needed, e.g., margin */
+    margin-bottom: 10px;
+}
+
+.last-sync-time, .options-debug-info {
+    font-size: 0.9em;
+    color: var(--text-color-secondary);
+    margin-bottom: 5px;
+}
+
+.options-debug-info pre {
+    white-space: pre-wrap;
+    word-break: break-all;
+    background-color: var(--background-color-secondary);
+    padding: 5px;
+    border-radius: 4px;
+    font-size: 0.85em;
+    max-height: 200px;
+    overflow-y: auto;
+}
