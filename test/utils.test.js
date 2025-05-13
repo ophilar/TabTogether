@@ -398,7 +398,8 @@ describe('utils', () => {
                 _clearInstanceNameCache(); // Ensure cache is clear
 
                 const success = await setInstanceName('New Device Name');
-                expect(success).toBe(true);
+                expect(success.success).toBe(true); // Check the 'success' property of the returned object
+                expect(success.newName).toBe('New Device Name'); // Optionally check the newName property
 
                 expect(await storage.get(mockStorage, LOCAL_STORAGE_KEYS.INSTANCE_NAME_OVERRIDE)).toBe('New Device Name');
                 const registry = await storage.get(mockSyncStorage, SYNC_STORAGE_KEYS.DEVICE_REGISTRY);
