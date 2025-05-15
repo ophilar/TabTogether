@@ -480,17 +480,11 @@ describe('utils', () => {
             expect(subscriptions[instanceId].filter(g => g === 'ExistingGroup').length).toBe(1);
         });
 
-        test('device rename and delete', async () => {
+        test('device delete', async () => {
             const instanceId = 'id1';
             await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, { [instanceId]: { name: 'Old', lastSeen: 1 } });
-            await storage.set(mockStorage, LOCAL_STORAGE_KEYS.INSTANCE_ID, instanceId);
-            await storage.set(mockStorage, LOCAL_STORAGE_KEYS.INSTANCE_NAME, 'Old');
-
-            // let res = await renameDeviceDirect(instanceId, 'NewName');
-            // expect(res.success).toBe(true);
-            // const registryAfterRename = await storage.get(mockSyncStorage, SYNC_STORAGE_KEYS.DEVICE_REGISTRY);
-            // expect(registryAfterRename[instanceId].name).toBe('NewName');
-            res = await deleteDeviceDirect(instanceId);
+          
+            const res = await deleteDeviceDirect(instanceId);
             expect(res.success).toBe(true);
             const registryAfterDelete = await storage.get(mockSyncStorage, SYNC_STORAGE_KEYS.DEVICE_REGISTRY);
             expect(registryAfterDelete[instanceId]).toBeUndefined();
