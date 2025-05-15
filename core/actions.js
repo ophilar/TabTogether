@@ -203,16 +203,13 @@ export async function unsubscribeFromGroupUnified(groupName, isAndroid) {
   }
 }
 
-export async function renameDeviceUnified(deviceId, newName, isAndroid) {
+export async function renameDeviceUnified(newName, isAndroid) {
+  const currentInstanceId = await getInstanceId(); // Get current instance ID
   if (isAndroid) {
-    // On Android, if it's the current device, update its name directly.
-    const instanceId = await getInstanceId();
-    if (deviceId === instanceId) {
-        return await setInstanceNameInCore(newName.trim()); // Use instance.setInstanceName for current device
-    }
-    return renameDeviceDirect(deviceId, newName.trim()); // For other devices on Android, update sync directly
+    // On Android, if it's the current device, update its name directly with instance.setInstanceName
+    return await setInstanceNameInCore(newName.trim());
   } else {
-    return browser.runtime.sendMessage({ action: "renameDevice", deviceId, newName });
+    return browser.runtime.sendMessage({ action: "renameDevice", currentInstanceId, newName });
   }
 }
 

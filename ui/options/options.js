@@ -422,7 +422,7 @@ function startRenameCurrentDevice(listItem, nameSpan) {
   nameContainer.insertBefore(inlineControls.element, nameSpan.nextSibling);
   inlineControls.focusInput();
 }
-async function finishRenameDevice(newName, listItem, nameSpan, inlineControlsContainer) {
+async function finishRenameDevice(newName, nameSpan, inlineControlsContainer) {
   newName = newName.trim();
   if (!newName) {
     cancelInlineEditUI(nameSpan, inlineControlsContainer);
@@ -435,12 +435,12 @@ async function finishRenameDevice(newName, listItem, nameSpan, inlineControlsCon
     cancelInlineEditUI(nameSpan, inlineControlsContainer); // Ensure UI is reset
     return;
   }
+  const deviceId = currentState.instanceId; // Get deviceId from currentState
   if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
   let success = false;
-  console.log(new Date().toISOString(), `[finishRenameDevice] START. deviceId: ${deviceId}, oldName (from UI): ${nameSpan.textContent.replace(' (This Device)', '').trim()}, newName: ${newName}`);
+  console.log(new Date().toISOString(), `[finishRenameDevice] START. Current deviceId: ${deviceId}, oldName (from UI): ${nameSpan.textContent.replace(' (This Device)', '').trim()}, newName: ${newName}`);
   try {
-    let response = await renameDeviceUnified(deviceId, newName, isAndroidPlatformGlobal);
-    const deviceId = currentState.instanceId; // Get deviceId from currentState
+    let response = await renameDeviceUnified(newName, isAndroidPlatformGlobal); // deviceId param removed
 
     if (response.success) {
       console.log(new Date().toISOString(), `[finishRenameDevice] renameDeviceUnified SUCCESS. response.newName: ${response.newName}`);
@@ -452,9 +452,9 @@ async function finishRenameDevice(newName, listItem, nameSpan, inlineControlsCon
         if (currentState.deviceRegistry && currentState.deviceRegistry[deviceId]) {
           currentState.deviceRegistry[deviceId].name = newName;
         }
-        if (deviceId === currentState.instanceId) {
-          lastSuccessfulRenameInfo = { deviceId, newName, timestamp: Date.now() };
-        }
+        
+        lastSuccessfulRenameInfo = { deviceId, newName, timestamp: Date.now() };
+        
       }
       console.log(new Date().toISOString(), `[finishRenameDevice] currentState updated. currentState.instanceName: ${currentState?.instanceName}, currentState.deviceRegistry['${deviceId}']?.name: ${currentState?.deviceRegistry?.[deviceId]?.name}`);
       showMessage(dom.messageArea, STRINGS.deviceRenameSuccess(newName), false);
