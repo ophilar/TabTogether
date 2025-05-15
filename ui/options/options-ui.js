@@ -5,7 +5,7 @@ import { STRINGS } from "../../common/constants.js";
  * @param {string} deviceId - The ID of the device.
  * @param {object} deviceData - The data object for the device.
  * @param {{id: string, name: string}} localInstance - Object containing the ID and name of the current local instance.
- * @param {object} handlers - Object containing event handlers (startRenameDevice, handleRemoveSelfDevice, handleDeleteDevice).
+ * @param {object} handlers - Object containing event handlers (startRenameCurrentDevice, handleRemoveSelfDevice, handleDeleteDevice).
  * @returns {HTMLLIElement} The created list item element.
  */
 export function createDeviceListItemUI(deviceId, deviceData, localInstance, handlers) {
@@ -32,17 +32,18 @@ export function createDeviceListItemUI(deviceId, deviceData, localInstance, hand
     console.log(new Date().toISOString(), `[createDeviceListItemUI] "This Device" (${deviceId}). Determined nameForDisplay: ${nameForDisplay} (from localInstance.name: ${localInstance.name}, fallback deviceData.name: ${deviceData.name})`);
   }
 
-  // Make the name span clickable for renaming for ALL devices
-  nameSpan.style.cursor = 'pointer';
-  nameSpan.title = `Click to rename device: ${nameForDisplay}`; // Dynamic title using authoritative name
-  nameSpan.onclick = () => handlers.startRenameDevice(deviceId, nameForRenameHandlerStart, li, nameSpan);
-
   if (deviceId === localInstance.id) {
     const strong = document.createElement('strong');
     strong.textContent = nameForDisplay; // Use the authoritative name
     nameSpan.appendChild(strong);
     nameSpan.appendChild(document.createTextNode(' (This Device)'));
     li.classList.add('this-device');
+
+    // Only make the name span clickable for renaming for the CURRENT device
+    nameSpan.style.cursor = 'pointer';
+    nameSpan.title = `Click to rename this device: ${nameForDisplay}`;
+    // Pass only the necessary DOM elements; deviceId and oldName will be sourced from currentState in options.js
+    nameSpan.onclick = () => handlers.startRenameCurrentDevice(li, nameSpan);
   } else {
     nameSpan.textContent = nameForDisplay;
   }
