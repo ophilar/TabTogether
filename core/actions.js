@@ -1,5 +1,3 @@
-// core/actions.js
-
 import { storage} from "./storage.js";
 import { SYNC_STORAGE_KEYS, STRINGS } from "../common/constants.js";
 import { getInstanceId, getInstanceName, setInstanceName as setInstanceNameInCore } from "./instance.js";
@@ -144,24 +142,24 @@ export async function unsubscribeFromGroupDirect(groupName) {
   return { success: false, message: "Failed to save unsubscription." };
 }
 
-export async function renameDeviceDirect(deviceId, newName) {
-  if (!newName || typeof newName !== 'string' || newName.trim().length === 0) {
-    return { success: false, message: STRINGS.invalidDeviceName };
-  }
-  const trimmedNewName = newName.trim();
-  let deviceRegistry = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
-  if (deviceRegistry[deviceId]) {
-    deviceRegistry[deviceId].name = trimmedNewName;
-    deviceRegistry[deviceId].lastSeen = Date.now(); // Update lastSeen on modification
-  } else {
-    return { success: false, message: "Device not found in registry." }; // STRINGS
-  }
-  const success = await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, deviceRegistry);
-  if (success) {
-    return { success: true, message: STRINGS.deviceRenameSuccess(trimmedNewName), renamedDevice: trimmedNewName };
-  }
-  return { success: false, message: "Failed to save device rename." };
-}
+// export async function renameDeviceDirect(deviceId, newName) {
+//   if (!newName || typeof newName !== 'string' || newName.trim().length === 0) {
+//     return { success: false, message: STRINGS.invalidDeviceName };
+//   }
+//   const trimmedNewName = newName.trim();
+//   let deviceRegistry = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
+//   if (deviceRegistry[deviceId]) {
+//     deviceRegistry[deviceId].name = trimmedNewName;
+//     deviceRegistry[deviceId].lastSeen = Date.now(); // Update lastSeen on modification
+//   } else {
+//     return { success: false, message: "Device not found in registry." }; // STRINGS
+//   }
+//   const success = await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, deviceRegistry);
+//   if (success) {
+//     return { success: true, message: STRINGS.deviceRenameSuccess(trimmedNewName), renamedDevice: trimmedNewName };
+//   }
+//   return { success: false, message: "Failed to save device rename." };
+// }
 
 export async function deleteDeviceDirect(deviceId) {
   let deviceRegistry = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
@@ -204,12 +202,11 @@ export async function unsubscribeFromGroupUnified(groupName, isAndroid) {
 }
 
 export async function renameDeviceUnified(newName, isAndroid) {
-  const currentInstanceId = await getInstanceId(); // Get current instance ID
   if (isAndroid) {
     // On Android, if it's the current device, update its name directly with instance.setInstanceName
     return await setInstanceNameInCore(newName.trim());
   } else {
-    return browser.runtime.sendMessage({ action: "renameDevice", currentInstanceId, newName });
+    return browser.runtime.sendMessage({ action: "renameDevice", newName });
   }
 }
 
