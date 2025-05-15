@@ -45,7 +45,7 @@ import { STRINGS, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from '../common/consta
 import { deepMerge, isObject as isObjectUtil, ensureObject, ensureArray, ensureString } from '../common/utils.js';
 import { storage, addToList, removeFromList, renameInList, updateObjectKey, removeObjectKey} from '../core/storage.js';
 import { getPlatformInfoCached, isAndroid, _clearPlatformInfoCache } from '../core/platform.js';
-import { createGroupDirect, renameGroupDirect, deleteGroupDirect, subscribeToGroupDirect, unsubscribeFromGroupDirect, renameDeviceDirect, deleteDeviceDirect } from '../core/actions.js';
+import { createGroupDirect, renameGroupDirect, deleteGroupDirect, subscribeToGroupDirect, unsubscribeFromGroupDirect, deleteDeviceDirect } from '../core/actions.js';
 import { createAndStoreGroupTask } from '../core/tasks.js';
 import { performHeartbeat } from '../background/heartbeat.js';
 import { performStaleDeviceCheck, performTimeBasedTaskCleanup } from '../background/cleanup.js';
@@ -486,10 +486,10 @@ describe('utils', () => {
             await storage.set(mockStorage, LOCAL_STORAGE_KEYS.INSTANCE_ID, instanceId);
             await storage.set(mockStorage, LOCAL_STORAGE_KEYS.INSTANCE_NAME, 'Old');
 
-            let res = await renameDeviceDirect(instanceId, 'NewName');
-            expect(res.success).toBe(true);
-            const registryAfterRename = await storage.get(mockSyncStorage, SYNC_STORAGE_KEYS.DEVICE_REGISTRY);
-            expect(registryAfterRename[instanceId].name).toBe('NewName');
+            // let res = await renameDeviceDirect(instanceId, 'NewName');
+            // expect(res.success).toBe(true);
+            // const registryAfterRename = await storage.get(mockSyncStorage, SYNC_STORAGE_KEYS.DEVICE_REGISTRY);
+            // expect(registryAfterRename[instanceId].name).toBe('NewName');
             res = await deleteDeviceDirect(instanceId);
             expect(res.success).toBe(true);
             const registryAfterDelete = await storage.get(mockSyncStorage, SYNC_STORAGE_KEYS.DEVICE_REGISTRY);

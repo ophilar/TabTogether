@@ -7,7 +7,6 @@ import {
   _clearInstanceNameCache as clearBackgroundInstanceNameCache,
 } from "../core/instance.js";
 import {
-  renameDeviceDirect,
   createGroupDirect,
   deleteGroupDirect,
   renameGroupDirect,
@@ -446,29 +445,23 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
       return await renameGroupDirect(oldName, newName.trim());
     }
     case "renameDevice": {
-      const { deviceId, newName } = request;
+      const { newName } = request;
       if (
-        !deviceId ||
         !newName ||
         typeof newName !== "string" ||
         newName.trim().length === 0
       ) {
         return {
           success: false,
-          message: STRINGS.invalidDeviceParams,
+          message: STRINGS.invalidDeviceName,
         };
       }
       try {
-        const localInstanceId = await getInstanceId();
-        if (deviceId === localInstanceId) {
-          const setResult = await setInstanceNameInCore(newName.trim());
-          if (setResult.success) {
-            clearBackgroundInstanceNameCache(); 
-          }
-          return setResult;
-        } else {
-          return await renameDeviceDirect(deviceId, newName.trim());
+        const setResult = await setInstanceNameInCore(newName.trim());
+        if (setResult.success) {
+          clearBackgroundInstanceNameCache(); 
         }
+        return setResult;      
       } catch (error) {
         console.error("Error during renameDevice call:", error);
         return {

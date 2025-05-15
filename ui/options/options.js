@@ -39,8 +39,8 @@ const dom = {
   definedGroupsListDiv: null,
   newGroupNameInput: null,
   createGroupBtn: null,
-  loadingIndicator: null, // Added here for consistency
-  messageArea: null,      // Added here for consistency
+  loadingIndicator: null,
+  messageArea: null,
 };
 let currentState = null;
 let isAndroidPlatformGlobal = false;
@@ -52,16 +52,16 @@ let lastSuccessfulRenameInfo = { deviceId: null, newName: null, timestamp: 0 };
 const RENAME_PROTECTION_WINDOW_MS = 500; // Protect for 0.5 seconds
 
 const debouncedLoadState = debounce(async () => {
-    try {
-        console.log(new Date().toISOString(), "Options page received syncDataChanged message (debounced), reloading state...");
-        await loadState();
-        const ts = await storage.get(browser.storage.local, "lastSync", null);
-        if (ts && syncStatus) {
-            syncStatus.textContent = "Last sync: " + new Date(ts).toLocaleString();
-        }
-    } catch (e) {
-        console.error("Error processing debounced syncDataChanged message:", e);
+  try {
+    console.log(new Date().toISOString(), "Options page received syncDataChanged message (debounced), reloading state...");
+    await loadState();
+    const ts = await storage.get(browser.storage.local, "lastSync", null);
+    if (ts && syncStatus) {
+      syncStatus.textContent = "Last sync: " + new Date(ts).toLocaleString();
     }
+  } catch (e) {
+    console.error("Error processing debounced syncDataChanged message:", e);
+  }
 }, 300);
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -142,7 +142,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
       });
     }
-    
+
     if (dom.newGroupNameInput && dom.createGroupBtn) {
       dom.newGroupNameInput.addEventListener(
         "input",
@@ -401,14 +401,12 @@ function startRenameCurrentDevice(listItem, nameSpan) {
     showMessage(dom.messageArea, "Cannot rename device: current device information is missing.", true);
     return;
   }
-  const deviceId = currentState.instanceId; // Get deviceId from currentState
   const oldName = currentState.instanceName;  // Get oldName from currentState
 
   if (listItem.querySelector('.inline-edit-container')) {
     return;
   }
   const onSave = (newName) => {
-    // deviceId will be sourced from currentState in finishRenameDevice
     finishRenameDevice(newName, listItem, nameSpan, inlineControls.element);
   };
 
@@ -422,10 +420,12 @@ function startRenameCurrentDevice(listItem, nameSpan) {
   nameContainer.insertBefore(inlineControls.element, nameSpan.nextSibling);
   inlineControls.focusInput();
 }
-async function finishRenameDevice(newName, nameSpan, inlineControlsContainer) {
+async function finishRenameDevice(newName, listItem, nameSpan, inlineControlsContainer) {
   newName = newName.trim();
-  if (!newName) {
+  const currentDeviceName = currentState?.instanceName;
+  if (!newName || newName === currentDeviceName) {
     cancelInlineEditUI(nameSpan, inlineControlsContainer);
+    if (newName === currentDeviceName && dom.messageArea) clearMessage(dom.messageArea);
     return;
   }
 
@@ -435,57 +435,49 @@ async function finishRenameDevice(newName, nameSpan, inlineControlsContainer) {
     cancelInlineEditUI(nameSpan, inlineControlsContainer); // Ensure UI is reset
     return;
   }
-  const deviceId = currentState.instanceId; // Get deviceId from currentState
+  const deviceId = currentState.instanceId;
   if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
   let success = false;
   console.log(new Date().toISOString(), `[finishRenameDevice] START. Current deviceId: ${deviceId}, oldName (from UI): ${nameSpan.textContent.replace(' (This Device)', '').trim()}, newName: ${newName}`);
   try {
-    let response = await renameDeviceUnified(newName, isAndroidPlatformGlobal); // deviceId param removed
+    let response = await renameDeviceUnified(newName, isAndroidPlatformGlobal);
 
     if (response.success) {
       console.log(new Date().toISOString(), `[finishRenameDevice] renameDeviceUnified SUCCESS. response.newName: ${response.newName}`);
       success = true;
       if (currentState) {
-        if (deviceId === currentState.instanceId) {
-          currentState.instanceName = newName;
-        }
+        currentState.instanceName = newName;
         if (currentState.deviceRegistry && currentState.deviceRegistry[deviceId]) {
           currentState.deviceRegistry[deviceId].name = newName;
         }
-        
         lastSuccessfulRenameInfo = { deviceId, newName, timestamp: Date.now() };
-        
       }
       console.log(new Date().toISOString(), `[finishRenameDevice] currentState updated. currentState.instanceName: ${currentState?.instanceName}, currentState.deviceRegistry['${deviceId}']?.name: ${currentState?.deviceRegistry?.[deviceId]?.name}`);
       showMessage(dom.messageArea, STRINGS.deviceRenameSuccess(newName), false);
-      const deviceLi = dom.deviceRegistryListDiv.querySelector(`li[data-device-id="${deviceId}"]`);
+      const deviceLi = listItem
       if (deviceLi) {
         const deviceNameSpan = deviceLi.querySelector('.device-name-label');
         console.log(new Date().toISOString(), `[finishRenameDevice] Performing targeted DOM update. Setting name to: ${deviceId === currentState?.instanceId ? currentState?.instanceName : newName}`);
         if (deviceNameSpan) {
-          // Clear existing content (e.g., <strong> and text node)
           deviceNameSpan.textContent = '';
           const strong = document.createElement('strong');
           strong.textContent = currentState.instanceName;
           deviceNameSpan.appendChild(strong);
           deviceNameSpan.appendChild(document.createTextNode(' (This Device)'));
-          // Re-attach click handler. startRenameCurrentDevice will get deviceId and oldName (which is current newName)
-          // from currentState.
+          // Re-attach click handler. startRenameCurrentDevice will get deviceId and oldName (which is current newName) from currentState.
           if (deviceNameSpan) deviceNameSpan.onclick = () => startRenameCurrentDevice(deviceLi, deviceNameSpan);
         }
       }
     } else {
       showMessage(dom.messageArea, response.message || STRINGS.deviceRenameFailed, true);
       console.warn(new Date().toISOString(), `[finishRenameDevice] renameDeviceUnified FAILED. Message: ${response.message}`);
-      if (dom.messageArea) cancelInlineEditUI(nameSpan, inlineControlsContainer);
     }
   } catch (e) {
     if (dom.messageArea) showMessage(dom.messageArea, `${STRINGS.deviceRenameFailed}: ${e.message}`, true);
-    cancelInlineEditUI(nameSpan, inlineControlsContainer);
   } finally {
     cancelInlineEditUI(nameSpan, inlineControlsContainer);
     if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, false);
-    if (!success) { // If not successful, ensure original span is visible
+    if (!success) { 
       nameSpan.style.display = '';
     }
   }
