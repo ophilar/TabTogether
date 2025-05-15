@@ -377,33 +377,23 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
 
   switch (request.action) {
     case "getState": {
-      const localInstanceId = await getInstanceId();
-      const localInstanceName = await getInstanceName();
-      const localSubscriptions = await storage.get(
-        browser.storage.local,
-        LOCAL_STORAGE_KEYS.SUBSCRIPTIONS,
-        []
-      );
-      const definedGroups = await storage.get(
-        browser.storage.sync,
-        SYNC_STORAGE_KEYS.DEFINED_GROUPS,
-        []
-      );
-      const groupState = await storage.get(
-        browser.storage.sync,
-        SYNC_STORAGE_KEYS.GROUP_STATE,
-        {}
-      );
-      const deviceRegistry = await storage.get(
-        browser.storage.sync,
-        SYNC_STORAGE_KEYS.DEVICE_REGISTRY,
-        {}
-      );
-      const allSubscriptionsSync = await storage.get(
-        browser.storage.sync,
-        SYNC_STORAGE_KEYS.SUBSCRIPTIONS,
-        {}
-      );
+      const [
+          localInstanceId,
+          localInstanceName,
+          localSubscriptions,
+          definedGroups,
+          groupState,
+          deviceRegistry,
+          allSubscriptionsSync,
+      ] = await Promise.all([
+          getInstanceId(),
+          getInstanceName(),
+          storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []),
+          storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []),
+          storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {}),
+          storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {}),
+          storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {}),
+      ]);
 
       return {
         instanceId: localInstanceId,
