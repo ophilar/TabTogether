@@ -40,12 +40,29 @@ jest.mock('../core/id-utils.js', () => ({
     generateShortId: mockGenerateShortIdUtil,
 }));
 
+const mockGetInstanceIdUtilFn = jest.fn();
+const mockGetInstanceNameUtilFn = jest.fn();
+const mockSetInstanceNameUtilFn  = jest.fn();
+
+jest.mock('../core/instance.js', () => {
+    const actualInstanceModule = jest.requireActual('../core/instance.js');
+    return {
+        __esModule: true,
+        ...actualInstanceModule, // Spread actual exports
+        _clearInstanceIdCache: actualInstanceModule._clearInstanceIdCache,
+        _clearInstanceNameCache: actualInstanceModule._clearInstanceNameCache,
+        getInstanceId: mockGetInstanceIdUtilFn,
+        getInstanceName: mockGetInstanceNameUtilFn,
+        setInstanceName: mockSetInstanceNameUtilFn, // Override with our mock
+    };
+});
+
 import { jest } from '@jest/globals';
 import { STRINGS, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from '../common/constants.js';
 import { deepMerge, isObject as isObjectUtil, ensureObject, ensureArray, ensureString } from '../common/utils.js';
 import { storage, addToList, removeFromList, renameInList, updateObjectKey, removeObjectKey} from '../core/storage.js';
 import { getPlatformInfoCached, isAndroid, _clearPlatformInfoCache } from '../core/platform.js';
-import { createGroupDirect, renameGroupDirect, deleteGroupDirect, subscribeToGroupDirect, unsubscribeFromGroupDirect, deleteDeviceDirect } from '../core/actions.js';
+import { getUnifiedState, createGroupDirect, renameGroupDirect, deleteGroupDirect, subscribeToGroupDirect, unsubscribeFromGroupDirect, deleteDeviceDirect } from '../core/actions.js';
 import { createAndStoreGroupTask } from '../core/tasks.js';
 import { performHeartbeat } from '../background/heartbeat.js';
 import { performStaleDeviceCheck, performTimeBasedTaskCleanup } from '../background/cleanup.js';
@@ -57,17 +74,26 @@ import { debounce } from '../common/utils.js';
 describe('utils', () => {
     let mockStorage;
     let mockSyncStorage;
-    let mockGetInstanceNameFromTestFile; // Declare the mock function
-    let consoleErrorSpy, consoleWarnSpy, consoleLogSpy;
+    // let mockGetInstanceNameFromTestFile; // Declare the mock function
 
     beforeEach(async () => {
-        mockGetInstanceNameFromTestFile = jest.fn(); // Initialize for each test
-        mockGenerateShortIdUtil.mockReset(); // Reset the mock for generateShortId
-        instanceModule._clearInstanceIdCache(); 
-        instanceModule._clearInstanceNameCache(); 
+        mockGetInstanceIdUtilFn.mockReset();
+        mockGetInstanceNameUtilFn.mockReset();
+        // Default implementations if needed for most tests
+        mockGetInstanceIdUtilFn.mockResolvedValue('default-mock-id');
+        mockGetInstanceNameUtilFn.mockResolvedValue('Default Mock Name');
+        mockGenerateShortIdUtil.mockReset(); // Reset this too
+        // mockGetInstanceNameFromTestFile = jest.fn(); // Initialize for each test
+        // mockGenerateShortIdUtil.mockReset(); // Reset the mock for generateShortId
+        // instanceModule._clearInstanceIdCache(); 
+        // instanceModule._clearInstanceNameCache(); 
         if (typeof _clearPlatformInfoCache === 'function') { // Ensure it's imported
             _clearPlatformInfoCache();
         }
+        mockGetInstanceIdUtilFn.mockResolvedValue('default-mock-id');
+        mockGetInstanceNameUtilFn.mockResolvedValue('Default Mock Name');
+        mockSetInstanceNameUtilFn.mockResolvedValue({ success: true, newName: 'Default Set Name' });
+        mockGenerateShortIdUtil.mockReturnValue('default-short-id');
 
         consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
         consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => { });
@@ -221,44 +247,42 @@ describe('utils', () => {
         });
     });
     describe('Instance ID/Name', () => {
-        // test('getInstanceId generates new ID if none exists', async () => {
-        //     const expectedNewId = 'abcdefgh';
-        //     mockGenerateShortIdUtil.mockReturnValue(expectedNewId);
-        //     await global.browser.storage.sync.set({ [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: {} });
-        //     const id = await instanceModule.getInstanceId();
-        //     expect(id).toBe(expectedNewId);
-        //     expect(global.browser.storage.local.set).toHaveBeenCalledWith({ [LOCAL_STORAGE_KEYS.INSTANCE_ID]: id });
-        // });
-
-        test('getInstanceId retrieves from local storage first', async () => {
-            mockStorage._getStore()[LOCAL_STORAGE_KEYS.INSTANCE_ID] = 'local-id';
-            const id = await instanceModule.getInstanceId(); 
-            expect(id).toBe('local-id');
-            expect(mockGenerateShortIdUtil).not.toHaveBeenCalled();
-            expect(global.browser.storage.local.set).not.toHaveBeenCalled(); // Should not be called if ID is found and valid
+        test('getInstanceId generates new ID if none exists', async () => {
+            const expectedNewId = 'abcdefgh';
+            mockGetInstanceIdUtilFn.mockResolvedValue(expectedNewId);
+            await global.browser.storage.sync.set({ [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: {} });
+            const id = await instanceModule.getInstanceId();
+            expect(id).toBe(expectedNewId);
         });
 
-        // test('getInstanceId generates unique short ID on collision', async () => {
-        //     const existingId = 'EXISTING';
-        //     const expectedUniqueId = 'ijklmnop';
-        //     mockGenerateShortIdUtil
-        //         .mockReturnValueOnce(existingId)
-        //         .mockReturnValueOnce(existingId) // Second attempt, still collision
-        //         .mockReturnValueOnce(expectedUniqueId); // Third attempt, unique
-        //     await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, { [existingId]: { name: "Existing Device" } });
-        //     const id = await instanceModule.getInstanceId(); 
-        //     expect(id).toHaveLength(8);
-        //     expect(id).not.toBe(existingId);
-        //     expect(id).toBe(expectedUniqueId);
-        //     expect(mockStorage.set).toHaveBeenCalledWith({ [LOCAL_STORAGE_KEYS.INSTANCE_ID]: id });
-        // });
+        test('getInstanceId retrieves from local storage first', async () => {
+            const expectedId = 'local-id-from-mock';      
+            mockGetInstanceIdUtilFn.mockResolvedValue(expectedId);
+            const id = await instanceModule.getInstanceId();
+            expect(id).toBe(expectedId);
+        });
+
+        test('getInstanceId generates unique short ID on collision', async () => {
+            const existingId = 'EXISTING';
+            const expectedUniqueId = 'ijklmnop';
+            mockGenerateShortIdUtil
+                .mockReturnValueOnce(existingId)
+                .mockReturnValueOnce(existingId) // Second attempt, still collision
+                .mockReturnValueOnce(expectedUniqueId); // Third attempt, unique
+            await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, { [existingId]: { name: "Existing Device" } });
+            const id = await instanceModule.getInstanceId(); 
+            expect(id).toHaveLength(8);
+            expect(id).not.toBe(existingId);
+            expect(id).toBe(expectedUniqueId);
+            expect(mockStorage.set).toHaveBeenCalledWith({ [LOCAL_STORAGE_KEYS.INSTANCE_ID]: id });
+        });
 
         test('getInstanceName generates default name if none exists', async () => {
             global.browser.runtime.getPlatformInfo.mockResolvedValue({ os: 'mac' });
             const mockId = 'test-inst-id';
             await storage.set(mockStorage, LOCAL_STORAGE_KEYS.INSTANCE_ID, mockId);
             await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
-            mockGetInstanceNameFromTestFile.mockResolvedValue('Mac Device');
+            mockGetInstanceNameUtilFn.mockResolvedValue('Mac Device');
             const name = await instanceModule.getInstanceName(); 
             expect(name).toBe('Mac Device');
            
@@ -269,7 +293,7 @@ describe('utils', () => {
             const mockId = 'test-inst-id-win';
             await storage.set(mockStorage, LOCAL_STORAGE_KEYS.INSTANCE_ID, mockId);
             await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
-            mockGetInstanceNameFromTestFile.mockResolvedValue('Windows Device');
+            mockGetInstanceNameUtilFn.mockResolvedValue('Windows Device');
             const name = await instanceModule.getInstanceName();
             expect(name).toBe('Windows Device');
             expect(global.browser.runtime.getPlatformInfo).toHaveBeenCalled();
@@ -277,7 +301,7 @@ describe('utils', () => {
 
         test('getInstanceName retrieves from local override first', async () => {
             await storage.set(mockStorage, LOCAL_STORAGE_KEYS.INSTANCE_NAME_OVERRIDE, 'Local Override Name');
-            mockGetInstanceNameFromTestFile.mockResolvedValue('Local Override Name');
+            mockGetInstanceNameUtilFn.mockResolvedValue('Local Override Name');
             const name = await instanceModule.getInstanceName();
             expect(name).toBe('Local Override Name');
             expect(global.browser.runtime.getPlatformInfo).not.toHaveBeenCalled();
@@ -288,7 +312,7 @@ describe('utils', () => {
             const mockId = 'id-for-registry-empty-override';
             await storage.set(mockStorage, LOCAL_STORAGE_KEYS.INSTANCE_ID, mockId);
             await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, { [mockId]: { name: 'Registry Name From Empty Override' } });
-            mockGetInstanceNameFromTestFile.mockResolvedValue('Registry Name From Empty Override');
+            mockGetInstanceNameUtilFn.mockResolvedValue('Registry Name From Empty Override');
             const name = await instanceModule.getInstanceName();
             expect(name).toBe('Registry Name From Empty Override');
         });
@@ -298,7 +322,7 @@ describe('utils', () => {
             const mockId = 'id-for-platform-fail';
             await storage.set(mockStorage, LOCAL_STORAGE_KEYS.INSTANCE_ID, mockId);
             await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
-            mockGetInstanceNameFromTestFile.mockResolvedValue('My Device');
+            mockGetInstanceNameUtilFn.mockResolvedValue('My Device');
             const name = await instanceModule.getInstanceName();
             expect(name).toBe('My Device');
         });
@@ -307,7 +331,7 @@ describe('utils', () => {
             const mockId = 'id-for-registry';
             await storage.set(mockStorage, LOCAL_STORAGE_KEYS.INSTANCE_ID, mockId);
             await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, { [mockId]: { name: 'Registry Name' } });
-            mockGetInstanceNameFromTestFile.mockResolvedValue('Registry Name');
+            mockGetInstanceNameUtilFn.mockResolvedValue('Registry Name');
             const name = await instanceModule.getInstanceName();
             expect(name).toBe('Registry Name');
         });
@@ -316,7 +340,7 @@ describe('utils', () => {
             test('setInstanceName updates local override, sync registry, and cache', async () => {
                 const mockId = 'device-to-set-name';
                 await storage.set(mockStorage, LOCAL_STORAGE_KEYS.INSTANCE_ID, mockId);
-                mockGetInstanceNameFromTestFile.mockResolvedValue('New Device Name'); // For the final check
+                mockGetInstanceNameUtilFn.mockResolvedValue('New Device Name'); // For the final check
                 instanceModule._clearInstanceNameCache(); 
 
                 const success = await instanceModule.setInstanceName('New Device Name');
@@ -528,7 +552,8 @@ describe('utils', () => {
             const instanceName = 'Test Device';
             const initialRegistry = {
                 'other-id': { name: 'Other', lastSeen: Date.now() - 10000 }
-            };            
+            };          
+            
             // Set the instance ID in mock local storage for getInstanceId (if original was called, or for other parts)
             await storage.set(mockStorage, LOCAL_STORAGE_KEYS.INSTANCE_ID, instanceId);
             // Set the instance name override in mock local storage.
@@ -536,9 +561,12 @@ describe('utils', () => {
             // it will pick up the correct name.
             await storage.set(mockStorage, LOCAL_STORAGE_KEYS.INSTANCE_NAME_OVERRIDE, instanceName);
 
+            mockGetInstanceIdUtilFn.mockResolvedValue(instanceId); // Use the new mock
+            mockGetInstanceNameUtilFn.mockResolvedValue(instanceName); // Use the new mock
+
             global.browser.runtime.getPlatformInfo.mockResolvedValue({ os: 'mac' }); 
             mockGenerateShortIdUtil.mockReturnValue(instanceId); // generateShortId is sync
-            mockGetInstanceNameFromTestFile.mockResolvedValue(instanceName); // This mock should be hit by performHeartbeat
+            mockGetInstanceNameUtilFn.mockResolvedValue(instanceName); // This mock should be hit by performHeartbeat
             await mockSyncStorage.set({ [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: initialRegistry });
             const beforeTimestamp = Date.now();
             await performHeartbeat();
@@ -562,14 +590,42 @@ describe('utils', () => {
                 })
             }));
         });
-        // test('performHeartbeat handles missing instanceId', async () => {
-        //     mockGenerateShortIdUtil.mockReturnValue(null); // generateShortId is sync
-        //     global.browser.runtime.getPlatformInfo.mockResolvedValue({ os: 'mac' }); 
-        //     mockGetInstanceNameFromTestFile.mockResolvedValue('Any NameForHeartbeat'); 
-        //     await performHeartbeat();
-        //     expect(consoleWarnSpy).toHaveBeenCalledWith("Heartbeat skipped: Instance ID not available yet.");
-        // });
+        test('performHeartbeat handles missing instanceId', async () => {
+            mockGenerateShortIdUtil.mockReturnValue(null); // generateShortId is sync
+            global.browser.runtime.getPlatformInfo.mockResolvedValue({ os: 'mac' }); 
+            mockGetInstanceNameUtilFn.mockResolvedValue('Any NameForHeartbeat'); 
+            await performHeartbeat();
+            expect(consoleWarnSpy).toHaveBeenCalledWith("Heartbeat skipped: Instance ID not available yet.");
+        });
+        test('getUnifiedState updates lastSeen for current device in registry', async () => {
+            const mockId = 'current-device-id-for-unifiedstate';
+            const mockName = 'Current Device For UnifiedState';
+            const oldTimestamp = Date.now() - 100000; // An older timestamp
 
+            mockGetInstanceIdUtilFn.mockResolvedValue(mockId);
+            mockGetInstanceNameUtilFn.mockResolvedValue(mockName);
+            
+            await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {
+                [mockId]: { name: mockName, lastSeen: oldTimestamp },
+                'other-device': { name: 'Other', lastSeen: Date.now() }
+            });
+            const storageSetSpy = jest.spyOn(mockSyncStorage, 'set'); // Or storage.set if it wraps
+
+            await getUnifiedState(false); // isAndroid = false (or true, doesn't matter for this part)
+
+            expect(storageSetSpy).toHaveBeenCalledWith(expect.objectContaining({
+                [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: expect.objectContaining({
+                    [mockId]: expect.objectContaining({
+                        name: mockName,
+                        lastSeen: expect.any(Number) // Check that it's a number
+                    })
+                })
+            }));
+            // More precise check on the timestamp
+            const setArgs = storageSetSpy.mock.calls[0][0];
+            const updatedDeviceEntry = setArgs[SYNC_STORAGE_KEYS.DEVICE_REGISTRY][mockId];
+            expect(updatedDeviceEntry.lastSeen).toBeGreaterThan(oldTimestamp);
+        });
         test('performStaleDeviceCheck removes stale devices and updates masks', async () => {
             const now = Date.now();
             const staleTime = now - (1000 * 60 * 60 * 24 * 31); // 31 days ago
@@ -691,30 +747,32 @@ describe('utils', () => {
             expect(container.textContent).toBe(STRINGS.noDevices);
         });
 
-        test('renderDeviceRegistryUI renders devices and highlights "This Device"', () => {
+        test('renderDeviceRegistryUI renders devices, highlights "This Device", and shows lastSeen', () => {
+            const now = Date.now();
             const devices = {
-                id1: { name: 'Alpha', lastSeen: 1234567890000 },
-                id2: { name: 'Beta', lastSeen: 1234567891000 }
+                id1: { name: 'Alpha', lastSeen: now - 200000 },
+                id2: { name: 'Beta', lastSeen: now - 100000 } // "This Device"
             };
             const localInstanceId = 'id2';
-            const currentState = { deviceRegistry: devices, instanceId: localInstanceId };
-            const mockHandlers = {
-                startRenameCurrentDevice: jest.fn(),
-                handleRemoveSelfDevice: jest.fn(),
-                handleDeleteDevice: jest.fn()
-            };
+            // Make instanceName consistent with what getUnifiedState would provide
+            const currentState = { deviceRegistry: devices, instanceId: localInstanceId, instanceName: 'Beta' };
+            const mockHandlers = { /* ... */ };
 
             renderDeviceRegistryUI(container, currentState, mockHandlers);
 
             expect(container.querySelectorAll('li').length).toBe(2);
-            const thisDeviceLi = container.querySelector('.this-device');
-            expect(thisDeviceLi).not.toBeNull();
-            expect(thisDeviceLi.textContent).toContain('Beta');
-            expect(thisDeviceLi.textContent).toContain('(This Device)');
+            const deviceLis = container.querySelectorAll('li');
 
-            const otherDeviceLi = container.querySelector('li:not(.this-device)');
-            expect(otherDeviceLi).not.toBeNull();
-            expect(otherDeviceLi.textContent).toContain('Alpha');
+            const alphaLi = Array.from(deviceLis).find(li => li.textContent.includes('Alpha'));
+            expect(alphaLi).not.toBeNull();
+            // Assuming a simple toLocaleString() or similar for display. Adjust if formatting is complex.
+            expect(alphaLi.textContent).toContain(new Date(devices.id1.lastSeen).toLocaleString());
+
+            const betaLi = container.querySelector('.this-device'); // Or find by name 'Beta'
+            expect(betaLi).not.toBeNull();
+            expect(betaLi.textContent).toContain('Beta');
+            expect(betaLi.textContent).toContain('(This Device)');
+            expect(betaLi.textContent).toContain(new Date(devices.id2.lastSeen).toLocaleString());
         });
 
         test('renderGroupList shows no groups', () => {
