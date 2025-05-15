@@ -298,7 +298,7 @@ function renderDeviceRegistry() {
     console.warn("[renderDeviceRegistry] currentState is null, skipping render.");
     return;
   }
-  renderDeviceRegistryUI(dom.deviceRegistryListDiv, currentState, { startRenameDevice, handleRemoveSelfDevice, handleDeleteDevice });
+  renderDeviceRegistryUI(dom.deviceRegistryListDiv, currentState, { startRenameCurrentDevice: startRenameCurrentDevice, handleRemoveSelfDevice, handleDeleteDevice });
 }
 
 function renderDefinedGroups() {
@@ -395,27 +395,44 @@ async function finishRenameGroup(oldName, newName, nameSpan, inlineControlsConta
     }
   }
 }
-function startRenameDevice(deviceId, oldName, listItem, nameSpan) {
+function startRenameCurrentDevice(listItem, nameSpan) {
+  if (!currentState || !currentState.instanceId || typeof currentState.instanceName === 'undefined') {
+    console.error(new Date().toISOString(), "[startRenameCurrentDevice] Current state (instanceId/instanceName) not available for renaming.");
+    showMessage(dom.messageArea, "Cannot rename device: current device information is missing.", true);
+    return;
+  }
+  const deviceId = currentState.instanceId; // Get deviceId from currentState
+  const oldName = currentState.instanceName;  // Get oldName from currentState
+
   if (listItem.querySelector('.inline-edit-container')) {
     return;
   }
   const onSave = (newName) => {
-    finishRenameDevice(deviceId, newName, listItem, nameSpan, inlineControls.element);
+    // deviceId will be sourced from currentState in finishRenameDevice
+    finishRenameDevice(newName, listItem, nameSpan, inlineControls.element);
   };
 
   const onCancel = () => {
     cancelInlineEditUI(nameSpan, inlineControls.element);
   };
+
   const inlineControls = createInlineEditControlsUI(oldName, onSave, onCancel);
   nameSpan.style.display = 'none';
   const nameContainer = nameSpan.parentNode;
   nameContainer.insertBefore(inlineControls.element, nameSpan.nextSibling);
   inlineControls.focusInput();
 }
-async function finishRenameDevice(deviceId, newName, listItem, nameSpan, inlineControlsContainer) {
+async function finishRenameDevice(newName, listItem, nameSpan, inlineControlsContainer) {
   newName = newName.trim();
   if (!newName) {
     cancelInlineEditUI(nameSpan, inlineControlsContainer);
+    return;
+  }
+
+  if (!currentState || !currentState.instanceId) {
+    console.error(new Date().toISOString(), "[finishRenameDevice] Current state (instanceId) not available for renaming.");
+    showMessage(dom.messageArea, "Cannot save device name: current device ID is missing.", true);
+    cancelInlineEditUI(nameSpan, inlineControlsContainer); // Ensure UI is reset
     return;
   }
   if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
@@ -423,6 +440,8 @@ async function finishRenameDevice(deviceId, newName, listItem, nameSpan, inlineC
   console.log(new Date().toISOString(), `[finishRenameDevice] START. deviceId: ${deviceId}, oldName (from UI): ${nameSpan.textContent.replace(' (This Device)', '').trim()}, newName: ${newName}`);
   try {
     let response = await renameDeviceUnified(deviceId, newName, isAndroidPlatformGlobal);
+    const deviceId = currentState.instanceId; // Get deviceId from currentState
+
     if (response.success) {
       console.log(new Date().toISOString(), `[finishRenameDevice] renameDeviceUnified SUCCESS. response.newName: ${response.newName}`);
       success = true;
@@ -446,15 +465,13 @@ async function finishRenameDevice(deviceId, newName, listItem, nameSpan, inlineC
         if (deviceNameSpan) {
           // Clear existing content (e.g., <strong> and text node)
           deviceNameSpan.textContent = '';
-          if (deviceId === currentState.instanceId) {
-            const strong = document.createElement('strong');
-            strong.textContent = currentState.instanceName;
-            deviceNameSpan.appendChild(strong);
-            deviceNameSpan.appendChild(document.createTextNode(' (This Device)'));
-          } else {
-            deviceNameSpan.textContent = newName;
-          }
-          if (deviceNameSpan) deviceNameSpan.onclick = () => startRenameDevice(deviceId, newName, deviceLi, deviceNameSpan);
+          const strong = document.createElement('strong');
+          strong.textContent = currentState.instanceName;
+          deviceNameSpan.appendChild(strong);
+          deviceNameSpan.appendChild(document.createTextNode(' (This Device)'));
+          // Re-attach click handler. startRenameCurrentDevice will get deviceId and oldName (which is current newName)
+          // from currentState.
+          if (deviceNameSpan) deviceNameSpan.onclick = () => startRenameCurrentDevice(deviceLi, deviceNameSpan);
         }
       }
     } else {

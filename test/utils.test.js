@@ -689,7 +689,7 @@ describe('utils', () => {
         test('renderDeviceRegistryUI shows no devices', () => {
             const currentState = { deviceRegistry: {}, instanceId: 'local-id-test-1' };
             const mockHandlers = {
-                startRenameDevice: jest.fn(),
+                startRenameCurrentDevice: jest.fn(),
                 handleRemoveSelfDevice: jest.fn(),
                 handleDeleteDevice: jest.fn()
             };
@@ -705,7 +705,7 @@ describe('utils', () => {
             const localInstanceId = 'id2';
             const currentState = { deviceRegistry: devices, instanceId: localInstanceId };
             const mockHandlers = {
-                startRenameDevice: jest.fn(),
+                startRenameCurrentDevice: jest.fn(),
                 handleRemoveSelfDevice: jest.fn(),
                 handleDeleteDevice: jest.fn()
             };

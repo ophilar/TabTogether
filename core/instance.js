@@ -1,10 +1,10 @@
 import { storage } from "./storage.js";
 import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from "../common/constants.js";
-import { getPlatformInfoCached } from "./platform.js"; // Import missing function
-import { generateShortId } from './id-utils.js'; // Import it
+import { getPlatformInfoCached } from "./platform.js";
+import { generateShortId } from './id-utils.js'; 
 
 let instanceIdCache = null;
-let instanceNameCache = null; // Add cache for instance name
+let instanceNameCache = null;
 
 
 export async function getInstanceId() {
@@ -129,16 +129,10 @@ export async function setInstanceName(name) {
     return { success: true, newName: trimmedName };
 }
 
-/**
- * Clears the in-memory instance ID cache. Used for testing.
- */
-export function _clearInstanceIdCache() {
+// Clears the in-memory instance cache for testing.
+ export function _clearInstanceIdCache() {
   instanceIdCache = null;
 }
-
-/**
- * Clears the in-memory instance name cache. Used for testing.
- */
 export function _clearInstanceNameCache() {
   instanceNameCache = null;
 }
