@@ -30,7 +30,7 @@ export const SYNC_STORAGE_KEYS = {
  * This is tied to the bitmask implementation (e.g., a 16-bit mask allows 16 devices).
  * With bitmasks removed, this is enforced by counting subscribers.
  */
-export const MAX_DEVICES_PER_GROUP = 16; // Adjust if your bitmask supports more/less
+export const MAX_DEVICES_PER_GROUP = 64; // Adjust if your bitmask supports more/less
 
 /**
  * User-facing strings for UI elements, notifications, and messages.

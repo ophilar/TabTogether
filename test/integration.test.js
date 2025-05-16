@@ -44,28 +44,26 @@ describe('Integration: Group and Tab Flow', () => {
   async function subscribeToGroupAndVerify(groupName, deviceId) {
     const res = await subscribeToGroupDirect(groupName);
     expect(res.success).toBe(true);
-    const subscriptionsSync = await storageAPI.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {});
-    expect(subscriptionsSync[deviceId] || []).toContain(groupName);
+    const subscriptionsSync = await storageAPI.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {}); // groupName -> [deviceId]
+    expect(subscriptionsSync[groupName] || []).toContain(deviceId);
     return res;
   }
 
-  async function sendTabAndVerify(groupName, tabDetails, senderId, recipientIds = null) {
-    const res = await createAndStoreGroupTask(groupName, tabDetails, senderId, recipientIds);
+  async function sendTabAndVerify(groupName, tabDetails) {
+    const res = await createAndStoreGroupTask(groupName, tabDetails);
     expect(res.success).toBe(true);
     const groupTasks = await storageAPI.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS);
     const taskId = res.taskId;
     expect(taskId).toBeDefined();
     expect(groupTasks[groupName][taskId]).toBeDefined();
-    expect(groupTasks[groupName][taskId].senderDeviceId).toBe(senderId);
-    if (recipientIds) {
-      expect(groupTasks[groupName][taskId].recipientDeviceIds).toEqual(recipientIds);
-    }
+    expect(groupTasks[groupName][taskId].processedByDeviceIds).toContain(await instanceModule.getInstanceId());
     return { ...res, taskId };
   }
 
   async function processSelfSentTabAndVerify(state, groupName, taskId) {
     await processIncomingTabsAndroid(state);
-    expect(browser.tabs.create).not.toHaveBeenCalled(); // Tab should NOT be opened
+    // Tab should NOT be opened because the sender (creator) is already in processedByDeviceIds
+    expect(browser.tabs.create).not.toHaveBeenCalled(); 
     const groupTasksAfterProcessing = await storageAPI.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS);
     expect(groupTasksAfterProcessing[groupName][taskId]).toBeDefined(); // Task remains
   }
@@ -78,8 +76,8 @@ describe('Integration: Group and Tab Flow', () => {
   async function unsubscribeFromGroupAndVerify(groupName, deviceId) {
     const res = await unsubscribeFromGroupDirect(groupName);
     expect(res.success).toBe(true);
-    const subscriptionsSync = await storageAPI.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {});
-    expect(subscriptionsSync[deviceId] || []).not.toContain(groupName);
+    const subscriptionsSync = await storageAPI.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {}); // groupName -> [deviceId]
+    expect(subscriptionsSync[groupName] || []).not.toContain(deviceId);
     return res;
   }
 
@@ -88,11 +86,8 @@ describe('Integration: Group and Tab Flow', () => {
     expect(res.success).toBe(true);
     const definedGroups = await storageAPI.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS);
     expect(definedGroups).not.toContain(groupName);
-    
-    const subscriptionsAfterGroupDelete = await storageAPI.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {});
-    for (const deviceId in subscriptionsAfterGroupDelete) {
-        expect(subscriptionsAfterGroupDelete[deviceId]).not.toContain(groupName);
-    }
+    const subscriptionsAfterGroupDelete = await storageAPI.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {}); // groupName -> [deviceId]
+    expect(subscriptionsAfterGroupDelete[groupName]).toBeUndefined();
     return res;
   }
 
@@ -111,7 +106,7 @@ describe('Integration: Group and Tab Flow', () => {
 
     await browser.storage.sync.set({
       [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: {
-        'test-device-id': { name: 'Test Device', lastSeen: Date.now(), subscriptions: [] }
+        'test-device-id': { name: 'Test Device', lastSeen: Date.now() }
       },
       [SYNC_STORAGE_KEYS.GROUP_TASKS]: {},
       [SYNC_STORAGE_KEYS.DEFINED_GROUPS]: [],
@@ -133,7 +128,7 @@ describe('Integration: Group and Tab Flow', () => {
     // Dynamically import getUnifiedState for this test case as well
     const { getUnifiedState: getUnifiedStateForTest1 } = await import('../core/actions.js');
     const stateForProcessing = await getUnifiedStateForTest1(true); // Corrected: only one argument
-    await processSelfSentTabAndVerify(stateForProcessing, GROUP_NAME, sentTaskId);
+    await processSelfSentTabAndVerify(stateForProcessing, GROUP_NAME, sentTaskId); // Pass sentTaskId
 
     await unsubscribeFromGroupAndVerify(GROUP_NAME, 'test-device-id');
     await deleteGroupAndVerify(GROUP_NAME);
@@ -159,24 +154,23 @@ describe('Integration: Group and Tab Flow', () => {
       [deviceA_ID]: { name: 'Device A', lastSeen: Date.now(), subscriptions: [] },
       [deviceB_ID]: { name: 'Device B', lastSeen: Date.now(), subscriptions: [] }
     });
-    await storageAPI.set(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {
-      [deviceA_ID]: [],
-      [deviceB_ID]: []
-    });
+    // SYNC_STORAGE_KEYS.SUBSCRIPTIONS is groupName -> [deviceId]
+    await storageAPI.set(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {});
 
     // 1. Create group (by deviceA)
     await createGroupAndVerify(GROUP_NAME);
 
     // 2. Both devices subscribe
+    mockGetInstanceIdFn.mockResolvedValue(deviceA_ID);
     await subscribeToGroupAndVerify(GROUP_NAME, deviceA_ID); // deviceA subscribes
 
     // Simulate deviceB subscribing (direct action for test simplicity)
-    let subsB = await storageAPI.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS);
-    subsB[deviceB_ID] = [GROUP_NAME];
-    await storageAPI.set(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, subsB);
+    mockGetInstanceIdFn.mockResolvedValue(deviceB_ID);
+    await subscribeToGroupAndVerify(GROUP_NAME, deviceB_ID); // deviceB subscribes
 
     // 3. DeviceA sends a tab to the group
-    await sendTabAndVerify(GROUP_NAME, { url: TAB_URL, title: TAB_TITLE }, deviceA_ID, [deviceB_ID]);
+    mockGetInstanceIdFn.mockResolvedValue(deviceA_ID); // Set context back to Device A for sending
+    await sendTabAndVerify(GROUP_NAME, { url: TAB_URL, title: TAB_TITLE });
 
     // 4. Simulate DeviceB processing the task
     // Clear any module-level cache that getInstanceId might use
