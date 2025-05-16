@@ -53,7 +53,7 @@ export async function performTimeBasedTaskCleanup(localProcessedTasks, threshold
 
   for (const groupName in allGroupTasks) {
     for (const taskId in allGroupTasks[groupName]) {
-      const needsTaskDelete = false;
+      let needsTaskDelete = false;
       const task = allGroupTasks[groupName][taskId];
       // Condition 1: Task is expired
       if (task && now - (task.creationTimestamp || 0) > thresholdMs) {

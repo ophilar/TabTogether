@@ -63,7 +63,9 @@ describe('Integration: Group and Tab Flow', () => {
   async function processSelfSentTabAndVerify(state, groupName, taskId) {
     await processIncomingTabsAndroid(state);
     // Tab should NOT be opened because the sender (creator) is already in processedByDeviceIds
-    expect(browser.tabs.create).not.toHaveBeenCalled(); 
+    // However, processIncomingTabsAndroid *always* tries to open if not locally processed.
+    // The check for sentBySelfOrAlreadyProcessed includes processedByDeviceIds.
+    expect(browser.tabs.create).not.toHaveBeenCalled();
     const groupTasksAfterProcessing = await storageAPI.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS);
     expect(groupTasksAfterProcessing[groupName][taskId]).toBeDefined(); // Task remains
   }

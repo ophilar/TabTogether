@@ -13,6 +13,7 @@ export async function processIncomingTabsAndroid(currentState) {
   const mySubscriptions = currentState.subscriptions || []; // Array of group names
   let allGroupTasks = currentState.groupTasks || await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, {});
   let tasksProcessed = false;
+  let groupTasksModifiedInSync = false;
   let localProcessedTasks = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, {});
 
   console.log(`Processing incoming tabs for device ${localInstanceId}, subscriptions: ${mySubscriptions.join(', ')}`);
