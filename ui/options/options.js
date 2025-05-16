@@ -48,9 +48,6 @@ let manualSyncBtn = null;
 let syncIntervalInput = null;
 let syncStatus = null;
 
-let lastSuccessfulRenameInfo = { deviceId: null, newName: null, timestamp: 0 };
-const RENAME_PROTECTION_WINDOW_MS = 500; // Protect for 0.5 seconds
-
 const debouncedLoadState = debounce(async () => {
   try {
     console.log(new Date().toISOString(), "Options page received syncDataChanged message (debounced), reloading state...");
@@ -243,15 +240,6 @@ async function loadState() {
       showDebugInfoUI(container, state);
     }
     console.log(new Date().toISOString(), `[loadState] Unified state received. state.instanceName: ${state?.instanceName}, state.deviceRegistry['${state?.instanceId}']?.name: ${state?.deviceRegistry?.[state?.instanceId]?.name}`);
-    if (state && state.instanceId === lastSuccessfulRenameInfo.deviceId &&
-      Date.now() - lastSuccessfulRenameInfo.timestamp < RENAME_PROTECTION_WINDOW_MS &&
-      state.instanceName !== lastSuccessfulRenameInfo.newName) {
-      console.warn(new Date().toISOString(), `[loadState] Detected recent rename. Overriding fetched instanceName ('${state.instanceName}') with last known successful rename ('${lastSuccessfulRenameInfo.newName}').`);
-      state.instanceName = lastSuccessfulRenameInfo.newName;
-      if (state.deviceRegistry && state.deviceRegistry[state.instanceId]) {
-        state.deviceRegistry[state.instanceId].name = lastSuccessfulRenameInfo.newName;
-      }
-    }
     currentState = state;
     if (!currentState || currentState.error) {
       throw new Error(
@@ -334,6 +322,7 @@ function ensureListElement(containerDiv, ulId, noItemsString, ulClass = 'options
   }
   return ul;
 }
+
 function startRenameGroup(oldName, nameSpan) {
   const listItem = nameSpan.closest('li');
   if (!listItem || listItem.querySelector('.inline-edit-container')) {
@@ -350,6 +339,7 @@ function startRenameGroup(oldName, nameSpan) {
   nameSpan.parentNode.insertBefore(inlineControls.element, nameSpan.nextSibling);
   inlineControls.focusInput();
 }
+
 async function finishRenameGroup(oldName, newName, nameSpan, inlineControlsContainer) {
   newName = newName.trim();
   if (!newName || newName === oldName) {
@@ -450,7 +440,6 @@ async function finishRenameDevice(newName, listItem, nameSpan, inlineControlsCon
         if (currentState.deviceRegistry && currentState.deviceRegistry[deviceId]) {
           currentState.deviceRegistry[deviceId].name = newName;
         }
-        lastSuccessfulRenameInfo = { deviceId, newName, timestamp: Date.now() };
       }
       console.log(new Date().toISOString(), `[finishRenameDevice] currentState updated. currentState.instanceName: ${currentState?.instanceName}, currentState.deviceRegistry['${deviceId}']?.name: ${currentState?.deviceRegistry?.[deviceId]?.name}`);
       showMessage(dom.messageArea, STRINGS.deviceRenameSuccess(newName), false);

@@ -1,5 +1,3 @@
-// utils.js
-
 // --- Type Safety and Validation Helpers ---
 export const ensureObject = (val, fallback = {}) =>
   val && typeof val === "object" && !Array.isArray(val) ? val : fallback;

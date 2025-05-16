@@ -253,48 +253,16 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
     return;
   }
 
-  const tabData = { url: urlToSend, title: titleToSend };
-
-
-  let recipientDeviceIds = [];
-  try {
-    const allSubscriptionsSync = await storage.get(
-      browser.storage.sync,
-      SYNC_STORAGE_KEYS.SUBSCRIPTIONS,
-      {}
-    ); // This is SUBSCRIPTIONS_SYNC
-    const deviceRegistry = await storage.get(
-      browser.storage.sync,
-      SYNC_STORAGE_KEYS.DEVICE_REGISTRY,
-      {}
-    );
-
-    for (const deviceId in allSubscriptionsSync) {
-      if (deviceId === localInstanceId) continue; // Don't send to self
-      if (
-        allSubscriptionsSync[deviceId] &&
-        allSubscriptionsSync[deviceId].includes(groupName)
-      ) {
-        if (deviceRegistry[deviceId]) {
-          recipientDeviceIds.push(deviceId);
-        }
-      }
-    }
-  } catch (e) {
-    console.error("Error determining recipients for context menu send:", e);
-    recipientDeviceIds = null;
-  }
+  const tabData = { url: urlToSend, title: titleToSend };  
 
   console.log(
-    `Context Menu: Sending task to group ${groupName} from ${localInstanceId}. Recipients: ${
-      recipientDeviceIds?.join(", ") || "All (except sender)"
-    }`
+    `Context Menu: Sending task to group ${groupName} from ${localInstanceId}. Task will be processed by subscribed devices.`
   );
   const { success, message: taskMessage } = await createAndStoreGroupTask(
     groupName,
     tabData,
     localInstanceId,
-    recipientDeviceIds
+    null // Pass null for explicitRecipientDeviceIds, indicating a general group send
   );
 
   const notificationMessage = success
@@ -587,39 +555,12 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
     case "sendTabFromPopup": {
       const { groupName, tabData } = request;
       const senderDeviceId = await getInstanceId();
-      let recipientDeviceIds = [];
-      try {
-        const allSubscriptionsSync = await storage.get(
-          browser.storage.sync,
-          SYNC_STORAGE_KEYS.SUBSCRIPTIONS,
-          {}
-        );
-        const deviceRegistry = await storage.get(
-          browser.storage.sync,
-          SYNC_STORAGE_KEYS.DEVICE_REGISTRY,
-          {}
-        );
-        for (const deviceId in allSubscriptionsSync) {
-          if (deviceId === senderDeviceId) continue;
-          if (
-            allSubscriptionsSync[deviceId] &&
-            allSubscriptionsSync[deviceId].includes(groupName)
-          ) {
-            if (deviceRegistry[deviceId]) {
-              recipientDeviceIds.push(deviceId);
-            }
-          }
-        }
-      } catch (e) {
-        console.error("Error determining recipients for popup send:", e);
-        recipientDeviceIds = null;
-      }
 
       return await createAndStoreGroupTask(
         groupName,
         tabData,
         senderDeviceId,
-        recipientDeviceIds
+        null // Pass null for explicitRecipientDeviceIds, indicating a general group send
       );
     }
     case "heartbeat": {
