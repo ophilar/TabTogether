@@ -295,8 +295,8 @@ describe('utils', () => {
             await getUnifiedState(false);
 
             const relevantSetCall = storageSetSpy.mock.calls.find(call =>
-                call[0] && call[0][SYNC_STORAGE_KEYS.DEVICE_REGISTRY] &&
-                call[0][SYNC_STORAGE_KEYS.DEVICE_REGISTRY][mockId]
+                call[1] == SYNC_STORAGE_KEYS.DEVICE_REGISTRY &&
+                call[2] && call[2][mockId]
             );
             expect(relevantSetCall).toBeDefined();
             const updatedDeviceEntry = relevantSetCall[0][SYNC_STORAGE_KEYS.DEVICE_REGISTRY][mockId];

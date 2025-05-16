@@ -167,7 +167,7 @@ describe('Integration: Group and Tab Flow', () => {
     await subscribeToGroupAndVerify(GROUP_NAME, deviceA_ID); // deviceA subscribes
 
     // Simulate deviceB subscribing (direct action for test simplicity)
-    mockGetInstanceIdFn.mockResolvedValue(deviceB_ID);
+    mockGetInstanceIdFn.mockResolvedValueOnce(deviceB_ID); // Use mockResolvedValueOnce for this specific call
     await subscribeToGroupAndVerify(GROUP_NAME, deviceB_ID); // deviceB subscribes
 
     // 3. DeviceA sends a tab to the group
@@ -193,7 +193,7 @@ describe('Integration: Group and Tab Flow', () => {
 
     // Set the mock for getInstanceId to return Device B's ID
     // This is a fallback if local storage didn't have the ID, or if getInstanceId is called directly elsewhere.
-    mockGetInstanceIdFn.mockResolvedValue(deviceB_ID); // Set the new desired resolved value
+    mockGetInstanceIdFn.mockResolvedValueOnce(deviceB_ID); // Use mockResolvedValueOnce for this specific call
 
     const { getUnifiedState: getUnifiedStateForDeviceB } = await import('../core/actions.js'); // Dynamically import for Device B context
     const stateForDeviceB = await getUnifiedStateForDeviceB(true); // Corrected: getUnifiedState only takes one argument
