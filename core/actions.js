@@ -1,6 +1,6 @@
 import { storage} from "./storage.js";
 import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, STRINGS } from "../common/constants.js";
-import { getInstanceId, getInstanceName, setInstanceName as setInstanceNameInCore } from "./instance.js";
+import { getInstanceId, getInstanceName, setInstanceName } from "./instance.js";
 
 /**
  * Retrieves the unified state of the application.
@@ -238,16 +238,8 @@ export async function unsubscribeFromGroupUnified(groupName, isAndroid) {
 export async function renameDeviceUnified(newName, isAndroid) {
   if (isAndroid) {
     // On Android, if it's the current device, update its name directly with instance.setInstanceName
-    return await setInstanceNameInCore(newName.trim());
+    return await setInstanceName(newName.trim());
   } else {
     return browser.runtime.sendMessage({ action: "renameDevice", newName });
   }
 }
-
-// Add other unified actions (createGroup, deleteGroup, deleteDevice) if needed,
-// following the pattern of checking `isAndroid` and either calling the Direct
-// function or sending a message to the background script.
-// For options.js, many of these are already handled by checking isAndroid before calling
-// the Direct version or sending a message. The Unified versions here are useful
-// if other parts of the extension (e.g., popup) need these actions without
-// repeating the isAndroid check.
