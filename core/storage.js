@@ -19,10 +19,8 @@ export const storage = {
       let value = result[key] ?? defaultValue;
 
       // Type validation for known keys
-      if (key === LOCAL_STORAGE_KEYS.GROUP_BITS ||
-          key === SYNC_STORAGE_KEYS.GROUP_STATE ||
-          key === SYNC_STORAGE_KEYS.DEVICE_REGISTRY ||
-          key === SYNC_STORAGE_KEYS.GROUP_TASKS || // Ensure SYNC_STORAGE_KEYS.SUBSCRIPTIONS is handled as object
+      if (key === SYNC_STORAGE_KEYS.DEVICE_REGISTRY ||
+          key === SYNC_STORAGE_KEYS.GROUP_TASKS ||
           key === SYNC_STORAGE_KEYS.SUBSCRIPTIONS // Ensure SYNC subscriptions are treated as an object
       ) {
         value = ensureObject(value, defaultValue ?? {});

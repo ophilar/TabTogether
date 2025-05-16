@@ -26,15 +26,15 @@ export async function processIncomingTabsAndroid(currentState) {
         const task = tasksInGroupObject[taskId];
 
         // Determine if the task should be skipped
-        const sentBySelf = task.senderDeviceId === localInstanceId;
         const alreadyProcessed = localProcessedTasks[taskId];
-        // Check if recipients are specified and this device is not among them
-        const notDesignatedRecipient = task.recipientDeviceIds &&
-                                     Array.isArray(task.recipientDeviceIds) &&
-                                     task.recipientDeviceIds.length > 0 &&
-                                     !task.recipientDeviceIds.includes(localInstanceId);
+        const sentBySelfOrAlreadyProcessed = task.processedByDeviceIds && task.processedByDeviceIds.includes(localInstanceId);
 
-        if (sentBySelf || alreadyProcessed || notDesignatedRecipient) {
+        if (sentBySelfOrAlreadyProcessed || alreadyProcessed) {
+          // If process update didn't work in the past, try again
+          if (alreadyProcessed && !sentBySelfOrAlreadyProcessed) {
+            allGroupTasks[groupName][taskId].processedByDeviceIds.push(localInstanceId);
+            groupTasksModifiedInSync = true;
+          }
           continue;
         }
 
@@ -42,6 +42,17 @@ export async function processIncomingTabsAndroid(currentState) {
         try {
           console.log(`Android: Processing tab: ${task.url} for group ${groupName}, task ID: ${taskId}`);
           await global.browser.tabs.create({ url: task.url, active: false });
+
+          // Add this device to the task's processedByDeviceIds in the main storage object
+          // This ensures allGroupTasks reflects the change before a potential save.
+          if (!allGroupTasks[groupName][taskId].processedByDeviceIds) {
+            allGroupTasks[groupName][taskId].processedByDeviceIds = [];
+          }
+          if (!allGroupTasks[groupName][taskId].processedByDeviceIds.includes(localInstanceId)) {
+            allGroupTasks[groupName][taskId].processedByDeviceIds.push(localInstanceId);
+            groupTasksModifiedInSync = true;
+          }
+
           localProcessedTasks[taskId] = Date.now(); // Mark as processed with timestamp
           tasksProcessed = true;
         } catch (e) {
@@ -49,18 +60,20 @@ export async function processIncomingTabsAndroid(currentState) {
           // Do not mark as processed if opening failed
         }
       }
-      // allGroupTasks[groupName] = remainingTasksForGroup; // Update tasks for the group // Not modifying sync tasks here
     }
   }
 
   if (tasksProcessed) {
     // Save the updated localProcessedTasks
     await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, localProcessedTasks);
-    // Note: We are NOT modifying SYNC_STORAGE_KEYS.GROUP_TASKS here.
-    // Task cleanup from sync storage is handled by performTimeBasedTaskCleanup.
     console.log("Android: Finished processing incoming tabs, updated local processed task list.");
   } else {
     console.log("Android: No new tabs to process for this device.");
+  }
+
+   if (groupTasksModifiedInSync) {
+    await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, allGroupTasks);
+    console.log('Android: Updated GROUP_TASKS in sync storage with new processedByDeviceIds.');
   }
 }
 
@@ -68,14 +81,13 @@ export async function processIncomingTabsAndroid(currentState) {
  * Creates a new task and stores it in sync storage.
  * @param {string} groupName - The name of the group.
  * @param {object} tabData - Object containing tab URL and title.
- * @param {string} senderDeviceId - The ID of the sending device.
- * @param {string[]|null} [recipientDeviceIds=null] - Array of specific recipient device IDs. If null, task is for all in group (except sender).
  * @returns {Promise<{success: boolean, taskId: string|null}>}
  */
-export async function createAndStoreGroupTask(groupName, tabData, senderDeviceId, recipientDeviceIds = null) {
+export async function createAndStoreGroupTask(groupName, tabData) {
   const taskId = globalThis.crypto?.randomUUID?.() || `mock-task-id-${Date.now()}`;
   // Fetch the full GROUP_TASKS object to merge into
   const allGroupTasks = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, {});
+  const creatorDeviceId = await getInstanceId();
 
   if (!allGroupTasks[groupName]) {
     allGroupTasks[groupName] = {};
@@ -84,10 +96,8 @@ export async function createAndStoreGroupTask(groupName, tabData, senderDeviceId
   const newTaskData = {
     url: tabData.url,
     title: tabData.title || tabData.url,
-    senderDeviceId: senderDeviceId,
+    processedByDeviceIds: [creatorDeviceId], // Sender has "processed" it by creating it
     creationTimestamp: Date.now(),
-    // Conditionally add recipientDeviceIds if it's a valid, non-empty array
-    ...(recipientDeviceIds && Array.isArray(recipientDeviceIds) && recipientDeviceIds.length > 0 && { recipientDeviceIds }),
   };
 
   allGroupTasks[groupName][taskId] = newTaskData;
