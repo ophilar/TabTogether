@@ -11,7 +11,7 @@ import {
   unsubscribeFromGroupUnified,
   renameDeviceUnified,
 } from "../../core/actions.js";
-import { getInstanceName } from "./instance.js";
+import { getInstanceName } from "../../core/instance.js";
 import { storage } from "../../core/storage.js";
 import { processIncomingTabsAndroid } from "../../core/tasks.js";
 import { debounce } from "../../common/utils.js";
