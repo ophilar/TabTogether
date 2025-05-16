@@ -78,8 +78,6 @@ describe('utils', () => {
 
         instanceModule._clearInstanceIdCache();
         instanceModule._clearInstanceNameCache();
-        reloadedInstanceModule._clearInstanceIdCache();
-        reloadedInstanceModule._clearInstanceNameCache();
 
         consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
         consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => { });
@@ -179,37 +177,35 @@ describe('utils', () => {
         // These tests use the actual direct actions, which might internally call
         // the mocked getInstanceId.
         test('create, rename, and delete group', async () => {
-            await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.DEFINED_GROUPS, ['TestGroup']);
-            const testInstanceId = 'utils-device-sub-id-direct';
-            mockGetInstanceIdUtilFn.mockResolvedValue(testInstanceId);
+            const groupName = 'UtilsGroup';
+            const createRes = await createGroupDirect(groupName);
+            expect(createRes.success).toBe(true);
+            expect(await storage.get(mockSyncStorage, SYNC_STORAGE_KEYS.DEFINED_GROUPS)).toContain(groupName);
 
-            const { subscribeToGroupDirect: reloadedSub, unsubscribeFromGroupDirect: reloadedUnsub } = await import('../core/actions.js');
+            const renameRes = await renameGroupDirect(groupName, 'UtilsGroupRenamed');
+            expect(renameRes.success).toBe(true);
+            expect(await storage.get(mockSyncStorage, SYNC_STORAGE_KEYS.DEFINED_GROUPS)).toContain('UtilsGroupRenamed');
 
-            const subRes = await reloadedSub('TestGroup');
-            expect(subRes.success).toBe(true);
-            const subscriptionsAfterSub = await storage.get(mockSyncStorage, SYNC_STORAGE_KEYS.SUBSCRIPTIONS);
-            expect(subscriptionsAfterSub[testInstanceId]).toEqual(['TestGroup']);
-
-            const unsubRes = await reloadedUnsub('TestGroup');
-            expect(unsubRes.success).toBe(true);
-            const subscriptionsAfterUnsub = await storage.get(mockSyncStorage, SYNC_STORAGE_KEYS.SUBSCRIPTIONS);
-            expect(subscriptionsAfterUnsub[testInstanceId]).toEqual([]);
+            const deleteRes = await deleteGroupDirect('UtilsGroupRenamed');
+            expect(deleteRes.success).toBe(true);
+            expect(await storage.get(mockSyncStorage, SYNC_STORAGE_KEYS.DEFINED_GROUPS)).not.toContain('UtilsGroupRenamed');
         });
 
         test('subscribe/unsubscribe affects sync storage', async () => {
-            await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.DEFINED_GROUPS, ['TestGroup']);
+            const groupName = 'UtilsSubGroup';
+            await createGroupDirect(groupName); // Ensure group exists
             const testInstanceId = 'utils-device-sub-id';
             mockGetInstanceIdUtilFn.mockResolvedValue(testInstanceId); // Configure for subscribe/unsubscribe
 
-            const subRes = await subscribeToGroupDirect('TestGroup');
+            const subRes = await subscribeToGroupDirect(groupName);
             expect(subRes.success).toBe(true);
             const subscriptionsAfterSub = await storage.get(mockSyncStorage, SYNC_STORAGE_KEYS.SUBSCRIPTIONS);
-            expect(subscriptionsAfterSub[testInstanceId]).toEqual(['TestGroup']);
+            expect(subscriptionsAfterSub[groupName]).toContain(testInstanceId);
 
-            const unsubRes = await unsubscribeFromGroupDirect('TestGroup');
+            const unsubRes = await unsubscribeFromGroupDirect(groupName);
             expect(unsubRes.success).toBe(true);
             const subscriptionsAfterUnsub = await storage.get(mockSyncStorage, SYNC_STORAGE_KEYS.SUBSCRIPTIONS);
-            expect(subscriptionsAfterUnsub[testInstanceId]).toEqual([]);
+            expect(subscriptionsAfterUnsub[groupName] || []).not.toContain(testInstanceId);
         });
 
         test('device delete', async () => {
@@ -224,9 +220,10 @@ describe('utils', () => {
             const senderId = 'utils-sender-task-id';
             const tabData = { url: 'https://example.com/utils', title: 'Utils Example' };
             const groupName = 'UtilsTaskGroup';
+            mockGetInstanceIdUtilFn.mockResolvedValue(senderId); // createAndStoreGroupTask uses getInstanceId
             global.crypto.randomUUID.mockReturnValue('utils-fixed-task-uuid');
 
-            const res = await createAndStoreGroupTask(groupName, tabData, senderId);
+            const res = await createAndStoreGroupTask(groupName, tabData);
             expect(res.success).toBe(true);
             expect(res.taskId).toBe('utils-fixed-task-uuid');
         });

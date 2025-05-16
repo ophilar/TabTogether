@@ -70,7 +70,7 @@ export async function performTimeBasedTaskCleanup(localProcessedTasks, threshold
           const allSubscribersProcessed = [...currentSubscribersForGroup].every(subId => processedBy.has(subId));
           if (allSubscribersProcessed) {
             console.log(`Task ${taskId} in group ${groupName} processed by all ${currentSubscribersForGroup.size} subscribers. Deleting.`);
-            needsTaskDelete = True
+            needsTaskDelete = true
           }
         }
       }

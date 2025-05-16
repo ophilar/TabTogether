@@ -1,5 +1,5 @@
 import { storage } from '../core/storage.js';
-import { LOCAL_STORAGE_KEYS } from '../common/constants.js';
+import { LOCAL_STORAGE_KEYS, SYNC_STORAGE_KEYS } from '../common/constants.js';
 import { getInstanceId } from '../core/instance.js';
 
 export async function processIncomingTasks(allGroupTasksFromStorage) {
@@ -13,6 +13,7 @@ export async function processIncomingTasks(allGroupTasksFromStorage) {
     const localSubscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
     let localProcessedTasks = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, {});
     let newTasksProcessedThisRun = false;
+    let groupTasksModifiedInSync = false;
     const openedTabsDetails = [];
 
     for (const groupName in allGroupTasksFromStorage) {
@@ -24,7 +25,11 @@ export async function processIncomingTasks(allGroupTasksFromStorage) {
         for (const taskId in tasksInGroup) {
             const taskData = tasksInGroup[taskId];
 
-            if (!taskData || taskData.senderDeviceId === localInstanceId || localProcessedTasks[taskId]) {
+            // Skip if no task data, or if this device is already in processedByDeviceIds (creator or already processed)
+            // Also skip if it's in the localProcessedTasks cache
+            if (!taskData ||
+                (taskData.processedByDeviceIds && taskData.processedByDeviceIds.includes(localInstanceId)) ||
+                localProcessedTasks[taskId]) {
                 continue;
             }
 
