@@ -6,6 +6,7 @@ import {
   deleteGroupDirect,
   renameGroupDirect,
   deleteDeviceDirect,
+  getInstanceName as getInstanceNameFromCore, // Import for targeted updates
   getUnifiedState,
   subscribeToGroupUnified,
   unsubscribeFromGroupUnified,
@@ -48,18 +49,6 @@ let manualSyncBtn = null;
 let syncIntervalInput = null;
 let syncStatus = null;
 
-const debouncedLoadState = debounce(async () => {
-  try {
-    console.log(new Date().toISOString(), "Options page received syncDataChanged message (debounced), reloading state...");
-    await loadState();
-    const ts = await storage.get(browser.storage.local, "lastSync", null);
-    if (ts && syncStatus) {
-      syncStatus.textContent = "Last sync: " + new Date(ts).toLocaleString();
-    }
-  } catch (e) {
-    console.error("Error processing debounced syncDataChanged message:", e);
-  }
-}, 300);
 
 document.addEventListener("DOMContentLoaded", async () => {
   console.log(new Date().toISOString(), "[DOMContentLoaded] START");
@@ -205,16 +194,54 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     setupAdvancedTiming();
     browser.runtime.onMessage.addListener(async (message) => {
-      if (message.action === "syncDataChanged") {
+      if (message.action === "specificSyncDataChanged" && message.changedItems) {
+        console.log(new Date().toISOString(), "Options page received specificSyncDataChanged:", message.changedItems);
+        if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
+        clearMessage(dom.messageArea);
         try {
-          console.log(new Date().toISOString(), "Options page received syncDataChanged message, reloading state...");
-          debouncedLoadState();
+          let stateChanged = false;
+          if (!currentState) { // If no state, do a full load
+            await loadState();
+            stateChanged = true;
+          } else {
+            if (message.changedItems.includes("deviceRegistryChanged")) {
+              console.log(new Date().toISOString(), "Handling deviceRegistryChanged...");
+              currentState.deviceRegistry = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
+              // Also refresh instanceName as it might have changed due to another device's action
+              currentState.instanceName = await getInstanceNameFromCore();
+              renderDeviceRegistry();
+              stateChanged = true;
+            }
+            if (message.changedItems.includes("definedGroupsChanged")) {
+              console.log(new Date().toISOString(), "Handling definedGroupsChanged...");
+              currentState.definedGroups = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []);
+              currentState.definedGroups.sort();
+              renderDefinedGroups(); // Assumes subscriptions are still valid or will be updated if they also changed
+              stateChanged = true;
+            }
+            if (message.changedItems.includes("subscriptionsChanged")) {
+              console.log(new Date().toISOString(), "Handling subscriptionsChanged...");
+              const allSyncSubscriptions = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {});
+              const deviceSubscriptions = [];
+              for (const groupName in allSyncSubscriptions) {
+                if (allSyncSubscriptions[groupName] && allSyncSubscriptions[groupName].includes(currentState.instanceId)) {
+                  deviceSubscriptions.push(groupName);
+                }
+              }
+              currentState.subscriptions = deviceSubscriptions.sort();
+              renderDefinedGroups(); // Re-render groups to update subscribe/unsubscribe buttons
+              stateChanged = true;
+            }
+          }
           const ts = await storage.get(browser.storage.local, "lastSync", null);
           if (ts && syncStatus) {
             syncStatus.textContent = "Last sync: " + new Date(ts).toLocaleString();
           }
         } catch (e) {
-          console.error("Error processing syncDataChanged message:", e);
+          console.error("Error processing specificSyncDataChanged message:", e);
+          if (dom.messageArea) showMessage(dom.messageArea, STRINGS.errorUpdatingUIAfterSync, true);
+        } finally {
+          if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, false);
         }
       }
     });
