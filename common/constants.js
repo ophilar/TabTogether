@@ -5,7 +5,7 @@
  * These are specific to the local browser instance.
  */
 export const LOCAL_STORAGE_KEYS = {
-  INSTANCE_ID: "tabtogether_instance_id",
+  INSTANCE_ID: "tabtogether_instance_id", // deviceId
   INSTANCE_NAME_OVERRIDE: "tabtogether_instance_name_override", // Standardized key for user override
   SUBSCRIPTIONS: "tabtogether_subscriptions", // Stores an array of group names this specific device instance is subscribed to
   PROCESSED_TASKS: "tabtogether_processed_tasks", // Stores an object mapping taskId to true if processed locally
@@ -18,13 +18,11 @@ export const LOCAL_STORAGE_KEYS = {
  */
 export const SYNC_STORAGE_KEYS = {
   DEFINED_GROUPS: "tabtogether_defined_groups",   // Array of all group names
-  GROUP_STATE: "tabtogether_group_state",       // Object mapping groupName to { /* other group metadata if needed */ }
-  GROUP_TASKS: "tabtogether_group_tasks",       // Object mapping groupName to { taskId: { url, title, senderDeviceId, recipientDeviceIds?, processedByDeviceIds?, creationTimestamp } }
-  DEVICE_REGISTRY: "tabtogether_device_registry", // Object mapping instanceId to { name, lastSeen }
+  GROUP_TASKS: "tabtogether_group_tasks",       // Object mapping groupName to { taskId: { url, title, processedByDeviceIds: [deviceId], creationTimestamp } }
+  DEVICE_REGISTRY: "tabtogether_device_registry", // Object mapping deviceId to { name, lastSeen }
   STALE_DEVICE_THRESHOLD_DAYS: "tabtogether_stale_device_threshold_days", // Number of days
   TASK_EXPIRY_DAYS: "tabtogether_task_expiry_days", // Number of days
-  SUBSCRIPTIONS: "tabtogether_subscriptions_sync", // SYNC version: Object mapping instanceId to [groupName1, groupName2,...]
-  // Add any other sync storage keys here
+  SUBSCRIPTIONS: "tabtogether_subscriptions_sync", // SYNC version: Object mapping groupName to [deviceId1, deviceId2, ...]
 };
 
 /**

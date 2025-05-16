@@ -1,4 +1,4 @@
-const SHORT_ID_LENGTH = 8; // Length of the new device IDs
+const SHORT_ID_LENGTH = 4; // Length of the new device IDs
 
 export function generateShortId(length = SHORT_ID_LENGTH) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
