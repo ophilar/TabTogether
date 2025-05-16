@@ -4,7 +4,6 @@ import { getPlatformInfoCached } from "./platform.js";
 import { generateShortId } from './id-utils.js'; 
 
 let instanceIdCache = null;
-let instanceNameCache = null;
 
 
 export async function getInstanceId() {
@@ -41,6 +40,7 @@ export async function getInstanceId() {
  * 3. Generated platform-specific default.
  * @returns {Promise<string>} The instance name.
  */
+let instanceNameCache = null; // Keep instanceNameCache for performance
 export async function getInstanceName() {
   if (instanceNameCache) {
     return instanceNameCache;
@@ -106,7 +106,7 @@ export async function setInstanceName(name) {
         console.error(new Date().toISOString(), "[setInstanceName] FAILED to set local instance name override.");
         return { success: false, message: "Failed to save device name locally." };
     }
-    _clearInstanceNameCache(); // Clear cache so next getInstanceName fetches fresh
+    instanceNameCache = null; // Clear cache so next getInstanceName fetches fresh
 
     console.log(new Date().toISOString(), "[setInstanceName] Attempting to get instanceId to update sync registry.");
     const instanceId = await getInstanceId();
@@ -133,6 +133,7 @@ export async function setInstanceName(name) {
  export function _clearInstanceIdCache() {
   instanceIdCache = null;
 }
-export function _clearInstanceNameCache() {
-  instanceNameCache = null;
+// _clearInstanceNameCache is still useful for testing or specific reset scenarios
+export function _clearInstanceNameCache() { 
+  instanceNameCache = null; 
 }

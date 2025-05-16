@@ -4,7 +4,6 @@ import {
   getInstanceId,
   getInstanceName,
   setInstanceName as setInstanceNameInCore,
-  _clearInstanceNameCache as clearBackgroundInstanceNameCache,
 } from "../core/instance.js";
 import {
   createGroupDirect,
@@ -266,20 +265,21 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
 browser.storage.onChanged.addListener(async (changes, areaName) => {
   if (areaName !== "sync") return;
   let contextMenuNeedsUpdate = false;
-  let uiNeedsRefresh = false;
+  const changedKeys = Object.keys(changes);
+  let specificRefreshActions = new Set();
 
   if (changes[SYNC_STORAGE_KEYS.DEFINED_GROUPS]) {
     console.log("Sync change detected: DEFINED_GROUPS");
     contextMenuNeedsUpdate = true;
-    uiNeedsRefresh = true;
+    specificRefreshActions.add("definedGroupsChanged");
   }
   if (changes[SYNC_STORAGE_KEYS.DEVICE_REGISTRY]) {
     console.log("Sync change detected: DEVICE_REGISTRY");
-    uiNeedsRefresh = true;
+    specificRefreshActions.add("deviceRegistryChanged");
   }
   if (changes[SYNC_STORAGE_KEYS.SUBSCRIPTIONS]) {
     console.log("Sync change detected: SUBSCRIPTIONS");
-    uiNeedsRefresh = true;
+    specificRefreshActions.add("subscriptionsChanged");
   }
 
   if (contextMenuNeedsUpdate) {
@@ -308,9 +308,12 @@ browser.storage.onChanged.addListener(async (changes, areaName) => {
     }
   }
 
-  if (uiNeedsRefresh) {
+  if (specificRefreshActions.size > 0) {
     try {
-      await browser.runtime.sendMessage({ action: "syncDataChanged" });
+      await browser.runtime.sendMessage({ 
+        action: "specificSyncDataChanged", 
+        changedItems: Array.from(specificRefreshActions) 
+      });
     } catch (error) {
       if (
         !error.message?.includes("Could not establish connection") &&
@@ -397,9 +400,6 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
       }
       try {
         const setResult = await setInstanceNameInCore(newName.trim());
-        if (setResult.success) {
-          clearBackgroundInstanceNameCache();
-        }
         return setResult;
       } catch (error) {
         console.error("Error during renameDevice call:", error);
