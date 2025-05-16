@@ -1,9 +1,8 @@
 import { storage } from "../core/storage.js";
 import { SYNC_STORAGE_KEYS } from "../common/constants.js";
-import { getInstanceId, getInstanceName, _clearInstanceNameCache } from "../core/instance.js";
+import { getInstanceId, getInstanceName } from "../core/instance.js";
 
 export async function performHeartbeat() {
-  _clearInstanceNameCache();
   const localInstanceId = await getInstanceId();
   const localInstanceName = await getInstanceName();
 
