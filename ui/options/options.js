@@ -521,13 +521,10 @@ async function handleSubscribe(event) {
   if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
   clearMessage(dom.messageArea);
   try {
-    const allSubscriptionsSync = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {});
-    let currentSubscribersToGroup = 0;
-    for (const deviceId in allSubscriptionsSync) {
-      if (allSubscriptionsSync[deviceId] && allSubscriptionsSync[deviceId].includes(groupName)) {
-        currentSubscribersToGroup++;
-      }
-    }
+    // SYNC_STORAGE_KEYS.SUBSCRIPTIONS is { groupName: [deviceId] }
+    const allSyncSubscriptions = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {});
+    // Check the length of the array for the specific group
+    const currentSubscribersToGroup = allSyncSubscriptions[groupName] ? allSyncSubscriptions[groupName].length : 0;
 
     if (currentSubscribersToGroup >= MAX_DEVICES_PER_GROUP && !isAndroidPlatformGlobal) {
       if (dom.messageArea) showMessage(dom.messageArea, STRINGS.groupFullCannotSubscribe(groupName), true);

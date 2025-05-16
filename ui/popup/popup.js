@@ -9,7 +9,8 @@ import {
   setLastSyncTime, // Import the correct function name
   showLoadingIndicator,
   showMessage,
-  injectSharedUI } from "../shared/shared-ui.js";
+  injectSharedUI
+} from "../shared/shared-ui.js";
 import { applyThemeFromStorage } from "../shared/theme.js";
 
 // Cache DOM elements at the top for repeated use
@@ -30,8 +31,8 @@ const dom = {
 // --- Initialization ---
 document.addEventListener("DOMContentLoaded", async () => {
   try { // Add a top-level try-catch for the entire DOMContentLoaded
-    injectSharedUI(); 
-    await applyThemeFromStorage(); 
+    injectSharedUI();
+    await applyThemeFromStorage();
 
     // Assign all DOM elements now that the DOM is ready
     // Explicitly assign critical elements first
@@ -52,98 +53,98 @@ document.addEventListener("DOMContentLoaded", async () => {
       console.error("POPUP CRITICAL: dom.loadingIndicator is null after DOMContentLoaded assignment.");
     }
 
-  const isAndroidPlatform = await isAndroid(); 
-  if (isAndroidPlatform) {
-    const container = document.querySelector(".container");
-    if (container) { // Check if container exists before using it
-      showAndroidBanner(
-        container, STRINGS.androidBannerPopup
-      );
-    }
-  }
-
-  // Add event listeners for footer links
-  if (dom.openOptionsLink) {
-    dom.openOptionsLink.addEventListener("click", (e) => {
-      e.preventDefault();
-      browser.runtime.openOptionsPage();
-    });
-  }
-  if (dom.refreshLink) {
-    dom.refreshLink.addEventListener("click", async (e) => { // Make handler async
-      const syncIcon = dom.refreshLink.querySelector(".sync-icon-svg"); // Select the icon
-      e.preventDefault();
-
-      // Prevent multiple clicks while syncing
-      if (syncing || !dom.refreshLink) return; // Add null check for dom.refreshLink
-      syncing = true; 
-      dom.refreshLink.style.pointerEvents = 'none'; 
-
-      if (syncIcon) syncIcon.classList.add("syncing-icon"); 
-      const startTime = Date.now(); // Record start time
-
-      try {
-        await loadStatus(); // Refresh popup view & process tabs (Android)
-
-        // After successful load/process, trigger heartbeat for non-Android.
-        if (!isAndroidPlatform) {
-          await browser.runtime.sendMessage({ action: "heartbeat" });
-        } else { // On Android, heartbeat is part of loadState/getUnifiedState implicitly
-            console.log("Android refresh: Heartbeat implicitly handled by getUnifiedState.");
-        }
-        const now = new Date();
-        await storage.set(browser.storage.local, "lastSync", now.getTime());
-        if (dom.messageArea) showMessage(dom.messageArea, STRINGS.syncComplete, false); // Check dom.messageArea
-        // Update last sync time display on Android after manual sync
-        const popupContainer = document.querySelector(".container");
-        if (isAndroidPlatform && popupContainer) setLastSyncTime(popupContainer, now.getTime());
-      } catch (error) {
-        // Log errors that might occur during loadStatus or subsequent actions
-        console.error("Error during refresh action:", error);
-        if (dom.messageArea) showMessage(dom.messageArea, STRINGS.popupRefreshFailed(error.message || 'Unknown error'), true);
-      } finally {
-        const duration = Date.now() - startTime;
-        const minAnimationTime = 500; // Minimum animation time
-        if (syncIcon) {
-          // Use Math.max directly for conciseness
-          const delay = Math.max(0, minAnimationTime - duration);
-          setTimeout(() => {
-            if (syncIcon) syncIcon.classList.remove('syncing-icon');
-          }, delay);
-        }
-        dom.refreshLink.style.pointerEvents = ''; // Re-enable clicks
-        syncing = false; // Reset syncing flag *only* in finally
+    const isAndroidPlatform = await isAndroid();
+    if (isAndroidPlatform) {
+      const container = document.querySelector(".container");
+      if (container) { // Check if container exists before using it
+        showAndroidBanner(
+          container, STRINGS.androidBannerPopup
+        );
       }
-    });
-  }
+    }
 
-  // Setup details toggle
-  if (dom.toggleDetailsBtn && dom.popupDetails) {
-    dom.toggleDetailsBtn.addEventListener("click", () => {
-      const isHidden = dom.popupDetails.classList.toggle("hidden");
-      dom.toggleDetailsBtn.textContent = isHidden ? "▼" : "▲"; // Update button text based on state
-      dom.toggleDetailsBtn.setAttribute(
-        "aria-label",
-        isHidden ? "Show details" : "Hide details"
-      );
-      dom.toggleDetailsBtn.setAttribute(
-        "title",
-        isHidden ? "Show device info" : "Hide device info"
-      );
-     });
-  }
+    // Add event listeners for footer links
+    if (dom.openOptionsLink) {
+      dom.openOptionsLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        browser.runtime.openOptionsPage();
+      });
+    }
+    if (dom.refreshLink) {
+      dom.refreshLink.addEventListener("click", async (e) => { // Make handler async
+        const syncIcon = dom.refreshLink.querySelector(".sync-icon-svg"); // Select the icon
+        e.preventDefault();
 
-  // Initial load of status
-  await loadStatus(); // Ensure this is awaited
+        // Prevent multiple clicks while syncing
+        if (syncing || !dom.refreshLink) return; // Add null check for dom.refreshLink
+        syncing = true;
+        dom.refreshLink.style.pointerEvents = 'none';
+
+        if (syncIcon) syncIcon.classList.add("syncing-icon");
+        const startTime = Date.now(); // Record start time
+
+        try {
+          await loadStatus(); // Refresh popup view & process tabs (Android)
+
+          // After successful load/process, trigger heartbeat for non-Android.
+          if (!isAndroidPlatform) {
+            await browser.runtime.sendMessage({ action: "heartbeat" });
+          } else { // On Android, heartbeat is part of loadState/getUnifiedState implicitly
+            console.log("Android refresh: Heartbeat implicitly handled by getUnifiedState.");
+          }
+          const now = new Date();
+          await storage.set(browser.storage.local, "lastSync", now.getTime());
+          if (dom.messageArea) showMessage(dom.messageArea, STRINGS.syncComplete, false); // Check dom.messageArea
+          // Update last sync time display on Android after manual sync
+          const popupContainer = document.querySelector(".container");
+          if (isAndroidPlatform && popupContainer) setLastSyncTime(popupContainer, now.getTime());
+        } catch (error) {
+          // Log errors that might occur during loadStatus or subsequent actions
+          console.error("Error during refresh action:", error);
+          if (dom.messageArea) showMessage(dom.messageArea, STRINGS.popupRefreshFailed(error.message || 'Unknown error'), true);
+        } finally {
+          const duration = Date.now() - startTime;
+          const minAnimationTime = 500; // Minimum animation time
+          if (syncIcon) {
+            // Use Math.max directly for conciseness
+            const delay = Math.max(0, minAnimationTime - duration);
+            setTimeout(() => {
+              if (syncIcon) syncIcon.classList.remove('syncing-icon');
+            }, delay);
+          }
+          dom.refreshLink.style.pointerEvents = ''; // Re-enable clicks
+          syncing = false; // Reset syncing flag *only* in finally
+        }
+      });
+    }
+
+    // Setup details toggle
+    if (dom.toggleDetailsBtn && dom.popupDetails) {
+      dom.toggleDetailsBtn.addEventListener("click", () => {
+        const isHidden = dom.popupDetails.classList.toggle("hidden");
+        dom.toggleDetailsBtn.textContent = isHidden ? "▼" : "▲"; // Update button text based on state
+        dom.toggleDetailsBtn.setAttribute(
+          "aria-label",
+          isHidden ? "Show details" : "Hide details"
+        );
+        dom.toggleDetailsBtn.setAttribute(
+          "title",
+          isHidden ? "Show device info" : "Hide device info"
+        );
+      });
+    }
+
+    // Initial load of status
+    await loadStatus(); // Ensure this is awaited
 
   } catch (e) {
     console.error("CRITICAL ERROR during popup DOMContentLoaded:", e);
     // Try to display an error message directly, in case dom.messageArea wasn't assigned
-    const msgArea = document.getElementById("messageArea") || dom.messageArea; 
+    const msgArea = document.getElementById("messageArea") || dom.messageArea;
     if (msgArea) {
-        msgArea.textContent = STRINGS.errorInitializingPopup || "Error initializing popup. Check console."; // Add to STRINGS if needed
-        msgArea.className = "message-area error";
-        msgArea.classList.remove("hidden");
+      msgArea.textContent = STRINGS.errorInitializingPopup || "Error initializing popup. Check console."; // Add to STRINGS if needed
+      msgArea.className = "message-area error";
+      msgArea.classList.remove("hidden");
     }
     const loadingEl = document.getElementById("loadingIndicator") || dom.loadingIndicator;
     if (loadingEl) loadingEl.classList.add("hidden"); // Attempt to hide loading
@@ -167,7 +168,7 @@ async function loadStatus() {
     if (isAndroidPlatform) {
       await processIncomingTabsAndroid(state);
       const popupContainer = document.querySelector(".container");
-      if (popupContainer) setLastSyncTime(popupContainer, Date.now()); 
+      if (popupContainer) setLastSyncTime(popupContainer, Date.now());
     }
 
     // Validate state
@@ -292,14 +293,10 @@ async function sendTabToGroup(groupName) {
     // Send differently based on platform
     if (await isAndroid()) {
       const instanceId = await getInstanceId();
-      response = await createAndStoreGroupTask(groupName, tabData, instanceId, await getRecipientDeviceIdsForGroup(groupName, instanceId));
+      response = await createAndStoreGroupTask(groupName, tabData);
     } else {
       // Send message to background script for desktop platforms
-      response = await browser.runtime.sendMessage({
-        action: "sendTabFromPopup",
-        groupName,
-        tabData: tabData,
-      });
+      response = await browser.runtime.sendMessage({ action: "sendTabFromPopup", groupName, tabData: tabData });
     }
 
     // Handle the response from the send action
@@ -335,28 +332,4 @@ function showSendStatus(message, isError) {
     statusArea.textContent = "";
     statusArea.classList.remove("error", "success");
   }, 3000); // 3-second display duration
-}
-
-/**
- * Helper to get recipient device IDs for a group, excluding the sender.
- * @param {string} groupName
- * @param {string} senderDeviceId
- * @returns {Promise<string[]|null>}
- */
-async function getRecipientDeviceIdsForGroup(groupName, senderDeviceId) {
-    let recipientDeviceIds = [];
-    try {
-        const allSubscriptionsSync = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {});
-        const deviceRegistry = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
-        for (const deviceId in allSubscriptionsSync) {
-            if (deviceId === senderDeviceId) continue;
-            if (allSubscriptionsSync[deviceId] && allSubscriptionsSync[deviceId].includes(groupName) && deviceRegistry[deviceId]) {
-                recipientDeviceIds.push(deviceId);
-            }
-        }
-        return recipientDeviceIds.length > 0 ? recipientDeviceIds : null; // Return null if no other recipients
-    } catch (e) {
-        console.error("Error determining recipients for group:", e);
-        return null; // Let createAndStoreGroupTask handle null as "all in group" (excluding sender)
-    }
 }
