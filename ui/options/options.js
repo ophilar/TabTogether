@@ -6,12 +6,12 @@ import {
   deleteGroupDirect,
   renameGroupDirect,
   deleteDeviceDirect,
-  getInstanceName as getInstanceNameFromCore, // Import for targeted updates
   getUnifiedState,
   subscribeToGroupUnified,
   unsubscribeFromGroupUnified,
   renameDeviceUnified,
 } from "../../core/actions.js";
+import { getInstanceName } from "./instance.js";
 import { storage } from "../../core/storage.js";
 import { processIncomingTabsAndroid } from "../../core/tasks.js";
 import { debounce } from "../../common/utils.js";
@@ -208,7 +208,7 @@ document.addEventListener("DOMContentLoaded", async () => {
               console.log(new Date().toISOString(), "Handling deviceRegistryChanged...");
               currentState.deviceRegistry = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
               // Also refresh instanceName as it might have changed due to another device's action
-              currentState.instanceName = await getInstanceNameFromCore();
+              currentState.instanceName = await getInstanceName();
               renderDeviceRegistry();
               stateChanged = true;
             }
