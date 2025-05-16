@@ -42,23 +42,29 @@ jest.mock('../core/instance.js', () => {
 
 import { jest } from '@jest/globals';
 import { STRINGS, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from '../common/constants.js';
-import { deepMerge, isObject as isObjectUtil, ensureObject, ensureArray, ensureString } from '../common/utils.js';
-import { storage, addToList, removeFromList, renameInList, updateObjectKey, removeObjectKey } from '../core/storage.js';
-import { getPlatformInfoCached, isAndroid, _clearPlatformInfoCache } from '../core/platform.js';
-import { getUnifiedState, createGroupDirect, renameGroupDirect, deleteGroupDirect, subscribeToGroupDirect, unsubscribeFromGroupDirect, deleteDeviceDirect } from '../core/actions.js';
-import { createAndStoreGroupTask } from '../core/tasks.js';
-import { performHeartbeat } from '../background/heartbeat.js';
-import { performStaleDeviceCheck, performTimeBasedTaskCleanup } from '../background/cleanup.js';
-import { renderDeviceRegistryUI, renderGroupListUI as renderGroupList, setLastSyncTimeUI as setLastSyncTime, showDebugInfoUI as showDebugInfo, displaySyncRequirementBanner } from '../ui/options/options-ui.js';
-import * as instanceModule from '../core/instance.js'; // This will be the mocked module
-import { showAndroidBanner } from '../ui/shared/shared-ui.js';
-import { debounce } from '../common/utils.js';
+import { deepMerge, ensureObject } from '../common/utils.js'; // Removed unused imports
+import { storage } from '../core/storage.js';
+import { isAndroid, _clearPlatformInfoCache } from '../core/platform.js';
+// import { getUnifiedState, createGroupDirect, renameGroupDirect, deleteGroupDirect, subscribeToGroupDirect, unsubscribeFromGroupDirect, deleteDeviceDirect } from '../core/actions.js'; // Dynamic import
+// import { createAndStoreGroupTask } from '../core/tasks.js'; // Dynamic import
+// import { performHeartbeat } from '../background/heartbeat.js'; // Dynamic import
+// import { performStaleDeviceCheck, performTimeBasedTaskCleanup } from '../background/cleanup.js'; // Dynamic import
+import { renderDeviceRegistryUI } from '../ui/options/options-ui.js'; // Removed unused UI imports
+// import * as instanceModule from '../core/instance.js'; // Dynamic import
 
 // --- GLOBAL TEST SETUP ---
 describe('utils', () => {
     let mockStorage;
     let mockSyncStorage;
     let consoleErrorSpy, consoleWarnSpy, consoleLogSpy;
+
+    // Variables for dynamically imported modules/functions
+    let performHeartbeat;
+    let getUnifiedState, createGroupDirect, renameGroupDirect, deleteGroupDirect, subscribeToGroupDirect, unsubscribeFromGroupDirect, deleteDeviceDirect;
+    let createAndStoreGroupTask;
+    let performStaleDeviceCheck, performTimeBasedTaskCleanup;
+    let instanceModule;
+
 
     beforeEach(async () => {
         jest.resetModules(); // Reset module cache before each test
@@ -73,9 +79,29 @@ describe('utils', () => {
         mockSetInstanceNameUtilFn.mockResolvedValue({ success: true, newName: 'Utils Default Set Name' });
         mockGenerateShortIdUtil.mockReturnValue('default-short-id');
 
-        if (typeof _clearPlatformInfoCache === 'function') _clearPlatformInfoCache();
-        // const reloadedInstanceModule = await import('../core/instance.js');
+        // Dynamically import modules after resetting and setting up mocks
+        const heartbeatModule = await import('../background/heartbeat.js');
+        performHeartbeat = heartbeatModule.performHeartbeat;
 
+        const actionsModule = await import('../core/actions.js');
+        getUnifiedState = actionsModule.getUnifiedState;
+        createGroupDirect = actionsModule.createGroupDirect;
+        renameGroupDirect = actionsModule.renameGroupDirect;
+        deleteGroupDirect = actionsModule.deleteGroupDirect;
+        subscribeToGroupDirect = actionsModule.subscribeToGroupDirect;
+        unsubscribeFromGroupDirect = actionsModule.unsubscribeFromGroupDirect;
+        deleteDeviceDirect = actionsModule.deleteDeviceDirect;
+
+        const tasksModule = await import('../core/tasks.js');
+        createAndStoreGroupTask = tasksModule.createAndStoreGroupTask;
+
+        const cleanupModule = await import('../background/cleanup.js');
+        performStaleDeviceCheck = cleanupModule.performStaleDeviceCheck;
+        performTimeBasedTaskCleanup = cleanupModule.performTimeBasedTaskCleanup;
+
+        instanceModule = await import('../core/instance.js'); // Re-import the mocked module
+
+        if (typeof _clearPlatformInfoCache === 'function') _clearPlatformInfoCache();
         instanceModule._clearInstanceIdCache();
         instanceModule._clearInstanceNameCache();
 
@@ -138,7 +164,6 @@ describe('utils', () => {
             mockGetInstanceNameUtilFn.mockResolvedValue('Some Name');
             await performHeartbeat(); // performHeartbeat calls getInstanceId internally
             expect(mockGetInstanceIdUtilFn).toHaveBeenCalled();
-            // Further assertions would be on performHeartbeat's behavior using this specificIdForTest
         });
 
         test('Utilities calling getInstanceName receive the mocked Name', async () => {
@@ -156,8 +181,7 @@ describe('utils', () => {
             const mockResponse = {success: true, newName: nameToSet};
             mockSetInstanceNameUtilFn.mockResolvedValue(mockResponse);
 
-            // Simulate a utility that might call setInstanceName
-            // For example, if an action in options.js called it via a unified function
+            // instanceModule is now the dynamically imported mocked module
             const result = await instanceModule.setInstanceName(nameToSet); // Direct call for simplicity here
 
             expect(mockSetInstanceNameUtilFn).toHaveBeenCalledWith(nameToSet);
@@ -257,6 +281,9 @@ describe('utils', () => {
             const mockName = 'Utils Unified Device';
             const oldTimestamp = Date.now() - 200000; // Ensure a clearly older timestamp
             mockGetInstanceIdUtilFn.mockResolvedValue(mockId);
+            // Ensure local override is not set for this test path to correctly test registry update logic
+            await storage.set(mockStorage, LOCAL_STORAGE_KEYS.INSTANCE_NAME_OVERRIDE, "");
+
             mockGetInstanceNameUtilFn.mockResolvedValue(mockName);
 
             await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {

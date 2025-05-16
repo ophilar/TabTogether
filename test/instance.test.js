@@ -162,8 +162,8 @@ describe('core/instance.js', () => {
             actualStorage.set.mockResolvedValue(true);
 
             const id = await getInstanceId(); // Will use the last generated ID despite collision after max attempts
-            // It should be 'alwaysCollidingId' because that's what generateShortId is mocked to return
-            expect(id).toBe('alwaysCollidingId'); 
+            // It should be 'alwaysCollidingId' because that's what mockGenerateShortIdInternal is set to return
+            expect(id).toBe('alwaysCollidingId');
             expect(mockGenerateShortIdInternal).toHaveBeenCalledTimes(10); // Max attempts
             expect(actualStorage.set).toHaveBeenCalledWith(mockLocalStorage, LOCAL_STORAGE_KEYS.INSTANCE_ID, 'alwaysCollidingId');
         });

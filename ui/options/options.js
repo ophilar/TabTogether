@@ -41,13 +41,13 @@ const dom = {
   newGroupNameInput: null,
   createGroupBtn: null,
   loadingIndicator: null,
-  messageArea: null,
+  messageArea: null, // Will be assigned in DOMContentLoaded
+  manualSyncBtn: null, // Added
+  syncIntervalInput: null, // Added
+  syncStatus: null, // Added
 };
 let currentState = null;
 let isAndroidPlatformGlobal = false;
-let manualSyncBtn = null;
-let syncIntervalInput = null;
-let syncStatus = null;
 
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -62,10 +62,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     injectSharedUI();
     applyThemeFromStorage();
     setupThemeDropdown("darkModeSelect");
-    setupOnboarding();
-    manualSyncBtn = document.getElementById("manualSyncBtn");
-    syncIntervalInput = document.getElementById("syncIntervalInput");
-    syncStatus = document.getElementById("syncStatus");
+    setupOnboarding(); // Onboarding setup
+    dom.manualSyncBtn = document.getElementById("manualSyncBtn");
+    dom.syncIntervalInput = document.getElementById("syncIntervalInput");
+    dom.syncStatus = document.getElementById("syncStatus");
     dom.deviceRegistryListDiv = document.getElementById("deviceRegistryList");
     dom.definedGroupsListDiv = document.getElementById("definedGroupsList");
     dom.newGroupNameInput = document.getElementById("newGroupName");
@@ -75,11 +75,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     dom.loadingIndicator = document.getElementById("loadingIndicator");
     dom.messageArea = document.getElementById("messageArea");
-    if (manualSyncBtn) {
-      manualSyncBtn.addEventListener("click", async () => {
-        const syncIcon = manualSyncBtn.querySelector('.sync-icon-svg');
+    if (dom.manualSyncBtn) {
+      dom.manualSyncBtn.addEventListener("click", async () => {
+        const syncIcon = dom.manualSyncBtn.querySelector('.sync-icon-svg');
         const startTime = Date.now();
-        manualSyncBtn.disabled = true;
+        dom.manualSyncBtn.disabled = true;
         if (syncIcon) syncIcon.classList.add('syncing-icon');
         clearMessage(dom.messageArea);
         try {
@@ -89,7 +89,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           } else {
             await browser.runtime.sendMessage({ action: "heartbeat" });
             const now = new Date();
-            if (syncStatus) syncStatus.textContent = "Last sync: " + now.toLocaleString();
+            if (dom.syncStatus) dom.syncStatus.textContent = "Last sync: " + now.toLocaleString();
             await storage.set(browser.storage.local, "lastSync", now.getTime());
             showMessage(dom.messageArea, STRINGS.backgroundSyncTriggered, false);
           }
@@ -107,20 +107,20 @@ document.addEventListener("DOMContentLoaded", async () => {
               syncIcon.classList.remove('syncing-icon');
             }
           }
-          manualSyncBtn.disabled = false;
+          dom.manualSyncBtn.disabled = false;
         }
       });
     }
 
-    if (syncIntervalInput) {
+    if (dom.syncIntervalInput) {
       storage.get(browser.storage.local, "syncInterval", 5).then((val) => {
-        syncIntervalInput.value = val;
+        dom.syncIntervalInput.value = val;
       });
-      syncIntervalInput.addEventListener("change", async (e) => {
+      dom.syncIntervalInput.addEventListener("change", async (e) => {
         let val = parseInt(e.target.value, 10);
         if (isNaN(val) || val < 1) val = 1;
         if (val > 120) val = 120;
-        syncIntervalInput.value = val;
+        dom.syncIntervalInput.value = val;
         await storage.set(browser.storage.local, "syncInterval", val);
         await browser.runtime.sendMessage({
           action: "setSyncInterval",
@@ -176,10 +176,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
       });
     }
-    if (syncStatus) {
+    if (dom.syncStatus) {
       storage.get(browser.storage.local, "lastSync", null).then((ts) => {
         if (ts)
-          syncStatus.textContent = "Last sync: " + new Date(ts).toLocaleString();
+          dom.syncStatus.textContent = "Last sync: " + new Date(ts).toLocaleString();
       });
     }
 
@@ -234,8 +234,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
           }
           const ts = await storage.get(browser.storage.local, "lastSync", null);
-          if (ts && syncStatus) {
-            syncStatus.textContent = "Last sync: " + new Date(ts).toLocaleString();
+          if (ts && dom.syncStatus) {
+            dom.syncStatus.textContent = "Last sync: " + new Date(ts).toLocaleString();
           }
         } catch (e) {
           console.error("Error processing specificSyncDataChanged message:", e);
@@ -333,21 +333,6 @@ function renderDefinedGroups() {
       startRenameGroup,
     }
   );
-}
-function ensureListElement(containerDiv, ulId, noItemsString, ulClass = 'options-list') {
-  if (!containerDiv) return null;
-  let ul = containerDiv.querySelector(`#${ulId}`);
-  if (!ul) {
-    if (containerDiv.textContent.trim() === noItemsString) {
-      containerDiv.textContent = '';
-    }
-    ul = document.createElement('ul');
-    ul.id = ulId;
-    ul.className = ulClass;
-    ul.setAttribute('role', 'list');
-    containerDiv.appendChild(ul);
-  }
-  return ul;
 }
 
 function startRenameGroup(oldName, nameSpan) {

@@ -41,7 +41,7 @@ export async function getUnifiedState(isAndroid) {
     }
 
     if (deviceRegistryNeedsUpdate) {
-      await storage.set(browser.storage.sync, { [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: deviceRegistry });
+      await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, deviceRegistry);
     }
 
     // subscriptions is { groupName: [deviceId] }.
@@ -175,7 +175,10 @@ export async function unsubscribeFromGroupDirect(groupName) {
     if (syncSubscriptions[groupName].length === 0) {
       delete syncSubscriptions[groupName]; // Clean up empty group entry
     }
-    if (syncSubscriptions[groupName].length < initialLength) { // If something was actually removed
+    // Check if the group entry still exists before accessing its length
+    const groupStillExistsAfterFilter = Object.prototype.hasOwnProperty.call(syncSubscriptions, groupName);
+    const newLength = groupStillExistsAfterFilter ? syncSubscriptions[groupName].length : 0;
+    if (newLength < initialLength) { // If something was actually removed or the group entry was deleted
       const success = await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, syncSubscriptions);
       if (success) {
         // Also update local subscriptions for immediate UI consistency
