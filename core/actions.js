@@ -209,7 +209,7 @@ export async function deleteDeviceDirect(deviceId) {
   const subsSuccess = await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, subscriptions);
 
   if (registrySuccess && subsSuccess) {
-    return { success: true, message: STRINGS.dseviceDeleteSuccess(deviceName), deletedDevice: deviceName };
+    return { success: true, message: STRINGS.deviceDeleteSuccess(deviceName), deletedDevice: deviceName };
   }
   return { success: false, message: "Failed to fully delete device and update subscriptions." };
 }
