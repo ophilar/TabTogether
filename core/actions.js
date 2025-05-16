@@ -10,21 +10,37 @@ import { getInstanceId, getInstanceName, setInstanceName as setInstanceNameInCor
 export async function getUnifiedState(isAndroid) {
   try {
     const instanceId = await getInstanceId();
-    const instanceName = await getInstanceName(); // Get current device name
+    // Get current device name (authoritative for UI, prioritizes local override)
+    const instanceName = await getInstanceName();
+    // Explicitly get the local override to determine if it's set
+    const localNameOverride = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.INSTANCE_NAME_OVERRIDE, "");
 
     let deviceRegistry = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
     let definedGroups = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []);
     let subscriptions = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {});
     let groupTasks = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, {});
 
+    let deviceRegistryNeedsUpdate = false;
     // Ensure current device is in registry
     if (!deviceRegistry[instanceId]) {
+      // Device not in registry, add it. instanceName here will be from local override if set, or default.
       deviceRegistry[instanceId] = { name: instanceName, lastSeen: Date.now() };
-      await storage.set(browser.storage.sync, { [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: deviceRegistry });
-    } else if (deviceRegistry[instanceId].name !== instanceName || !deviceRegistry[instanceId].lastSeen) {
-      // Update name if it changed or lastSeen if missing
-      deviceRegistry[instanceId].name = instanceName;
-      deviceRegistry[instanceId].lastSeen = Date.now();
+      deviceRegistryNeedsUpdate = true;
+    } else {
+      // Device is in registry. Always update lastSeen.
+      if (deviceRegistry[instanceId].lastSeen !== Date.now()) { // Avoid write if identical (unlikely)
+        deviceRegistry[instanceId].lastSeen = Date.now();
+        deviceRegistryNeedsUpdate = true;
+      }
+      // Only update the name in sync registry if a local override is explicitly set
+      // AND it differs from the name currently in the sync registry.
+      if (localNameOverride.trim() !== "" && deviceRegistry[instanceId].name !== localNameOverride.trim()) {
+        deviceRegistry[instanceId].name = localNameOverride.trim();
+        deviceRegistryNeedsUpdate = true;
+      }
+    }
+
+    if (deviceRegistryNeedsUpdate) {
       await storage.set(browser.storage.sync, { [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: deviceRegistry });
     }
 
@@ -178,7 +194,7 @@ export async function deleteDeviceDirect(deviceId) {
   const subsSuccess = await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, subscriptions);
 
   if (registrySuccess && subsSuccess) {
-    return { success: true, message: STRINGS.deviceDeleteSuccess(deviceName), deletedDevice: deviceName };
+    return { success: true, message: STRINGS.dseviceDeleteSuccess(deviceName), deletedDevice: deviceName };
   }
   return { success: false, message: "Failed to fully delete device and update subscriptions." };
 }
