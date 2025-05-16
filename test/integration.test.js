@@ -115,7 +115,6 @@ describe('Integration: Group and Tab Flow', () => {
       },
       [SYNC_STORAGE_KEYS.GROUP_TASKS]: {},
       [SYNC_STORAGE_KEYS.DEFINED_GROUPS]: [],
-      [SYNC_STORAGE_KEYS.GROUP_STATE]: {},
       [SYNC_STORAGE_KEYS.SUBSCRIPTIONS]: {}
     });
   });

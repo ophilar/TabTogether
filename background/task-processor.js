@@ -28,15 +28,20 @@ export async function processIncomingTasks(allGroupTasksFromStorage) {
                 continue;
             }
 
-            if (taskData.recipientDeviceIds && Array.isArray(taskData.recipientDeviceIds) && taskData.recipientDeviceIds.length > 0) {
-                if (!taskData.recipientDeviceIds.includes(localInstanceId)) {
-                    continue;
-                }
-            }
-
             try {
                 console.log(`TaskProcessor: Opening tab for task ${taskId} from group ${groupName}: ${taskData.url}`);
                 await browser.tabs.create({ url: taskData.url, active: false });
+
+                // Add this device to the task's processedByDeviceIds in the main storage object
+                // This ensures allGroupTasksFromStorage reflects the change before a potential save.
+                if (!allGroupTasksFromStorage[groupName][taskId].processedByDeviceIds) {
+                    allGroupTasksFromStorage[groupName][taskId].processedByDeviceIds = [];
+                }
+                if (!allGroupTasksFromStorage[groupName][taskId].processedByDeviceIds.includes(localInstanceId)) {
+                    allGroupTasksFromStorage[groupName][taskId].processedByDeviceIds.push(localInstanceId);
+                    groupTasksModifiedInSync = true;
+                }
+
                 localProcessedTasks[taskId] = Date.now();
                 openedTabsDetails.push({ title: taskData.title, url: taskData.url, groupName: groupName });
                 newTasksProcessedThisRun = true;
@@ -50,6 +55,10 @@ export async function processIncomingTasks(allGroupTasksFromStorage) {
         console.log('TaskProcessor: Updated local processed tasks list.');
     } else {
         console.log('TaskProcessor: No new tasks were processed in this run.');
+    }
+    if (groupTasksModifiedInSync) {
+        await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, allGroupTasksFromStorage);
+        console.log('TaskProcessor: Updated GROUP_TASKS in sync storage with new processedByDeviceIds.');
     }
     return openedTabsDetails;
 }

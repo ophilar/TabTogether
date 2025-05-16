@@ -39,7 +39,6 @@ async function initializeExtension() {
     const syncData = await browser.storage.sync.get(syncKeysToInitialize);
     const defaults = {
       [SYNC_STORAGE_KEYS.DEFINED_GROUPS]: [],
-      [SYNC_STORAGE_KEYS.GROUP_STATE]: {},
       [SYNC_STORAGE_KEYS.GROUP_TASKS]: {},
       [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: {},
       [SYNC_STORAGE_KEYS.SUBSCRIPTIONS]: {},
@@ -54,7 +53,6 @@ async function initializeExtension() {
       await browser.storage.sync.set(updates);
       console.log("Storage initialized with defaults:", updates);
     }
-    let localInstanceId = await getInstanceId();
     let localInstanceName = await getInstanceName();
     const cachedDefinedGroups = syncData[SYNC_STORAGE_KEYS.DEFINED_GROUPS] ?? [];
     await setupAlarms();
@@ -101,11 +99,6 @@ browser.alarms.onAlarm.addListener(async (alarm) => {
           SYNC_STORAGE_KEYS.DEVICE_REGISTRY,
           {}
         );
-        const cachedGroupState = await storage.get(
-          browser.storage.sync,
-          SYNC_STORAGE_KEYS.GROUP_STATE,
-          {}
-        );
         const staleThresholdDays = await storage.get(
           browser.storage.sync,
           SYNC_STORAGE_KEYS.STALE_DEVICE_THRESHOLD_DAYS,
@@ -115,7 +108,6 @@ browser.alarms.onAlarm.addListener(async (alarm) => {
           staleThresholdDays * 24 * 60 * 60 * 1000;
         await performStaleDeviceCheck(
           cachedDeviceRegistry,
-          cachedGroupState,
           currentStaleDeviceThresholdMs
         );
       }
@@ -218,7 +210,6 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
   }
 
   const groupName = menuItemId.replace("send-to-", "");
-  const localInstanceId = await getInstanceId();
 
   let urlToSend = info.pageUrl;
   let titleToSend = tab?.title || "Link";
@@ -253,17 +244,12 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
     return;
   }
 
-  const tabData = { url: urlToSend, title: titleToSend };  
+  const tabData = { url: urlToSend, title: titleToSend };
 
   console.log(
-    `Context Menu: Sending task to group ${groupName} from ${localInstanceId}. Task will be processed by subscribed devices.`
+    `Context Menu: Sending task to group ${groupName}. Task will be processed by subscribed devices.`
   );
-  const { success, message: taskMessage } = await createAndStoreGroupTask(
-    groupName,
-    tabData,
-    localInstanceId,
-    null // Pass null for explicitRecipientDeviceIds, indicating a general group send
-  );
+  const { success, message: taskMessage } = await createAndStoreGroupTask(groupName, tabData);
 
   const notificationMessage = success
     ? STRINGS.notificationTabSentMessage(titleToSend, groupName)
@@ -285,10 +271,6 @@ browser.storage.onChanged.addListener(async (changes, areaName) => {
   if (changes[SYNC_STORAGE_KEYS.DEFINED_GROUPS]) {
     console.log("Sync change detected: DEFINED_GROUPS");
     contextMenuNeedsUpdate = true;
-    uiNeedsRefresh = true;
-  }
-  if (changes[SYNC_STORAGE_KEYS.GROUP_STATE]) {
-    console.log("Sync change detected: GROUP_STATE");
     uiNeedsRefresh = true;
   }
   if (changes[SYNC_STORAGE_KEYS.DEVICE_REGISTRY]) {
@@ -346,21 +328,20 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
   switch (request.action) {
     case "getState": {
       const [
-          localInstanceId,
-          localInstanceName,
-          localSubscriptions,
-          definedGroups,
-          groupState,
-          deviceRegistry,
-          allSubscriptionsSync,
+        localInstanceId,
+        localInstanceName,
+        localSubscriptions,
+        definedGroups,
+        groupState,
+        deviceRegistry,
+        allSubscriptionsSync,
       ] = await Promise.all([
-          getInstanceId(),
-          getInstanceName(),
-          storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []),
-          storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []),
-          storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_STATE, {}),
-          storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {}),
-          storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {}),
+        getInstanceId(),
+        getInstanceName(),
+        storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []),
+        storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []),
+        storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {}),
+        storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {}),
       ]);
 
       return {
@@ -417,9 +398,9 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
       try {
         const setResult = await setInstanceNameInCore(newName.trim());
         if (setResult.success) {
-          clearBackgroundInstanceNameCache(); 
+          clearBackgroundInstanceNameCache();
         }
-        return setResult;      
+        return setResult;
       } catch (error) {
         console.error("Error during renameDevice call:", error);
         return {
@@ -554,14 +535,7 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
     }
     case "sendTabFromPopup": {
       const { groupName, tabData } = request;
-      const senderDeviceId = await getInstanceId();
-
-      return await createAndStoreGroupTask(
-        groupName,
-        tabData,
-        senderDeviceId,
-        null // Pass null for explicitRecipientDeviceIds, indicating a general group send
-      );
+      return await createAndStoreGroupTask(groupName, tabData);
     }
     case "heartbeat": {
       await performHeartbeat();

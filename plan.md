@@ -16,11 +16,7 @@ This document outlines key areas for enhancing the TabTogether extension's codeb
     *   **Remove `groupState` handling from `d:\OneDrive\Documents\GitHub\TabTogether\background\cleanup.js`:**
         *   In `performStaleDeviceCheck`, remove the `cachedGroupState` parameter and all logic related to fetching, updating, or merging `groupState`.
     *   **Update `ALARM_STALE_CHECK` handler in `d:\OneDrive\Documents\GitHub\TabTogether\background\background.js`:**
-        *   Stop fetching `SYNC_STORAGE_KEYS.GROUP_STATE`.
         *   Stop passing `cachedGroupState` to `performStaleDeviceCheck`.
-    *   **Review `SYNC_STORAGE_KEYS.GROUP_STATE`:**
-        *   Determine if this sync storage key still serves any purpose. If it was solely for bitmask-related state, plan for its complete removal from initialization and usage.
-        *   If it holds other relevant, non-bitmask data, document its current purpose and simplify its structure accordingly.
 *   **Benefit:** Simplifies the overall data model, reduces potential redundancy, clarifies data flow, and removes potentially unused or incomplete code.
 
 ### 3. Comprehensive Input Validation
