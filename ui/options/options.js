@@ -2,14 +2,14 @@ console.log(new Date().toISOString(), "[[[ OPTIONS.JS TOP LEVEL EXECUTION POINT 
 import { STRINGS, MAX_DEVICES_PER_GROUP, SYNC_STORAGE_KEYS } from "../../common/constants.js";
 import { isAndroid } from "../../core/platform.js";
 import {
-  createGroupDirect,
-  deleteGroupDirect,
-  renameGroupDirect,
-  deleteDeviceDirect,
-  getUnifiedState,
+  createGroupUnified,
+  deleteGroupUnified,
+  renameGroupUnified,
+  deleteDeviceUnified,
   subscribeToGroupUnified,
   unsubscribeFromGroupUnified,
   renameDeviceUnified,
+  getUnifiedState,
 } from "../../core/actions.js";
 import { getInstanceName } from "../../core/instance.js";
 import { storage } from "../../core/storage.js";
@@ -41,10 +41,10 @@ const dom = {
   newGroupNameInput: null,
   createGroupBtn: null,
   loadingIndicator: null,
-  messageArea: null, // Will be assigned in DOMContentLoaded
-  manualSyncBtn: null, // Added
-  syncIntervalInput: null, // Added
-  syncStatus: null, // Added
+  messageArea: null,
+  manualSyncBtn: null,
+  syncIntervalInput: null,
+  syncStatus: null,
 };
 let currentState = null;
 let isAndroidPlatformGlobal = false;
@@ -62,7 +62,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     injectSharedUI();
     applyThemeFromStorage();
     setupThemeDropdown("darkModeSelect");
-    setupOnboarding(); // Onboarding setup
+    setupOnboarding();
     dom.manualSyncBtn = document.getElementById("manualSyncBtn");
     dom.syncIntervalInput = document.getElementById("syncIntervalInput");
     dom.syncStatus = document.getElementById("syncStatus");
@@ -70,9 +70,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     dom.definedGroupsListDiv = document.getElementById("definedGroupsList");
     dom.newGroupNameInput = document.getElementById("newGroupName");
     dom.createGroupBtn = document.getElementById("createGroupBtn");
-    // Note: staleDeviceThresholdInput and taskExpiryInput are handled by options-advanced-timing.js
-    // and assigned there.
-
     dom.loadingIndicator = document.getElementById("loadingIndicator");
     dom.messageArea = document.getElementById("messageArea");
     if (dom.manualSyncBtn) {
@@ -143,15 +140,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
         clearMessage(dom.messageArea);
         try {
-          let response;
-          if (isAndroidPlatformGlobal) {
-            response = await createGroupDirect(groupName);
-          } else {
-            response = await browser.runtime.sendMessage({
-              action: "createGroup",
-              groupName: groupName,
-            });
-          }
+          const response = await createGroupUnified(groupName, isAndroidPlatformGlobal);
           if (response.success) {
             if (currentState && !currentState.definedGroups.includes(response.newGroup)) {
               currentState.definedGroups.push(response.newGroup);
@@ -199,25 +188,19 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
         clearMessage(dom.messageArea);
         try {
-          let stateChanged = false;
           if (!currentState) { // If no state, do a full load
             await loadState();
-            stateChanged = true;
           } else {
             if (message.changedItems.includes("deviceRegistryChanged")) {
               console.log(new Date().toISOString(), "Handling deviceRegistryChanged...");
               currentState.deviceRegistry = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
-              // Also refresh instanceName as it might have changed due to another device's action
-              currentState.instanceName = await getInstanceName();
               renderDeviceRegistry();
-              stateChanged = true;
             }
             if (message.changedItems.includes("definedGroupsChanged")) {
               console.log(new Date().toISOString(), "Handling definedGroupsChanged...");
               currentState.definedGroups = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []);
               currentState.definedGroups.sort();
-              renderDefinedGroups(); // Assumes subscriptions are still valid or will be updated if they also changed
-              stateChanged = true;
+              renderDefinedGroups();
             }
             if (message.changedItems.includes("subscriptionsChanged")) {
               console.log(new Date().toISOString(), "Handling subscriptionsChanged...");
@@ -229,8 +212,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 }
               }
               currentState.subscriptions = deviceSubscriptions.sort();
-              renderDefinedGroups(); // Re-render groups to update subscribe/unsubscribe buttons
-              stateChanged = true;
+              renderDefinedGroups();
             }
           }
           const ts = await storage.get(browser.storage.local, "lastSync", null);
@@ -361,28 +343,16 @@ async function finishRenameGroup(oldName, newName, nameSpan, inlineControlsConta
   if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
   let success = false;
   try {
-    let response;
-    if (isAndroidPlatformGlobal) {
-      response = await renameGroupDirect(oldName, newName);
-    } else {
-      response = await browser.runtime.sendMessage({ action: 'renameGroup', oldName, newName });
-    }
+    const response = await renameGroupUnified(oldName, newName, isAndroidPlatformGlobal);
     if (response.success) {
       showMessage(dom.messageArea, STRINGS.groupRenameSuccess(newName), false);
       success = true;
-      // Update local state and re-render instead of full reload
       if (currentState) {
         currentState.definedGroups = currentState.definedGroups.map(g => g === oldName ? newName : g);
         currentState.subscriptions = currentState.subscriptions.map(s => s === oldName ? newName : s);
-        const groupLi = dom.definedGroupsListDiv.querySelector(`li[data-group-name="${oldName}"]`);
-        if (groupLi) {
-          groupLi.dataset.groupName = newName;
-          const groupNameSpan = groupLi.querySelector('.group-name-label');
-          if (groupNameSpan) groupNameSpan.textContent = newName;
-          if (groupNameSpan) groupNameSpan.onclick = () => startRenameGroup(newName, groupNameSpan);
-        }
+        renderDefinedGroups(); // Re-render the entire group list using the updated currentState
       }
-      cancelInlineEditUI(nameSpan, inlineControlsContainer);
+      // cancelInlineEditUI will be called in the finally block
     } else {
       showMessage(dom.messageArea, response.message || STRINGS.groupRenameFailed, true);
       cancelInlineEditUI(nameSpan, inlineControlsContainer);
@@ -392,9 +362,10 @@ async function finishRenameGroup(oldName, newName, nameSpan, inlineControlsConta
     cancelInlineEditUI(nameSpan, inlineControlsContainer);
   } finally {
     if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, false);
-    if (!success) {
+    if (!success && nameSpan && inlineControlsContainer) { // Ensure nameSpan is visible if save failed
       nameSpan.style.display = '';
     }
+    cancelInlineEditUI(nameSpan, inlineControlsContainer); // Always clean up editor
   }
 }
 function startRenameCurrentDevice(listItem, nameSpan) {
@@ -490,15 +461,7 @@ async function handleDeleteDevice(deviceId, deviceName) {
   }
   if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
   try {
-    let response;
-    if (isAndroidPlatformGlobal) {
-      response = await deleteDeviceDirect(deviceId);
-    } else {
-      response = await browser.runtime.sendMessage({
-        action: "deleteDevice",
-        deviceId,
-      });
-    }
+    const response = await deleteDeviceUnified(deviceId, isAndroidPlatformGlobal);
     if (response.success) {
       if (dom.messageArea) showMessage(dom.messageArea, STRINGS.deviceDeleteSuccess(deviceName), false);
       if (currentState && currentState.deviceRegistry[deviceId]) {
@@ -607,15 +570,7 @@ async function handleDeleteGroup(event) {
   if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
   clearMessage(dom.messageArea);
   try {
-    let response;
-    if (isAndroidPlatformGlobal) {
-      response = await deleteGroupDirect(groupName);
-    } else {
-      response = await browser.runtime.sendMessage({
-        action: "deleteGroup",
-        groupName: groupName,
-      });
-    }
+    const response = await deleteGroupUnified(groupName, isAndroidPlatformGlobal);
     if (response.success) {
       if (currentState) {
         currentState.definedGroups = currentState.definedGroups.filter(g => g !== response.deletedGroup);
@@ -652,10 +607,7 @@ async function handleRemoveSelfDevice() {
   try {
     const instanceId = currentState?.instanceId;
     if (!instanceId) throw new Error(STRINGS.currentDeviceIdNotFound);
-    const res = await browser.runtime.sendMessage({
-      action: "deleteDevice",
-      deviceId: instanceId,
-    });
+    const res = await deleteDeviceUnified(instanceId, isAndroidPlatformGlobal);
     if (res.success) {
       if (dom.messageArea) showMessage(dom.messageArea, STRINGS.selfDeviceRemoved, false);
       if (currentState && currentState.deviceRegistry[instanceId]) {
