@@ -20,7 +20,7 @@ export async function processIncomingTabsAndroid(currentState) {
   let localProcessedTasks = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, {});
   let tasksProcessedLocallyThisRun = false; // Renamed for clarity
 
-  console.log(`Processing incoming tabs for device ${localInstanceId}, subscriptions: ${mySubscriptions.join(', ')}`);
+  console.log(`Tasks:processIncomingTabsAndroid - START for device ${localInstanceId}. Subscriptions: [${mySubscriptions.join(', ')}]. Received groupTasks:`, JSON.stringify(allGroupTasksFromState));
 
   for (const groupName in allGroupTasksFromState) {
     if (mySubscriptions.includes(groupName)) {
@@ -35,6 +35,7 @@ export async function processIncomingTabsAndroid(currentState) {
         const alreadyProcessedInSyncByThisDevice = task.processedByDeviceIds && task.processedByDeviceIds.includes(localInstanceId);
 
         if (alreadyProcessedInSyncByThisDevice || alreadyProcessed) {
+          console.log(`Tasks:processIncomingTabsAndroid - Task "${taskId}" in group "${groupName}" skipped. InSync: ${alreadyProcessedInSyncByThisDevice}, Local: ${alreadyProcessed}`);
           // If process update didn't work in the past, try again
           // Self-correction: if locally processed but not marked in sync, update sync.
           if (alreadyProcessed && !alreadyProcessedInSyncByThisDevice) {
@@ -52,8 +53,8 @@ export async function processIncomingTabsAndroid(currentState) {
 
         // Open the tab
         try {
-          console.log(`Android: Processing tab: ${task.url} for group ${groupName}, task ID: ${taskId}`);
-          await global.browser.tabs.create({ url: task.url, active: false });
+          console.log(`Tasks:processIncomingTabsAndroid - Opening tab: ${task.url} for group ${groupName}, task ID: ${taskId}`);
+          await browser.tabs.create({ url: task.url, active: false });
 
           // Add this device to the task's processedByDeviceIds for sync update
           const currentProcessedBy = task.processedByDeviceIds || [];
@@ -67,7 +68,7 @@ export async function processIncomingTabsAndroid(currentState) {
           localProcessedTasks[taskId] = Date.now(); // Mark as processed with timestamp
           tasksProcessedLocallyThisRun = true;
         } catch (e) {
-          console.error(`Android: Failed to open tab ${task.url} (task ID: ${taskId}):`, e);
+          console.error(`Tasks:processIncomingTabsAndroid - Failed to open tab ${task.url} (task ID: ${taskId}):`, e);
           // Do not mark as processed if opening failed
         }
       }
@@ -77,15 +78,15 @@ export async function processIncomingTabsAndroid(currentState) {
   if (tasksProcessedLocallyThisRun) {
     // Save the updated localProcessedTasks
     await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, localProcessedTasks);
-    console.log("Android: Finished processing incoming tabs, updated local processed task list.");
+    console.log("Tasks:processIncomingTabsAndroid - Finished processing, updated local processed task list.");
   } else {
-    console.log("Android: No new tabs to process for this device.");
+    console.log("Tasks:processIncomingTabsAndroid - No new tabs to process for this device in this run.");
   }
 
    if (groupTasksModifiedInSync) {
     const mergeResult = await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, taskUpdatesForSync);
-    if (mergeResult.success) console.log('Android: Merged processedByDeviceIds updates into GROUP_TASKS in sync storage.');
-    else console.error('Android: FAILED to merge processedByDeviceIds updates into GROUP_TASKS in sync storage.');
+    if (mergeResult.success) console.log('Tasks:processIncomingTabsAndroid - Merged processedByDeviceIds updates into GROUP_TASKS in sync storage.');
+    else console.error('Tasks:processIncomingTabsAndroid - FAILED to merge processedByDeviceIds updates into GROUP_TASKS in sync storage.');
   }
 }
 
