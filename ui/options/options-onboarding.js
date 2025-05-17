@@ -1,5 +1,3 @@
-// ui/options/options-onboarding.js
-
 const onboardingSteps = [
   {
     title: "Welcome to TabTogether!",

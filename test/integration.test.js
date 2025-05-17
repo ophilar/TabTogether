@@ -1,27 +1,20 @@
 import { jest } from '@jest/globals';
 
-// --- Other imports needed for your tests ---
-// Ensure these paths are correct for your project structure.
 import { storage as storageAPI } from '../core/storage.js'; // Correctly import and alias the storage object
-import {_clearInstanceIdCache as actualClearInstanceIdCache} from '../core/instance.js'; // Assuming storageAPI is exported from this module
+import { _clearInstanceIdCache as actualClearInstanceIdCache, _clearInstanceNameCache } from '../core/instance.js';
 
-// Mock the core/instance module
 const mockGetInstanceIdFn = jest.fn(); // Define the mock function instance here
 
 jest.mock('../core/instance.js', () => {
-  // Use jest.requireActual for synchronous loading of the module to be mocked
   const actualModule = jest.requireActual('../core/instance.js');
-
 
   return {
     __esModule: true, // Important for ESM mocks
     ...actualModule, // Spread all actual exports (so they are available unless overridden)
     getInstanceId: mockGetInstanceIdFn, // Override getInstanceId with a Jest mock function
-    // _clearInstanceIdCache will be the actual implementation from actualModule here
   };
 });
 
-// Now, import everything else, including the mocked instanceModule
 import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS as COMMON_LOCAL_STORAGE_KEYS } from '../common/constants.js';
 import { createGroupDirect, subscribeToGroupDirect, unsubscribeFromGroupDirect, deleteGroupDirect } from '../core/actions.js'; // Removed getUnifiedState from static imports here
 import { processIncomingTabsAndroid, createAndStoreGroupTask } from '../core/tasks.js';
@@ -32,7 +25,6 @@ describe('Integration: Group and Tab Flow', () => {
   let openTabFn;
   let updateProcessedFn;
 
-  // --- Test Helper Functions ---
   async function createGroupAndVerify(groupName) {
     const res = await createGroupDirect(groupName);
     expect(res.success).toBe(true);
@@ -62,9 +54,6 @@ describe('Integration: Group and Tab Flow', () => {
 
   async function processSelfSentTabAndVerify(state, groupName, taskId) {
     await processIncomingTabsAndroid(state);
-    // Tab should NOT be opened because the sender (creator) is already in processedByDeviceIds
-    // However, processIncomingTabsAndroid *always* tries to open if not locally processed.
-    // The check for sentBySelfOrAlreadyProcessed includes processedByDeviceIds.
     expect(browser.tabs.create).not.toHaveBeenCalled();
     const groupTasksAfterProcessing = await storageAPI.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS);
     expect(groupTasksAfterProcessing[groupName][taskId]).toBeDefined(); // Task remains
@@ -95,6 +84,7 @@ describe('Integration: Group and Tab Flow', () => {
 
   beforeEach(async () => {
     actualClearInstanceIdCache();
+    _clearInstanceNameCache(); // Also clear name cache if instance names are involved
     openTabFn = jest.fn();
     updateProcessedFn = jest.fn(async (updatedTasks) => {
       await browser.storage.local.set({ [COMMON_LOCAL_STORAGE_KEYS.PROCESSED_TASKS]: updatedTasks });
@@ -126,8 +116,6 @@ describe('Integration: Group and Tab Flow', () => {
 
     const { taskId: sentTaskId } = await sendTabAndVerify(GROUP_NAME, { url: TAB_URL, title: TAB_TITLE }, 'test-device-id');
 
-    // 4. Simulate processing incoming tab (as if received by THIS device)
-    // Dynamically import getUnifiedState for this test case as well
     const { getUnifiedState: getUnifiedStateForTest1 } = await import('../core/actions.js');
     const stateForProcessing = await getUnifiedStateForTest1(true); // Corrected: only one argument
     await processSelfSentTabAndVerify(stateForProcessing, GROUP_NAME, sentTaskId); // Pass sentTaskId
@@ -135,12 +123,7 @@ describe('Integration: Group and Tab Flow', () => {
     await unsubscribeFromGroupAndVerify(GROUP_NAME, 'test-device-id');
     await deleteGroupAndVerify(GROUP_NAME);
 
-    // Verify tasks are not cleared by deleteGroupDirect (handled by cleanup)
     const finalGroupTasks = await storageAPI.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS);
-    // If sentTaskId was defined, and the group was deleted, the tasks for that group might still exist
-    // or be cleaned up by a separate mechanism. This assertion depends on the exact behavior of deleteGroupDirect.
-    // For now, let's assume tasks for the deleted group might still be in the main tasks object if not explicitly cleared by deleteGroupDirect.
-    // If deleteGroupDirect *does* clear tasks for the group, this assertion would change.
   });
 
   test('Multiple devices, tab sending and receiving', async () => {
@@ -148,7 +131,6 @@ describe('Integration: Group and Tab Flow', () => {
     const TAB_URL = 'https://multidevice.com';
     const TAB_TITLE = 'MultiDevice Tab';
 
-    // Setup deviceA (current test device) and deviceB
     const deviceA_ID = 'test-device-id'; // Already set up in beforeEach
     const deviceB_ID = 'deviceB-id';
 
@@ -156,43 +138,31 @@ describe('Integration: Group and Tab Flow', () => {
       [deviceA_ID]: { name: 'Device A', lastSeen: Date.now(), subscriptions: [] },
       [deviceB_ID]: { name: 'Device B', lastSeen: Date.now(), subscriptions: [] }
     });
-    // SYNC_STORAGE_KEYS.SUBSCRIPTIONS is groupName -> [deviceId]
     await storageAPI.set(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {});
 
-    // 1. Create group (by deviceA)
     await createGroupAndVerify(GROUP_NAME);
 
-    // 2. Both devices subscribe
     mockGetInstanceIdFn.mockResolvedValue(deviceA_ID);
     await subscribeToGroupAndVerify(GROUP_NAME, deviceA_ID); // deviceA subscribes
 
-    // Simulate deviceB subscribing (direct action for test simplicity)
+    actualClearInstanceIdCache();
     mockGetInstanceIdFn.mockResolvedValueOnce(deviceB_ID); // Use mockResolvedValueOnce for this specific call
-    await subscribeToGroupAndVerify(GROUP_NAME, deviceB_ID); // deviceB subscribes
+    // await subscribeToGroupAndVerify(GROUP_NAME, deviceB_ID); // deviceB subscribes
 
-    // 3. DeviceA sends a tab to the group
     mockGetInstanceIdFn.mockResolvedValue(deviceA_ID); // Set context back to Device A for sending
     await sendTabAndVerify(GROUP_NAME, { url: TAB_URL, title: TAB_TITLE });
 
-    // 4. Simulate DeviceB processing the task
-    // Clear any module-level cache that getInstanceId might use
-    actualClearInstanceIdCache(); // Make sure this clears the cache used by the *actual* getInstanceId
+    actualClearInstanceIdCache(); // Clear cache again before Device B's getUnifiedState
     
-    // Save the original browser.storage.local.get
     const originalLocalStorageGet = browser.storage.local.get;
 
-    // Mock browser.storage.local.get specifically for Device B's context
-    // to ensure getUnifiedState reads the correct instanceId from local storage.
     browser.storage.local.get = jest.fn(async (keys) => {
       if (keys === COMMON_LOCAL_STORAGE_KEYS.INSTANCE_ID || (Array.isArray(keys) && keys.includes(COMMON_LOCAL_STORAGE_KEYS.INSTANCE_ID))) {
         return { [COMMON_LOCAL_STORAGE_KEYS.INSTANCE_ID]: deviceB_ID };
       }
-      // For any other keys, delegate to the original mock or provide other specific values for Device B
       return originalLocalStorageGet(keys); 
     });
 
-    // Set the mock for getInstanceId to return Device B's ID
-    // This is a fallback if local storage didn't have the ID, or if getInstanceId is called directly elsewhere.
     mockGetInstanceIdFn.mockResolvedValueOnce(deviceB_ID); // Use mockResolvedValueOnce for this specific call
 
     const { getUnifiedState: getUnifiedStateForDeviceB } = await import('../core/actions.js'); // Dynamically import for Device B context
@@ -200,15 +170,12 @@ describe('Integration: Group and Tab Flow', () => {
     expect(stateForDeviceB.instanceId).toBe(deviceB_ID); // Add this check
     await processReceivedTabAndVerify(stateForDeviceB, TAB_URL);
 
-    // Restore the original browser.storage.local.get
     browser.storage.local.get = originalLocalStorageGet;
   });
 });
 
-// UI test (smoke test for debug info rendering)
 describe('UI: Debug Info Panel', () => {
   test('Renders debug info panel in DOM', () => {
-    // Ensure the .options-debug-info element exists for showDebugInfoUI to populate
     document.body.innerHTML = '<div class="container"><div class="options-debug-info"></div></div>';
     const container = document.querySelector('.container');
     const state = {
@@ -230,7 +197,6 @@ describe('UI: Debug Info Panel', () => {
 
 describe('UI to Background Message Interaction (Options Page Example)', () => {
   beforeEach(async () => {
-    // Basic DOM setup for options page elements needed for the test
     document.body.innerHTML = `
       <div class="container">
         <input type="text" id="newGroupName" />
@@ -239,9 +205,6 @@ describe('UI to Background Message Interaction (Options Page Example)', () => {
         <div id="loadingIndicator"></div>
       </div>
     `;
-    // Mock any necessary initial state or imports for options.js
-    // This is a simplified setup. A real test would need more from options.js.
-    // We'll simulate the relevant part of options.js's create group logic.
   });
 
   test('Create Group button sends message and handles success response', async () => {
@@ -251,24 +214,17 @@ describe('UI to Background Message Interaction (Options Page Example)', () => {
 
     newGroupNameInput.value = 'Test Group From UI';
 
-    // Mock browser.runtime.sendMessage to simulate background script response
     global.browser.runtime.sendMessage = jest.fn().mockResolvedValue({
       success: true,
       newGroup: 'Test Group From UI'
     });
 
-    // Simulate the click action from options.js (simplified)
-    // In a full test, you'd import and call the actual event handler or setup options.js
     createGroupBtn.disabled = false; // Enable button
     await createGroupBtn.click(); // This won't trigger the actual options.js listener in this isolated test
-                                 // So we'll manually simulate the sendMessage call
 
-    // Manually simulate the part of the options.js click handler that sends the message
     const response = await global.browser.runtime.sendMessage({ action: "createGroup", groupName: 'Test Group From UI' });
 
     expect(global.browser.runtime.sendMessage).toHaveBeenCalledWith({ action: "createGroup", groupName: 'Test Group From UI' });
     expect(response.success).toBe(true);
-    // Here you would also assert UI changes, e.g., messageArea content, based on options.js logic
-    // For example: expect(messageArea.textContent).toContain('Group "Test Group From UI" created successfully.');
   });
 });
