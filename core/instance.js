@@ -1,11 +1,19 @@
 import { storage } from "./storage.js";
 import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from "../common/constants.js";
 import { getPlatformInfoCached } from "./platform.js";
-import { generateShortId } from './id-utils.js'; 
+
+const SHORT_ID_LENGTH = 4; // Length of the new device IDs
+
+export function generateShortId(length = SHORT_ID_LENGTH) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
 
 let instanceIdCache = null;
-
-
 export async function getInstanceId() {
   if (instanceIdCache) {
     return instanceIdCache;
