@@ -12,7 +12,7 @@ export async function getUnifiedState(isAndroid) {
     const instanceId = await getInstanceId();
     const instanceName = await getInstanceName();  // Get current device name (authoritative for UI, prioritizes local override)
     let thisDeviceSubscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
-    
+
     const syncDataToGet = {
       [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: {},
       [SYNC_STORAGE_KEYS.DEFINED_GROUPS]: [],
@@ -23,7 +23,7 @@ export async function getUnifiedState(isAndroid) {
     let deviceRegistry = syncData[SYNC_STORAGE_KEYS.DEVICE_REGISTRY];
     let definedGroups = syncData[SYNC_STORAGE_KEYS.DEFINED_GROUPS];
     let groupTasks = syncData[SYNC_STORAGE_KEYS.GROUP_TASKS];
-    
+
     let deviceRegistryNeedsUpdate = false;
     // Ensure current device is in registry
     if (!deviceRegistry[instanceId]) {
@@ -105,19 +105,26 @@ export async function deleteGroupDirect(groupName) {
   definedGroups = definedGroups.filter(g => g !== groupName);
   const groupsSuccess = await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, definedGroups);
 
-  // Remove the group key from the subscriptions object
+  // Remove the group key from the local subscriptions object
+  let localSubscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
+  if (localSubscriptions.includes(groupName)) { // Corrected: condition and array manipulation
+    localSubscriptions = localSubscriptions.filter(g => g !== groupName);
+    await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, localSubscriptions);
+  }
+
+  // Remove the group key from the remote subscriptions object
   let subsSuccess = true;
-  let subscriptions = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {});
-  if (subscriptions[groupName]) {
-    delete subscriptions[groupName];
-    const subsSuccess = await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, subscriptions);
+  let syncSubscriptions = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {});
+  if (syncSubscriptions[groupName]) {
+    delete syncSubscriptions[groupName];
+    subsSuccess = await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, syncSubscriptions); // Corrected: use syncSubscriptions
   }
   // Delete tasks associated with this group from GROUP_TASKS
   let tasksSuccess = true;
   let tasks = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, {});
   if (tasks[groupName]) {
     delete tasks[groupName];
-    const taskMergeResult = await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, {[groupName]: null});
+    const taskMergeResult = await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, { [groupName]: null });
     tasksSuccess = taskMergeResult.success;
   }
 
@@ -132,8 +139,19 @@ export async function renameGroupDirect(oldName, newName) {
     return { success: false, message: STRINGS.invalidGroupName };
   }
   const trimmedNewName = newName.trim();
+
+  // Rename the group key in local subscriptions
+  let localSubscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
+  if (localSubscriptions.includes(oldName)) { // Corrected: array check and update
+    localSubscriptions = localSubscriptions.map(g => (g === oldName ? trimmedNewName : g));
+    // Ensure the new name isn't duplicated if it somehow already existed (unlikely for a rename target)
+    // and then sort.
+    localSubscriptions = [...new Set(localSubscriptions)].sort();
+    await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, localSubscriptions);
+  }
+
   let definedGroups = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []);
-  let subscriptions = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {});
+  let syncSubscriptionsObject = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {});
   let groupTasks = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, {});
 
   if (definedGroups.includes(trimmedNewName) && oldName !== trimmedNewName) {
@@ -142,22 +160,21 @@ export async function renameGroupDirect(oldName, newName) {
 
   definedGroups = definedGroups.map(g => (g === oldName ? trimmedNewName : g));
   // Rename the group key in subscriptions
-  if (subscriptions[oldName]) {
-    subscriptions[trimmedNewName] = subscriptions[oldName];
-    delete subscriptions[oldName];
+  if (syncSubscriptionsObject[oldName]) { // Corrected: use syncSubscriptionsObject
+    syncSubscriptionsObject[trimmedNewName] = syncSubscriptionsObject[oldName];
+    delete syncSubscriptionsObject[oldName];
   }
   // Rename the group key in groupTasks
   let tasksSuccess = true;
   if (groupTasks[oldName]) {
     groupTasks[trimmedNewName] = groupTasks[oldName];
     delete groupTasks[oldName];
-    // tasksSuccess = await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, groupTasks);
-    const taskMergeResult = await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, {[oldName]: null, [trimmedNewName]: groupTasks[trimmedNewName]});
+    const taskMergeResult = await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, { [oldName]: null, [trimmedNewName]: groupTasks[trimmedNewName] });
     tasksSuccess = taskMergeResult.success;
   }
 
   const groupsSuccess = await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, definedGroups.sort());
-  const subsSuccess = await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, subscriptions);
+  const subsSuccess = await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, syncSubscriptionsObject); // Corrected: use syncSubscriptionsObject
   if (groupsSuccess && subsSuccess && tasksSuccess) {
     return { success: true, message: STRINGS.groupRenameSuccess(trimmedNewName), renamedGroup: trimmedNewName };
   }
@@ -176,17 +193,18 @@ async function _addDeviceSubscriptionToGroup(instanceId, groupName) {
 
   // Check MAX_DEVICES_PER_GROUP
   if (syncSubscriptions[groupName] &&
-      syncSubscriptions[groupName].length >= MAX_DEVICES_PER_GROUP &&
-      !syncSubscriptions[groupName].includes(instanceId) // Only fail if this device isn't already one of them
+    syncSubscriptions[groupName].length >= MAX_DEVICES_PER_GROUP &&
+    !syncSubscriptions[groupName].includes(instanceId) // Only fail if this device isn't already one of them
   ) {
     return { success: false, message: STRINGS.groupFull(groupName), subscribedGroup: groupName };
   }
 
   // Update local subscriptions
   let localSubscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
-  if (!localSubscriptions.includes(groupName)) {
+  if (!localSubscriptions.includes(groupName)) { // Corrected: Add groupName if not present
     localSubscriptions.push(groupName);
     localSubscriptions.sort();
+    localSubscriptions = [...new Set(localSubscriptions)].sort();
     await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, localSubscriptions);
   }
 

@@ -46,6 +46,7 @@ const dom = {
 };
 let currentState = null;
 let isAndroidPlatformGlobal = false;
+let isLoadingState = false; // Flag to prevent re-entrant loadState calls
 
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -80,7 +81,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         try {
           if (isAndroidPlatformGlobal) {
             await loadState();
-             // Explicitly update UI from the recorded time
+            // Explicitly update UI from the recorded time
             const ts = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_SYNC_TIME, null);
             if (ts && dom.syncStatus) dom.syncStatus.textContent = "Last sync: " + new Date(ts).toLocaleString();
             showMessage(dom.messageArea, STRINGS.syncComplete, false);
@@ -183,9 +184,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
         clearMessage(dom.messageArea);
         try {
-          if (!currentState) { // If no state, do a full load
+          if (!currentState && !isLoadingState) { // If no state and not already loading, do a full load
             await loadState();
-          } else {
+          } else if (currentState) { // Only proceed with incremental if currentState is populated
             if (message.changedItems.includes("deviceRegistryChanged")) {
               console.log(new Date().toISOString(), "Handling deviceRegistryChanged...");
               currentState.deviceRegistry = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
@@ -209,6 +210,8 @@ document.addEventListener("DOMContentLoaded", async () => {
               currentState.subscriptions = deviceSubscriptions.sort();
               renderDefinedGroups();
             }
+          } else {
+            console.log(new Date().toISOString(), "specificSyncDataChanged: currentState is null and isLoadingState is true. Skipping incremental update for now.");
           }
           const ts = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_SYNC_TIME, null);
           if (ts && dom.syncStatus) {
@@ -231,10 +234,16 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 async function loadState() {
+  if (isLoadingState) {
+    console.log(new Date().toISOString(), "[loadState] SKIPPED - already in progress.");
+    return;
+  }
+  isLoadingState = true;
   if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
   clearMessage(dom.messageArea);
   try {
     console.log(new Date().toISOString(), `[loadState] START. Current currentState.instanceName before getUnifiedState: ${currentState?.instanceName}`);
+    console.log(new Date().toISOString(), `[loadState] START. isLoadingState: ${isLoadingState}. Current currentState.instanceName before getUnifiedState: ${currentState?.instanceName}`);
     console.log(new Date().toISOString(), "[loadState] Attempting to get unified state...");
     let state = await getUnifiedState(isAndroidPlatformGlobal);
     if (isAndroidPlatformGlobal) {
@@ -263,6 +272,7 @@ async function loadState() {
     if (dom.deviceRegistryListDiv) dom.deviceRegistryListDiv.textContent = STRINGS.loadingRegistry;
   } finally {
     if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, false);
+    isLoadingState = false;
   }
 }
 
@@ -431,7 +441,7 @@ async function finishRenameDevice(newName, listItem, nameSpan, inlineControlsCon
   } finally {
     cancelInlineEditUI(nameSpan, inlineControlsContainer);
     if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, false);
-    if (!success) { 
+    if (!success) {
       nameSpan.style.display = '';
     }
   }
