@@ -374,8 +374,6 @@ button.inline-btn {
 }
 [data-theme="dark"] .inline-edit-cancel {
     color: var(--main-button-text); /* Ensure dark mode also uses standard text color */
-} .device-icon-preview {
-  width: 60px;
 }
 
 

@@ -14,7 +14,6 @@ import {
 import { applyThemeFromStorage } from "../shared/theme.js";
 
 // Cache DOM elements at the top for repeated use
-// Initialize properties to null, they will be assigned in DOMContentLoaded
 const dom = {
   deviceNameSpan: null,
   sendTabGroupsList: null,
@@ -24,13 +23,13 @@ const dom = {
   messageArea: null,
   subscriptionsUl: null,
   toggleDetailsBtn: null,
-  popupDetails: null,
-  loadingIndicator: null, // Add loadingIndicator to the dom object
+  popupDetails: null, // Details section container
+  loadingIndicator: null,
 };
 
 // --- Initialization ---
 document.addEventListener("DOMContentLoaded", async () => {
-  try { // Add a top-level try-catch for the entire DOMContentLoaded
+  try {
     injectSharedUI();
     await applyThemeFromStorage();
 
@@ -202,7 +201,7 @@ async function loadStatus() {
  * @param {string} name - The device name.
  */
 function renderDeviceName(container, name) {
-  if (container) {
+  if (container) { // Guard clause
     container.textContent = name || STRINGS.deviceNameNotSet;
   }
 }
@@ -300,7 +299,7 @@ async function sendTabToGroup(groupName) {
     }
 
     // Handle the response from the send action
-    if (response && response.success) {
+    if (response?.success) {
       showSendStatus(STRINGS.sentToGroup(groupName), false); // Success feedback
     } else {
       // Show specific error message from response, or generic failure
@@ -317,12 +316,12 @@ async function sendTabToGroup(groupName) {
 // Shows status messages (like "Sending...", "Sent!", "Error...")
 function showSendStatus(message, isError) {
   const statusArea = dom.sendTabStatus;
-  if (!statusArea) return;
+  if (!statusArea) return; // Guard clause
 
   statusArea.textContent = message;
   statusArea.classList.remove("hidden");
   // Use consistent CSS classes from styles.css
-  statusArea.classList.toggle("error", !!isError); // Use !! to ensure boolean
+  statusArea.classList.toggle("error", isError); // isError is already boolean
   statusArea.classList.toggle("success", !isError);
 
   // Clear the message after a delay
