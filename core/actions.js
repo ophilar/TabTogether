@@ -1,5 +1,5 @@
 import { storage, recordSuccessfulSyncTime } from "./storage.js";
-import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, STRINGS } from "../common/constants.js";
+import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, STRINGS, MAX_DEVICES_PER_GROUP } from "../common/constants.js";
 import { getInstanceId, getInstanceName, setInstanceName } from "./instance.js";
 
 /**
@@ -44,7 +44,9 @@ export async function getUnifiedState(isAndroid) {
     }
 
     if (deviceRegistryNeedsUpdate) {
-      await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, deviceRegistry);
+      // Optimized: Only merge the changes for the current instanceId
+      const updatePayload = { [instanceId]: deviceRegistry[instanceId] };
+      await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, updatePayload);
       await recordSuccessfulSyncTime(); // Record sync time
     }
 
@@ -110,13 +112,13 @@ export async function deleteGroupDirect(groupName) {
     delete subscriptions[groupName];
     const subsSuccess = await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, subscriptions);
   }
-
   // Delete tasks associated with this group from GROUP_TASKS
   let tasksSuccess = true;
   let tasks = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, {});
   if (tasks[groupName]) {
     delete tasks[groupName];
-    const tasksSuccess = await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, tasks);
+    const taskMergeResult = await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, {[groupName]: null});
+    tasksSuccess = taskMergeResult.success;
   }
 
   if (groupsSuccess && subsSuccess && tasksSuccess) {
@@ -132,6 +134,7 @@ export async function renameGroupDirect(oldName, newName) {
   const trimmedNewName = newName.trim();
   let definedGroups = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []);
   let subscriptions = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {});
+  let groupTasks = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, {});
 
   if (definedGroups.includes(trimmedNewName) && oldName !== trimmedNewName) {
     return { success: false, message: STRINGS.groupExists(trimmedNewName) };
@@ -143,11 +146,19 @@ export async function renameGroupDirect(oldName, newName) {
     subscriptions[trimmedNewName] = subscriptions[oldName];
     delete subscriptions[oldName];
   }
+  // Rename the group key in groupTasks
+  let tasksSuccess = true;
+  if (groupTasks[oldName]) {
+    groupTasks[trimmedNewName] = groupTasks[oldName];
+    delete groupTasks[oldName];
+    // tasksSuccess = await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, groupTasks);
+    const taskMergeResult = await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, {[oldName]: null, [trimmedNewName]: groupTasks[trimmedNewName]});
+    tasksSuccess = taskMergeResult.success;
+  }
 
   const groupsSuccess = await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, definedGroups.sort());
   const subsSuccess = await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, subscriptions);
-
-  if (groupsSuccess && subsSuccess) {
+  if (groupsSuccess && subsSuccess && tasksSuccess) {
     return { success: true, message: STRINGS.groupRenameSuccess(trimmedNewName), renamedGroup: trimmedNewName };
   }
   return { success: false, message: "Failed to fully rename group and update subscriptions." };

@@ -14,6 +14,7 @@ export async function processIncomingTasks(allGroupTasksFromStorage) {
     let localProcessedTasks = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, {});
     let newTasksProcessedThisRun = false;
     let groupTasksModifiedInSync = false;
+    let taskUpdatesForSync = {}; // Collect updates for a single mergeItem call
     const openedTabsDetails = [];
 
     for (const groupName in allGroupTasksFromStorage) {
@@ -37,15 +38,22 @@ export async function processIncomingTasks(allGroupTasksFromStorage) {
                 console.log(`TaskProcessor: Opening tab for task ${taskId} from group ${groupName}: ${taskData.url}`);
                 await browser.tabs.create({ url: taskData.url, active: false });
 
-                // Add this device to the task's processedByDeviceIds in the main storage object
-                // This ensures allGroupTasksFromStorage reflects the change before a potential save.
-                if (!allGroupTasksFromStorage[groupName][taskId].processedByDeviceIds) {
-                    allGroupTasksFromStorage[groupName][taskId].processedByDeviceIds = [];
-                }
-                if (!allGroupTasksFromStorage[groupName][taskId].processedByDeviceIds.includes(localInstanceId)) {
-                    allGroupTasksFromStorage[groupName][taskId].processedByDeviceIds.push(localInstanceId);
+                // Prepare update for this specific task
+                const currentProcessedBy = allGroupTasksFromStorage[groupName][taskId].processedByDeviceIds || [];
+                if (!currentProcessedBy.includes(localInstanceId)) {
+                    const updatedProcessedBy = [...currentProcessedBy, localInstanceId];
+                    
+                    // Deeply ensure path exists in taskUpdatesForSync
+                    if (!taskUpdatesForSync[groupName]) {
+                        taskUpdatesForSync[groupName] = {};
+                    }
+                    if (!taskUpdatesForSync[groupName][taskId]) {
+                        taskUpdatesForSync[groupName][taskId] = {};
+                    }
+                    taskUpdatesForSync[groupName][taskId].processedByDeviceIds = updatedProcessedBy;
                     groupTasksModifiedInSync = true;
                 }
+
 
                 localProcessedTasks[taskId] = Date.now();
                 openedTabsDetails.push({ title: taskData.title, url: taskData.url, groupName: groupName });
@@ -62,8 +70,9 @@ export async function processIncomingTasks(allGroupTasksFromStorage) {
         console.log('TaskProcessor: No new tasks were processed in this run.');
     }
     if (groupTasksModifiedInSync) {
-        await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, allGroupTasksFromStorage);
-        console.log('TaskProcessor: Updated GROUP_TASKS in sync storage with new processedByDeviceIds.');
+        const mergeResult = await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, taskUpdatesForSync);
+        if(mergeResult.success) console.log('TaskProcessor: Merged processedByDeviceIds updates into GROUP_TASKS in sync storage.');
+        else console.error('TaskProcessor: FAILED to merge processedByDeviceIds updates into GROUP_TASKS.');
     }
     return openedTabsDetails;
 }
