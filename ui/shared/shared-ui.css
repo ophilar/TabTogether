@@ -1,7 +1,5 @@
 /* Styles shared between popup.html and options.html */
 
-/* Add other shared styles here, e.g., .loading, .message-area if identical */
-
 .sync-icon-svg {
   vertical-align: middle;
   /* --- New Mask Styling --- */
@@ -19,7 +17,6 @@
   height: 16px;
 }
 
-/* Add rotation animation */
 @keyframes rotate-sync-icon {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
