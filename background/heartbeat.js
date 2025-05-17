@@ -11,17 +11,8 @@ export async function performHeartbeat() {
     return;
   }
   console.log(`Performing heartbeat for ${localInstanceId} (${localInstanceName})...`);
-  const update = {
-    [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: {
-      [localInstanceId]: {
-        name: localInstanceName,
-        lastSeen: Date.now()
-      },
-    },
-  };
+  const update = { [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: { [localInstanceId]: { name: localInstanceName, lastSeen: Date.now() } } };
   console.log('[Heartbeat] Attempting to merge update:', JSON.stringify(update));
-  await storage.mergeSyncStorage(
-    update
-  );
+  await storage.mergeSyncStorage(update);
   console.log("Heartbeat complete.");
 }

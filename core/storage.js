@@ -9,7 +9,7 @@ export const storage = {
   /**
    * Retrieves an item from the specified storage area.
    * @param {browser.storage.StorageArea} area - browser.storage.sync or browser.storage.local
-   * @param {string} key - A single key string to retrieve.
+   * @param {string|object} keys - A single key string to retrieve, or an object where keys are storage keys and values are their default values.
    * @param {any} [defaultValue=null] - A default value to return if the key is not found.
    * @returns {Promise<any>} A promise that resolves with the storage item(s).
    */
@@ -19,18 +19,7 @@ export const storage = {
       let value = result[key] ?? defaultValue;
 
       // Type validation for known keys
-      if (key === SYNC_STORAGE_KEYS.DEVICE_REGISTRY ||
-          key === SYNC_STORAGE_KEYS.GROUP_TASKS ||
-          key === SYNC_STORAGE_KEYS.SUBSCRIPTIONS // Ensure SYNC subscriptions are treated as an object
-      ) {
-        value = ensureObject(value, defaultValue ?? {});
-      } else if (key === LOCAL_STORAGE_KEYS.SUBSCRIPTIONS ||
-                 key === SYNC_STORAGE_KEYS.DEFINED_GROUPS) {
-        value = ensureArray(value, defaultValue ?? []);
-      } else if (key === LOCAL_STORAGE_KEYS.INSTANCE_ID ||
-                 key === LOCAL_STORAGE_KEYS.INSTANCE_NAME_OVERRIDE) { // Use the standardized override key
-        value = ensureString(value, defaultValue ?? "");
-      }
+      value = this._validateTypeValue(key, value, defaultValue)
       return value;
     } catch (error) {
       console.error(`Error getting ${key} from ${area === browser.storage.sync ? 'sync' : 'local'} storage:`, error);
@@ -99,6 +88,25 @@ export const storage = {
       console.error(`Error merging item ${key} in ${area === browser.storage.sync ? 'sync' : 'local'} storage:`, error, "Updates:", updates);
       return { success: false, mergedData: null, dataChanged: false, message: `Error during merge for key '${key}': ${error.message}` };
     }
+  },
+
+  /**
+   * Internal helper to validate and ensure type of a retrieved storage value.
+   * @param {string} key The storage key.
+   * @param {any} value The retrieved value.
+   * @param {any} defaultValue The default value for this key.
+   * @returns {any} The validated (and potentially type-coerced) value.
+   * @private
+   */
+  _validateTypeValue(key, value, defaultValue) {
+    if (key === SYNC_STORAGE_KEYS.DEVICE_REGISTRY || key === SYNC_STORAGE_KEYS.GROUP_TASKS || key === SYNC_STORAGE_KEYS.SUBSCRIPTIONS) {
+      return ensureObject(value, defaultValue ?? {});
+    } else if (key === LOCAL_STORAGE_KEYS.SUBSCRIPTIONS || key === SYNC_STORAGE_KEYS.DEFINED_GROUPS) {
+      return ensureArray(value, defaultValue ?? []);
+    } else if (key === LOCAL_STORAGE_KEYS.INSTANCE_ID || key === LOCAL_STORAGE_KEYS.INSTANCE_NAME_OVERRIDE) {
+      return ensureString(value, defaultValue ?? "");
+    }
+    return value; // No specific validation for other keys, return as is or default
   }
 };
 

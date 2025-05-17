@@ -10,6 +10,8 @@ import {
   deleteGroupDirect,
   renameGroupDirect,
   deleteDeviceDirect,
+  _addDeviceSubscriptionToGroup, // Assuming exported from actions.js
+  _removeDeviceSubscriptionFromGroup, // Assuming exported from actions.js
 } from "../core/actions.js";
 import { createAndStoreGroupTask } from "../core/tasks.js";
 import { processIncomingTasks } from "./task-processor.js";
@@ -310,9 +312,9 @@ browser.storage.onChanged.addListener(async (changes, areaName) => {
 
   if (specificRefreshActions.size > 0) {
     try {
-      await browser.runtime.sendMessage({ 
-        action: "specificSyncDataChanged", 
-        changedItems: Array.from(specificRefreshActions) 
+      await browser.runtime.sendMessage({
+        action: "specificSyncDataChanged",
+        changedItems: Array.from(specificRefreshActions)
       });
     } catch (error) {
       if (
@@ -421,117 +423,27 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
     case "subscribeToGroup": {
       const groupToSubscribe = request.groupName;
       const localInstanceId = await getInstanceId();
-      let localSubscriptions = await storage.get(
-        browser.storage.local,
-        LOCAL_STORAGE_KEYS.SUBSCRIPTIONS,
-        []
-      );
 
       if (!groupToSubscribe) {
         return { success: false, message: STRINGS.noGroupNameProvided };
       }
-      if (localSubscriptions.includes(groupToSubscribe)) {
-        return { success: false, message: STRINGS.alreadySubscribed };
+      // Call the consolidated helper from actions.js
+      const result = await _addDeviceSubscriptionToGroup(localInstanceId, groupToSubscribe);
+      if (result.success) {
+        await performHeartbeat();
       }
-
-      const allSubscriptionsSync = await storage.get(
-        browser.storage.sync,
-        SYNC_STORAGE_KEYS.SUBSCRIPTIONS,
-        {}
-      );
-      let currentSubscribersToGroup = 0;
-      for (const deviceId in allSubscriptionsSync) {
-        if (
-          allSubscriptionsSync[deviceId] &&
-          allSubscriptionsSync[deviceId].includes(groupToSubscribe)
-        ) {
-          currentSubscribersToGroup++;
-        }
-      }
-      if (MAX_DEVICES_PER_GROUP && currentSubscribersToGroup >= MAX_DEVICES_PER_GROUP) {
-        return {
-          success: false,
-          message: STRINGS.groupFull(groupToSubscribe),
-        };
-      }
-
-      try {
-        localSubscriptions.push(groupToSubscribe);
-        localSubscriptions.sort();
-
-        await storage.set(
-          browser.storage.local,
-          LOCAL_STORAGE_KEYS.SUBSCRIPTIONS,
-          localSubscriptions
-        );
-
-        await storage.mergeItem(
-          browser.storage.sync,
-          SYNC_STORAGE_KEYS.SUBSCRIPTIONS,
-          {
-            [localInstanceId]: localSubscriptions,
-          }
-        );
-
-        const localInstanceName = await getInstanceName();
-        await performHeartbeat(localInstanceId, localInstanceName);
-
-        return { success: true, subscribedGroup: groupToSubscribe };
-      } catch (error) {
-        console.error(`Error subscribing to group ${groupToSubscribe}:`, error);
-        return {
-          success: false,
-          message: `Error subscribing: ${error.message}`,
-        };
-      }
+      return result;
     }
     case "unsubscribeFromGroup": {
       const groupToUnsubscribe = request.groupName;
       const localInstanceId = await getInstanceId();
-      let localSubscriptions = await storage.get(
-        browser.storage.local,
-        LOCAL_STORAGE_KEYS.SUBSCRIPTIONS,
-        []
-      );
+      let localSubscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
 
       if (!groupToUnsubscribe) {
         return { success: false, message: STRINGS.noGroupNameProvided };
       }
-      if (!localSubscriptions.includes(groupToUnsubscribe)) {
-        return { success: false, message: STRINGS.notSubscribedToGroup };
-      }
-
-      try {
-        localSubscriptions = localSubscriptions.filter(
-          (g) => g !== groupToUnsubscribe
-        );
-
-        await storage.set(
-          browser.storage.local,
-          LOCAL_STORAGE_KEYS.SUBSCRIPTIONS,
-          localSubscriptions
-        );
-
-        await storage.mergeItem(
-          browser.storage.sync,
-          SYNC_STORAGE_KEYS.SUBSCRIPTIONS,
-          {
-            [localInstanceId]: localSubscriptions,
-          }
-        );
-
-        console.log(`Locally unsubscribed from ${groupToUnsubscribe}.`);
-        return { success: true, unsubscribedGroup: groupToUnsubscribe };
-      } catch (error) {
-        console.error(
-          `Error unsubscribing from group ${groupToUnsubscribe}:`,
-          error
-        );
-        return {
-          success: false,
-          message: `Error unsubscribing: ${error.message}`,
-        };
-      }
+      // Call the consolidated helper from actions.js
+      return await _removeDeviceSubscriptionFromGroup(localInstanceId, groupToUnsubscribe);
     }
     case "sendTabFromPopup": {
       const { groupName, tabData } = request;

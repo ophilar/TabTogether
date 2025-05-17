@@ -144,13 +144,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           if (response.success) {
             if (currentState && !currentState.definedGroups.includes(response.newGroup)) {
               currentState.definedGroups.push(response.newGroup);
-              currentState.definedGroups.sort();
-              const ul = ensureGroupsListUl();
-              if (ul) {
-                const isSubscribed = currentState.subscriptions.includes(response.newGroup);
-                const newLi = createGroupListItemUI(response.newGroup, isSubscribed, { handleSubscribe, handleUnsubscribe, handleDeleteGroup, startRenameGroup });
-                ul.appendChild(newLi);
-              }
+              renderDefinedGroups(); // Re-render from state
             }
             if (dom.messageArea) showMessage(dom.messageArea, STRINGS.groupCreateSuccess(response.newGroup), false);
             dom.newGroupNameInput.value = "";
@@ -425,21 +419,8 @@ async function finishRenameDevice(newName, listItem, nameSpan, inlineControlsCon
         }
       }
       console.log(new Date().toISOString(), `[finishRenameDevice] currentState updated. currentState.instanceName: ${currentState?.instanceName}, currentState.deviceRegistry['${deviceId}']?.name: ${currentState?.deviceRegistry?.[deviceId]?.name}`);
+      renderDeviceRegistry(); // Re-render the device list from updated currentState
       showMessage(dom.messageArea, STRINGS.deviceRenameSuccess(newName), false);
-      const deviceLi = listItem
-      if (deviceLi) {
-        const deviceNameSpan = deviceLi.querySelector('.device-name-label');
-        console.log(new Date().toISOString(), `[finishRenameDevice] Performing targeted DOM update. Setting name to: ${deviceId === currentState?.instanceId ? currentState?.instanceName : newName}`);
-        if (deviceNameSpan) {
-          deviceNameSpan.textContent = '';
-          const strong = document.createElement('strong');
-          strong.textContent = currentState.instanceName;
-          deviceNameSpan.appendChild(strong);
-          deviceNameSpan.appendChild(document.createTextNode(' (This Device)'));
-          // Re-attach click handler. startRenameCurrentDevice will get deviceId and oldName (which is current newName) from currentState.
-          if (deviceNameSpan) deviceNameSpan.onclick = () => startRenameCurrentDevice(deviceLi, deviceNameSpan);
-        }
-      }
     } else {
       showMessage(dom.messageArea, response.message || STRINGS.deviceRenameFailed, true);
       console.warn(new Date().toISOString(), `[finishRenameDevice] renameDeviceUnified FAILED. Message: ${response.message}`);
@@ -466,15 +447,7 @@ async function handleDeleteDevice(deviceId, deviceName) {
       if (dom.messageArea) showMessage(dom.messageArea, STRINGS.deviceDeleteSuccess(deviceName), false);
       if (currentState && currentState.deviceRegistry[deviceId]) {
         delete currentState.deviceRegistry[deviceId];
-        const deviceLi = dom.deviceRegistryListDiv.querySelector(`li[data-device-id="${deviceId}"]`);
-        if (deviceLi) {
-          deviceLi.remove();
-        }
-        if (dom.deviceRegistryListDiv && Object.keys(currentState.deviceRegistry).length === 0) {
-          const ul = dom.deviceRegistryListDiv.querySelector('#device-registry-list-ul');
-          if (ul) ul.remove();
-          dom.deviceRegistryListDiv.textContent = STRINGS.noDevices;
-        }
+        renderDeviceRegistry(); // Re-render from state
       }
     } else {
       if (dom.messageArea) {
@@ -510,17 +483,8 @@ async function handleSubscribe(event) {
     if (response.success) {
       if (currentState && !currentState.subscriptions.includes(response.subscribedGroup)) {
         currentState.subscriptions.push(response.subscribedGroup);
-        currentState.subscriptions.sort();
         if (dom.messageArea) showMessage(dom.messageArea, STRINGS.subscribedToGroup(response.subscribedGroup), false);
-        const groupLi = dom.definedGroupsListDiv.querySelector(`li[data-group-name="${response.subscribedGroup}"]`);
-        if (groupLi) {
-          const subBtn = groupLi.querySelector('button:not(.danger)');
-          if (subBtn) {
-            subBtn.textContent = "Unsubscribe";
-            subBtn.className = 'secondary';
-            subBtn.onclick = handleUnsubscribe; // Change listener
-          }
-        }
+        renderDefinedGroups(); // Re-render from state
       }
     } else {
       if (dom.messageArea) showMessage(dom.messageArea, response.message || STRINGS.failedToSubscribe, true);
@@ -542,15 +506,7 @@ async function handleUnsubscribe(event) {
       if (currentState) {
         currentState.subscriptions = currentState.subscriptions.filter(g => g !== response.unsubscribedGroup);
         if (dom.messageArea) showMessage(dom.messageArea, STRINGS.unsubscribedFromGroup(response.unsubscribedGroup), false);
-        const groupLi = dom.definedGroupsListDiv.querySelector(`li[data-group-name="${response.unsubscribedGroup}"]`);
-        if (groupLi) {
-          const subBtn = groupLi.querySelector('button:not(.danger)');
-          if (subBtn) {
-            subBtn.textContent = "Subscribe";
-            subBtn.className = 'primary';
-            subBtn.onclick = handleSubscribe; // Change listener
-          }
-        }
+        renderDefinedGroups(); // Re-render from state
       }
     } else {
       if (dom.messageArea) showMessage(dom.messageArea, response.message || STRINGS.failedToUnsubscribe, true);
@@ -575,15 +531,7 @@ async function handleDeleteGroup(event) {
       if (currentState) {
         currentState.definedGroups = currentState.definedGroups.filter(g => g !== response.deletedGroup);
         currentState.subscriptions = currentState.subscriptions.filter(g => g !== response.deletedGroup);
-        const groupLi = dom.definedGroupsListDiv.querySelector(`li[data-group-name="${response.deletedGroup}"]`);
-        if (groupLi) {
-          groupLi.remove();
-        }
-        if (dom.definedGroupsListDiv && currentState.definedGroups.length === 0) {
-          const ul = dom.definedGroupsListDiv.querySelector('#defined-groups-list-ul');
-          if (ul) ul.remove();
-          dom.definedGroupsListDiv.textContent = STRINGS.noGroups;
-        }
+        renderDefinedGroups(); // Re-render from state
       }
       if (dom.messageArea) showMessage(dom.messageArea, STRINGS.groupDeleteSuccess(response.deletedGroup), false);
     } else {
@@ -612,15 +560,7 @@ async function handleRemoveSelfDevice() {
       if (dom.messageArea) showMessage(dom.messageArea, STRINGS.selfDeviceRemoved, false);
       if (currentState && currentState.deviceRegistry[instanceId]) {
         delete currentState.deviceRegistry[instanceId];
-        const deviceLi = dom.deviceRegistryListDiv.querySelector(`li[data-device-id="${instanceId}"]`);
-        if (deviceLi) {
-          deviceLi.remove();
-        }
-        if (dom.deviceRegistryListDiv && Object.keys(currentState.deviceRegistry).length === 0) {
-          const ul = dom.deviceRegistryListDiv.querySelector('#device-registry-list-ul');
-          if (ul) ul.remove();
-          dom.deviceRegistryListDiv.textContent = STRINGS.noDevices;
-        }
+        renderDeviceRegistry(); // Re-render from state
       }
     } else {
       if (dom.messageArea) showMessage(dom.messageArea, res.message || STRINGS.failedToRemoveSelfDevice, true);
