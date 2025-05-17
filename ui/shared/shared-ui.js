@@ -1,13 +1,13 @@
 // Injects shared header, loading, and message area into the container
 
 export function injectSharedUI(containerSelector = '.container') {
-    console.log("[injectSharedUI] Called with selector:", containerSelector);
+    console.log("SharedUI:injectSharedUI - Called with selector:", containerSelector);
     const container = document.querySelector(containerSelector);
     if (!container) {
-        console.warn(`Shared UI injection failed: Container "${containerSelector}" not found.`);
+        console.warn(`SharedUI:injectSharedUI - Injection failed: Container "${containerSelector}" not found.`);
         return;
     }
-    console.log("[injectSharedUI] Found container:", container);
+    console.log("SharedUI:injectSharedUI - Found container:", container);
 
     // Use prepend for consistent insertion at the beginning,
     // inserting in reverse order of desired final appearance.
@@ -18,7 +18,7 @@ export function injectSharedUI(containerSelector = '.container') {
         messageDiv.id = 'messageArea';
         messageDiv.className = 'message-area hidden'; // Use class from styles.css
         container.prepend(messageDiv); // Prepend first (will end up below loading)
-        console.log("[injectSharedUI] Created and prepended #messageArea:", messageDiv);
+        console.log("SharedUI:injectSharedUI - Created and prepended #messageArea:", messageDiv);
     }
 
     // Inject Loading Indicator if not present
@@ -29,11 +29,12 @@ export function injectSharedUI(containerSelector = '.container') {
         // Add spinner span for consistency with styles.css
         loadingDiv.innerHTML = '<span class="spinner"></span> Loading...';
         container.prepend(loadingDiv); // Prepend second (will end up below header)
-        console.log("[injectSharedUI] Created and prepended #loadingIndicator:", loadingDiv);
+        console.log("SharedUI:injectSharedUI - Created and prepended #loadingIndicator:", loadingDiv);
     }
 }
 
 export const showAndroidBanner = (container, msg) => {
+  console.log("SharedUI:showAndroidBanner - Called with message:", msg);
   let banner = container.querySelector(".android-banner");
     if (!banner) {
         banner = document.createElement("div");
@@ -48,10 +49,11 @@ export function showLoadingIndicator(
   isLoading,
 ) {
   if (!indicatorElement) {
-    console.warn("showLoadingIndicator: Indicator element not found.");
+    console.warn("SharedUI:showLoadingIndicator - Indicator element not found.");
     return;
   }
 
+  console.log(`SharedUI:showLoadingIndicator - Setting loading to: ${isLoading}`);
   indicatorElement.classList.toggle("hidden", !isLoading);
 
   if (isLoading) {
@@ -81,6 +83,7 @@ export function showMessage(
   autoHideDelay = 4000
 ) {
   if (!messageArea) return;
+  console.log(`SharedUI:showMessage - Displaying message: "${message}", isError: ${isError}, autoHideDelay: ${autoHideDelay}`);
 
   messageArea.textContent = message;
   messageArea.className = "message-area"; // Reset classes first
@@ -96,6 +99,7 @@ export function showMessage(
 /** Clears the content and hides the designated message area element. */
 export function clearMessage(messageArea) {
   if (messageArea) {
+    console.log("SharedUI:clearMessage - Clearing message area.");
     messageArea.textContent = "";
     messageArea.className = "message-area hidden"; // Add hidden class
   }
@@ -103,6 +107,7 @@ export function clearMessage(messageArea) {
 
 export const setLastSyncTime = (container, date) => {
   let syncDiv = container.querySelector(".last-sync-time");
+  console.log(`SharedUI:setLastSyncTime - Setting time to: ${date ? new Date(date).toLocaleString() : "Never"}`);
   if (!syncDiv) {
     syncDiv = document.createElement("div");
     syncDiv.className = "last-sync-time small-text";

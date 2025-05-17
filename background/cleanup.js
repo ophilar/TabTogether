@@ -2,7 +2,7 @@ import { storage } from "../core/storage.js";
 import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from "../common/constants.js";
 
 export async function performStaleDeviceCheck(cachedDeviceRegistry, thresholdMs) {
-  console.log("Performing stale device check...");
+  console.log("Cleanup:performStaleDeviceCheck - Performing stale device check...");
   let registry = cachedDeviceRegistry ?? (await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {}));
   const now = Date.now();
   let registryUpdates = {};
@@ -10,7 +10,7 @@ export async function performStaleDeviceCheck(cachedDeviceRegistry, thresholdMs)
 
   for (const deviceId in registry) {
     if (now - (registry[deviceId]?.lastSeen || 0) > thresholdMs && deviceId !== 'test-device-id') {
-      console.log(`Device ${deviceId} (${registry[deviceId].name}) is stale. Pruning...`);
+      console.log(`Cleanup:performStaleDeviceCheck - Device ${deviceId} (${registry[deviceId].name}) is stale. Pruning...`);
       needsRegistryUpdate = true;
       registryUpdates[deviceId] = null;
     }
@@ -38,11 +38,11 @@ export async function performStaleDeviceCheck(cachedDeviceRegistry, thresholdMs)
       groupStateMergeSuccess = await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, currentSyncSubscriptions);
     }
   }
-  console.log("Stale device check complete. Registry updated:", registryMergeSuccess.success, "Group state updated:", groupStateMergeSuccess);
+  console.log(`Cleanup:performStaleDeviceCheck - Complete. Registry updated: ${registryMergeSuccess.success}, Group state updated: ${groupStateMergeSuccess}`);
 }
 
 export async function performTimeBasedTaskCleanup(localProcessedTasks, thresholdMs) {
-  console.log("Performing time-based task cleanup...");
+  console.log("Cleanup:performTimeBasedTaskCleanup - Performing time-based task cleanup...");
   const allGroupTasks = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, {});
   let groupTasksUpdates = {};
   let needsUpdate = false;
@@ -57,7 +57,7 @@ export async function performTimeBasedTaskCleanup(localProcessedTasks, threshold
       const task = allGroupTasks[groupName][taskId];
       // Condition 1: Task is expired
       if (task && now - (task.creationTimestamp || 0) > thresholdMs) {
-        console.log(`Task ${taskId} in group ${groupName} expired. Deleting.`);
+        console.log(`Cleanup:performTimeBasedTaskCleanup - Task ${taskId} in group ${groupName} expired. Deleting.`);
         needsTaskDelete = true;
       }
       // Condition 2: Task processed by all current subscribers (and not already marked for time-based deletion)
@@ -69,7 +69,7 @@ export async function performTimeBasedTaskCleanup(localProcessedTasks, threshold
         if (currentSubscribersForGroup.size > 0) {
           const allSubscribersProcessed = [...currentSubscribersForGroup].every(subId => processedBy.has(subId));
           if (allSubscribersProcessed) {
-            console.log(`Task ${taskId} in group ${groupName} processed by all ${currentSubscribersForGroup.size} subscribers. Deleting.`);
+            console.log(`Cleanup:performTimeBasedTaskCleanup - Task ${taskId} in group ${groupName} processed by all ${currentSubscribersForGroup.size} subscribers. Deleting.`);
             needsTaskDelete = true
           }
         }
@@ -87,16 +87,17 @@ export async function performTimeBasedTaskCleanup(localProcessedTasks, threshold
   }
 
   console.log(
-    `[Cleanup] Before final local set: processedTasksChanged=${processedTasksChanged}, currentProcessedTasks=`,
+    `Cleanup:performTimeBasedTaskCleanup - Before final local set: processedTasksChanged=${processedTasksChanged}, currentProcessedTasks=`,
     JSON.stringify(currentProcessedTasks)
   );
 
   if (needsUpdate) {
     await storage.mergeSyncStorage({ [SYNC_STORAGE_KEYS.GROUP_TASKS]: groupTasksUpdates });
+    console.log("Cleanup:performTimeBasedTaskCleanup - Merged GROUP_TASKS updates to sync storage.");
   }
   if (processedTasksChanged) {
-    console.log(`[Cleanup] Saving updated local processed tasks...`);
+    console.log(`Cleanup:performTimeBasedTaskCleanup - Saving updated local processed tasks...`);
     await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, currentProcessedTasks);
   }
-  console.log("Time-based task cleanup complete.");
+  console.log("Cleanup:performTimeBasedTaskCleanup - Complete.");
 }
