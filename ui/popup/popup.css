@@ -43,12 +43,6 @@ body {
   color: var(--main-text);
   font-size: 1em;
 }
-#subscriptionsUl li.this-device {
-  background-color: var(--main-blue-light);
-  padding-left: 7px;
-  margin-left: -7px;
-  border-radius: 4px;
-}
 
 /* --- Details Section --- */
 .popup-details {

@@ -11,8 +11,9 @@ export async function performHeartbeat() {
     return;
   }
   console.log(`Performing heartbeat for ${localInstanceId} (${localInstanceName})...`);
-  const update = { [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: { [localInstanceId]: { name: localInstanceName, lastSeen: Date.now() } } };
-  console.log('[Heartbeat] Attempting to merge update:', JSON.stringify(update));
-  await storage.mergeSyncStorage(update);
+  const updatePayload = { [localInstanceId]: { name: localInstanceName, lastSeen: Date.now() } };
+  // Use mergeItem for a more targeted update to DEVICE_REGISTRY
+  console.log('[Heartbeat] Attempting to merge update to DEVICE_REGISTRY:', JSON.stringify(updatePayload));
+  await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, updatePayload);
   console.log("Heartbeat complete.");
 }

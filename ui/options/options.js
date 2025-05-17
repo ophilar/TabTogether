@@ -1,5 +1,5 @@
 console.log(new Date().toISOString(), "[[[ OPTIONS.JS TOP LEVEL EXECUTION POINT ]]]");
-import { STRINGS, MAX_DEVICES_PER_GROUP, SYNC_STORAGE_KEYS } from "../../common/constants.js";
+import { STRINGS, MAX_DEVICES_PER_GROUP, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from "../../common/constants.js";
 import { isAndroid } from "../../core/platform.js";
 import {
   createGroupUnified,
@@ -163,8 +163,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     if (dom.syncStatus) {
       storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_SYNC_TIME, null).then((ts) => {
-        if (ts)
-          dom.syncStatus.textContent = "Last sync: " + new Date(ts).toLocaleString(); // Ensure this uses the correct key
+        if (ts && dom.syncStatus) dom.syncStatus.textContent = "Last sync: " + new Date(ts).toLocaleString();
       });
     }
 
