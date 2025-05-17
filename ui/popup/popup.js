@@ -52,6 +52,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       console.error("POPUP CRITICAL: dom.loadingIndicator is null after DOMContentLoaded assignment.");
     }
 
+    console.log("Popup: Checking platform...");
     const isAndroidPlatform = await isAndroid();
     if (isAndroidPlatform) {
       const container = document.querySelector(".container");
@@ -69,6 +70,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         browser.runtime.openOptionsPage();
       });
     }
+
     if (dom.refreshLink) {
       dom.refreshLink.addEventListener("click", async (e) => { // Make handler async
         const syncIcon = dom.refreshLink.querySelector(".sync-icon-svg"); // Select the icon
@@ -76,7 +78,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         // Prevent multiple clicks while syncing
         if (syncing || !dom.refreshLink) return; // Add null check for dom.refreshLink
+
         syncing = true;
+        console.log("Popup: Starting sync...");
         dom.refreshLink.style.pointerEvents = 'none';
 
         if (syncIcon) syncIcon.classList.add("syncing-icon");
@@ -114,6 +118,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           dom.refreshLink.style.pointerEvents = ''; // Re-enable clicks
           syncing = false; // Reset syncing flag *only* in finally
         }
+
       });
     }
 
@@ -161,6 +166,7 @@ async function loadStatus() {
   if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
   try {
     const isAndroidPlatform = await isAndroid();
+    console.log(`Popup: Getting unified state. isAndroid: ${isAndroidPlatform}`);
     let state = await getUnifiedState(isAndroidPlatform); // Pass platform info
 
     // Process incoming tabs immediately on Android after getting state
@@ -169,6 +175,7 @@ async function loadStatus() {
       const popupContainer = document.querySelector(".container");
       if (popupContainer) setLastSyncTime(popupContainer, Date.now());
     }
+
 
     // Validate state
     if (!state) throw new Error("Failed to retrieve extension state.");
@@ -290,9 +297,11 @@ async function sendTabToGroup(groupName) {
     };
 
     // Send differently based on platform
+    console.log(`Popup: Sending tab to group "${groupName}" (Platform: ${await isAndroid() ? 'Android' : 'Desktop'})`);
     if (await isAndroid()) {
       const instanceId = await getInstanceId();
       response = await createAndStoreGroupTask(groupName, tabData);
+      console.log(`Popup:sendTabToGroup (Android) - Response from createAndStoreGroupTask for group "${groupName}":`, response);
     } else {
       // Send message to background script for desktop platforms
       response = await browser.runtime.sendMessage({ action: "sendTabFromPopup", groupName, tabData: tabData });

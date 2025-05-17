@@ -261,7 +261,7 @@ async function loadState() {
     console.log(`${new Date().toISOString()} Options:loadState - Attempting to get unified state...`);
     let state = await getUnifiedState(isAndroidPlatformGlobal);
     if (isAndroidPlatformGlobal) {
-      console.log(`${new Date().toISOString()} Options:loadState - Android platform, processing incoming tabs.`);
+      console.log(`${new Date().toISOString()} Options:loadState - Android platform, processing incoming tabs with state:`, JSON.stringify(state));
       await processIncomingTabsAndroid(state);
       const container = document.querySelector(".container");
       setLastSyncTimeUI(container, Date.now());
