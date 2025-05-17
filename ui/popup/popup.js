@@ -1,4 +1,4 @@
-import { STRINGS, SYNC_STORAGE_KEYS } from "../../common/constants.js"; // Added SYNC_STORAGE_KEYS
+import { STRINGS } from "../../common/constants.js";
 import { storage } from "../../core/storage.js";
 import { isAndroid } from "../../core/platform.js";
 import { getUnifiedState } from "../../core/actions.js";

@@ -1,5 +1,3 @@
-// ui/options/options-advanced-timing.js
-
 import { SYNC_STORAGE_KEYS } from "../../common/constants.js";
 import { storage } from "../../core/storage.js";
 
