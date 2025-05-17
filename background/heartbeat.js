@@ -7,13 +7,13 @@ export async function performHeartbeat() {
   const localInstanceName = await getInstanceName();
 
   if (!localInstanceId) {
-    console.warn("Heartbeat skipped: Instance ID not available yet.");
+    console.warn("Heartbeat:performHeartbeat - Skipped: Instance ID not available yet.");
     return;
   }
-  console.log(`Performing heartbeat for ${localInstanceId} (${localInstanceName})...`);
+  console.log(`Heartbeat:performHeartbeat - Performing heartbeat for ${localInstanceId} (${localInstanceName})...`);
   const updatePayload = { [localInstanceId]: { name: localInstanceName, lastSeen: Date.now() } };
   // Use mergeItem for a more targeted update to DEVICE_REGISTRY
-  console.log('[Heartbeat] Attempting to merge update to DEVICE_REGISTRY:', JSON.stringify(updatePayload));
+  console.log('Heartbeat:performHeartbeat - Attempting to merge update to DEVICE_REGISTRY:', JSON.stringify(updatePayload));
   await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, updatePayload);
-  console.log("Heartbeat complete.");
+  console.log("Heartbeat:performHeartbeat - Complete.");
 }

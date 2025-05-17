@@ -3,9 +3,9 @@ import { LOCAL_STORAGE_KEYS, SYNC_STORAGE_KEYS } from '../common/constants.js';
 import { getInstanceId } from '../core/instance.js';
 
 export async function processIncomingTasks(allGroupTasksFromStorage) {
-    console.log('TaskProcessor: Processing incoming tasks from storage change...');
+    console.log('TaskProcessor:processIncomingTasks - Processing incoming tasks from storage change...');
     if (!allGroupTasksFromStorage || typeof allGroupTasksFromStorage !== 'object' || Object.keys(allGroupTasksFromStorage).length === 0) {
-        console.log('TaskProcessor: No group tasks found in storage or tasks object is empty.');
+        console.log('TaskProcessor:processIncomingTasks - No group tasks found in storage or tasks object is empty.');
         return [];
     }
 
@@ -18,6 +18,7 @@ export async function processIncomingTasks(allGroupTasksFromStorage) {
     const openedTabsDetails = [];
 
     for (const groupName in allGroupTasksFromStorage) {
+        console.log(`TaskProcessor:processIncomingTasks - Checking group: "${groupName}"`); // Can be verbose
         if (!localSubscriptions.includes(groupName)) {
             continue;
         }
@@ -25,6 +26,7 @@ export async function processIncomingTasks(allGroupTasksFromStorage) {
         const tasksInGroup = allGroupTasksFromStorage[groupName];
         for (const taskId in tasksInGroup) {
             const taskData = tasksInGroup[taskId];
+            console.log(`TaskProcessor:processIncomingTasks - Considering task "${taskId}" in group "${groupName}"`); // Can be verbose
 
             // Skip if no task data, or if this device is already in processedByDeviceIds (creator or already processed)
             // Also skip if it's in the localProcessedTasks cache
@@ -32,10 +34,12 @@ export async function processIncomingTasks(allGroupTasksFromStorage) {
                 (taskData.processedByDeviceIds && taskData.processedByDeviceIds.includes(localInstanceId)) ||
                 localProcessedTasks[taskId]) {
                 continue;
+            } else {
+                console.log(`TaskProcessor:processIncomingTasks - Task "${taskId}" is new for this device.`);
             }
 
             try {
-                console.log(`TaskProcessor: Opening tab for task ${taskId} from group ${groupName}: ${taskData.url}`);
+                console.log(`TaskProcessor:processIncomingTasks - Opening tab for task ${taskId} from group ${groupName}: ${taskData.url}`);
                 await browser.tabs.create({ url: taskData.url, active: false });
 
                 // Prepare update for this specific task
@@ -59,20 +63,21 @@ export async function processIncomingTasks(allGroupTasksFromStorage) {
                 openedTabsDetails.push({ title: taskData.title, url: taskData.url, groupName: groupName });
                 newTasksProcessedThisRun = true;
             } catch (error) {
-                console.error(`TaskProcessor: Failed to open tab for task ${taskId} (${taskData.url}):`, error);
+                console.error(`TaskProcessor:processIncomingTasks - Failed to open tab for task ${taskId} (${taskData.url}):`, error);
             }
         }
     }
     if (newTasksProcessedThisRun) {
         await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, localProcessedTasks);
-        console.log('TaskProcessor: Updated local processed tasks list.');
+        console.log('TaskProcessor:processIncomingTasks - Updated local processed tasks list.');
     } else {
-        console.log('TaskProcessor: No new tasks were processed in this run.');
+        console.log('TaskProcessor:processIncomingTasks - No new tasks were processed in this run.');
     }
     if (groupTasksModifiedInSync) {
         const mergeResult = await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, taskUpdatesForSync);
-        if(mergeResult.success) console.log('TaskProcessor: Merged processedByDeviceIds updates into GROUP_TASKS in sync storage.');
-        else console.error('TaskProcessor: FAILED to merge processedByDeviceIds updates into GROUP_TASKS.');
+        if(mergeResult.success) console.log('TaskProcessor:processIncomingTasks - Merged processedByDeviceIds updates into GROUP_TASKS in sync storage.');
+        else console.error('TaskProcessor:processIncomingTasks - FAILED to merge processedByDeviceIds updates into GROUP_TASKS.');
     }
+    console.log('TaskProcessor:processIncomingTasks - Finished processing. Opened tabs:', openedTabsDetails.length);
     return openedTabsDetails;
 }

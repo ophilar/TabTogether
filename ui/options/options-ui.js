@@ -9,7 +9,7 @@ import { STRINGS } from "../../common/constants.js";
  * @returns {HTMLLIElement} The created list item element.
  */
 export function createDeviceListItemUI(deviceId, deviceData, localInstance, handlers) {
-  console.log(new Date().toISOString(), `[createDeviceListItemUI] START. deviceId: ${deviceId}, deviceData.name: ${deviceData?.name}, localInstance.id: ${localInstance?.id}, localInstance.name: ${localInstance?.name}`);
+  console.log(`${new Date().toISOString()} OptionsUI:createDeviceListItemUI - START. deviceId: ${deviceId}, deviceData.name: ${deviceData?.name}, localInstance.id: ${localInstance?.id}, localInstance.name: ${localInstance?.name}`);
   const li = document.createElement('li');
   li.setAttribute('role', 'listitem');
   li.dataset.deviceId = deviceId;
@@ -29,7 +29,7 @@ export function createDeviceListItemUI(deviceId, deviceData, localInstance, hand
     // For "This Device", prioritize the name from local storage (passed via localInstance.name)
     nameForDisplay = localInstance.name || deviceData.name || STRINGS.deviceNameNotSet;
     nameForRenameHandlerStart = nameForDisplay; // Use this authoritative name for the rename handler too
-    console.log(new Date().toISOString(), `[createDeviceListItemUI] "This Device" (${deviceId}). Determined nameForDisplay: ${nameForDisplay} (from localInstance.name: ${localInstance.name}, fallback deviceData.name: ${deviceData.name})`);
+    console.log(`${new Date().toISOString()} OptionsUI:createDeviceListItemUI - "This Device" (${deviceId}). Determined nameForDisplay: ${nameForDisplay} (from localInstance.name: ${localInstance.name}, fallback deviceData.name: ${deviceData.name})`);
   }
 
   if (deviceId === localInstance.id) {
@@ -80,7 +80,7 @@ export function createDeviceListItemUI(deviceId, deviceData, localInstance, hand
   return li;
 }
 export function renderDeviceRegistryUI(deviceRegistryListDiv, currentState, handlers) {
-  console.log(new Date().toISOString(), `[renderDeviceRegistryUI] START. currentState.instanceName: ${currentState?.instanceName}, deviceRegistry for instanceId ('${currentState?.instanceId}') name: ${currentState?.deviceRegistry?.[currentState?.instanceId]?.name}`);
+  console.log(`${new Date().toISOString()} OptionsUI:renderDeviceRegistryUI - START. currentState.instanceName: ${currentState?.instanceName}, deviceRegistry for instanceId ('${currentState?.instanceId}') name: ${currentState?.deviceRegistry?.[currentState?.instanceId]?.name}`);
   const devices = currentState.deviceRegistry;
   deviceRegistryListDiv.textContent = ''; // Clear previous content safely
 
@@ -118,6 +118,7 @@ export function renderDeviceRegistryUI(deviceRegistryListDiv, currentState, hand
  * @returns {HTMLLIElement} The created list item element.
  */
 export function createGroupListItemUI(groupName, isSubscribed, handlers) {
+  // console.log(`${new Date().toISOString()} OptionsUI:createGroupListItemUI - Creating item for group: "${groupName}", isSubscribed: ${isSubscribed}`); // Can be verbose
   const li = document.createElement("li");
   li.setAttribute('role', 'listitem');
   li.className = 'options-list-item'; // Use common class
@@ -158,6 +159,7 @@ export function renderGroupListUI(
   subscriptions,
   handlers // Changed to accept an object of handlers
 ) {
+  console.log(`${new Date().toISOString()} OptionsUI:renderGroupListUI - Rendering groups. Count: ${definedGroups?.length || 0}`);
   definedGroupsListDiv.textContent = ""; // Clear previous content
 
   if (!definedGroups || definedGroups.length === 0) {
@@ -179,6 +181,7 @@ export function renderGroupListUI(
 }
 
 export function cancelInlineEditUI(originalSpan, inlineControlsContainer) {
+  console.log(`${new Date().toISOString()} OptionsUI:cancelInlineEditUI - Cancelling inline edit.`);
   if (inlineControlsContainer && inlineControlsContainer.parentNode) {
     inlineControlsContainer.remove();
   }
@@ -188,6 +191,7 @@ export function cancelInlineEditUI(originalSpan, inlineControlsContainer) {
 }
 
 export function createInlineEditControlsUI(currentValue, onSaveCallback, onCancelCallback) {
+  console.log(`${new Date().toISOString()} OptionsUI:createInlineEditControlsUI - Creating for value: "${currentValue}"`);
   const container = document.createElement('div');
   container.className = 'inline-edit-container';
 
@@ -240,6 +244,7 @@ export function createInlineEditControlsUI(currentValue, onSaveCallback, onCance
 
 export function setLastSyncTimeUI(containerElement, timestamp) {
   if (!containerElement) return;
+  console.log(`${new Date().toISOString()} OptionsUI:setLastSyncTimeUI - Setting time to: ${timestamp ? new Date(timestamp).toLocaleString() : "Never"}`);
 
   let syncTimeDiv = containerElement.querySelector(".last-sync-time"); // Corrected selector
   if (!syncTimeDiv) { // Styles moved to styles.css
@@ -261,6 +266,7 @@ export function setLastSyncTimeUI(containerElement, timestamp) {
 
 export function showDebugInfoUI(containerElement, state) {
   if (!containerElement || !state) return;
+  console.log(`${new Date().toISOString()} OptionsUI:showDebugInfoUI - Displaying debug info.`);
 
   let debugDiv = containerElement.querySelector(".options-debug-info"); // Styles moved to styles.css
   if (!debugDiv) {
@@ -297,6 +303,7 @@ export function showDebugInfoUI(containerElement, state) {
  * @param {object} storageAPI - The storage utility object.
  */
 export async function displaySyncRequirementBanner(containerElement, storageAPI) {
+  console.log(`${new Date().toISOString()} OptionsUI:displaySyncRequirementBanner - Checking if banner should be displayed.`);
   if (!containerElement) return;
 
   const bannerDismissedKey = 'optionsSyncBannerDismissed';
@@ -304,10 +311,12 @@ export async function displaySyncRequirementBanner(containerElement, storageAPI)
 
   if (isDismissed) {
     return; // Don't show if already dismissed
+    console.log(`${new Date().toISOString()} OptionsUI:displaySyncRequirementBanner - Banner already dismissed.`);
   }
 
   // Prevent adding multiple banners
   if (containerElement.querySelector('.sync-requirement-banner')) { // Simpler check for existing banner
+    console.log(`${new Date().toISOString()} OptionsUI:displaySyncRequirementBanner - Banner already exists.`);
     return;
   }
 
@@ -328,10 +337,12 @@ export async function displaySyncRequirementBanner(containerElement, storageAPI)
   dismissButton.title = 'Dismiss this message';
   dismissButton.setAttribute('aria-label', 'Dismiss this message');
   dismissButton.onclick = async () => {
+    console.log(`${new Date().toISOString()} OptionsUI:displaySyncRequirementBanner - Dismiss button clicked.`);
     await storageAPI.set(browser.storage.local, bannerDismissedKey, true);
     banner.remove(); // Remove the banner from the DOM
   };
   banner.appendChild(dismissButton);
 
+  console.log(`${new Date().toISOString()} OptionsUI:displaySyncRequirementBanner - Prepending banner.`);
   containerElement.insertBefore(banner, containerElement.firstChild); // Prepend to make it prominent
 }
