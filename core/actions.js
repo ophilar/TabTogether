@@ -1,4 +1,4 @@
-import { storage } from "./storage.js";
+import { storage, recordSuccessfulSyncTime } from "./storage.js";
 import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, STRINGS } from "../common/constants.js";
 import { getInstanceId, getInstanceName, setInstanceName } from "./instance.js";
 
@@ -45,6 +45,7 @@ export async function getUnifiedState(isAndroid) {
 
     if (deviceRegistryNeedsUpdate) {
       await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, deviceRegistry);
+      await recordSuccessfulSyncTime(); // Record sync time
     }
 
     if (thisDeviceSubscriptions.length === 0) {
@@ -57,6 +58,9 @@ export async function getUnifiedState(isAndroid) {
         }
       }
       await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, thisDeviceSubscriptions);
+      // Note: This is a local storage set, not a sync storage set for subscriptions.
+      // If this derivation implies a sync was read successfully, recordSuccessfulSyncTime could be called here too,
+      // or rely on the fact that deviceRegistry update above would have called it.
     }
 
     return {
