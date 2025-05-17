@@ -378,11 +378,7 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
     }
     case "renameGroup": {
       const { oldName, newName } = request;
-      if (
-        !oldName ||
-        !newName ||
-        typeof newName !== "string" ||
-        newName.trim().length === 0
+      if (!oldName || !newName || typeof newName !== "string" || newName.trim().length === 0
       ) {
         return { success: false, message: STRINGS.invalidGroupName };
       }
