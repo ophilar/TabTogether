@@ -18,7 +18,7 @@ jest.mock('../common/constants.js', () => {
 });
 
 const mockGenerateShortIdUtil = jest.fn();
-jest.mock('../core/id-utils.js', () => ({
+jest.mock('../core/instance.js', () => ({
     __esModule: true,
     generateShortId: mockGenerateShortIdUtil,
 }));

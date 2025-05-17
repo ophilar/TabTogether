@@ -19,31 +19,6 @@ body {
   overflow-y: auto;
 }
 
-/* List Styling (using semantic ul/li) */
-#subscriptionsUl {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-#subscriptionsUl li {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 0;
-  margin-bottom: 4px; /* Space out list items */
-  line-height: 1.4; /* Ensure wrapped text is readable */
-  transition: background-color var(--transition);
-}
-
-/* Apply directly to li if no inner .list-item-label span is used for subscription text */
-#subscriptionsUl li {
-  flex-grow: 1;
-  font-weight: 500; /* Use main text color, remove fallback */
-  color: var(--main-text);
-  font-size: 1em;
-}
-
 /* --- Details Section --- */
 .popup-details {
   margin-top: 10px; /* Keep margin */
@@ -51,7 +26,6 @@ body {
   font-size: 0.95em; /* Slightly larger base font for details */
   color: var(--main-text); /* Use main theme text color for better contrast */
   /* line-height is handled by list items now */
-  /* Divider appears when details are shown */
   border-top: 1px solid var(--main-border);
 }
 
@@ -61,6 +35,40 @@ body {
   margin-top: 0;
   padding-top: 0;
 }
+
+.popup-detail-row {
+  display: flex; /* Align label and value/list */
+  margin-bottom: 6px;
+  line-height: 1.4;
+  align-items: flex-start; /* Align items to the top if list wraps */
+}
+
+.popup-detail-label {
+  min-width: 90px; /* Consistent width for labels */
+  font-weight: normal;
+  color: var(--main-text);
+  opacity: 0.85;
+  padding-top: 4px; /* Align with first line of list items if list is multi-line */
+}
+
+#deviceName {
+  font-weight: bold;
+  color: var(--main-text);
+  padding-top: 4px; /* Match label padding for alignment */
+}
+
+.popup-subscriptions-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  flex-grow: 1; /* Allow list to take remaining space */
+}
+.popup-subscriptions-list li {
+  padding: 4px 0; /* Compact padding for popup */
+  color: var(--main-text);
+  font-size: 1em; /* Inherit from .popup-details or parent */
+}
+
 /* --- Footer --- */
 .popup-footer {
   display: flex;
@@ -104,17 +112,8 @@ body {
   color: var(--main-accent); /* Use accent or main-orange for dark hover */
 }
 
-/* --- Dark Theme Adjustments for List Items --- */
-/* Apply directly to li if no inner .list-item-label span is used for subscription text */
-[data-theme="dark"] #subscriptionsUl li {
-  color: var(--main-text); /* Use main-text which is updated for dark theme */
-}
-
-/* --- Dark Theme Adjustments for Details --- */
 [data-theme="dark"] .popup-details {
-  color: var(--main-text); /* Use main theme text color for better contrast */
   border-top-color: var(--main-border); /* Use main-border which is updated for dark theme */
-  /* Background is inherited from .container */
 }
 
 /* --- Other Styles --- */
