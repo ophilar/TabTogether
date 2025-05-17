@@ -9,7 +9,7 @@ export const LOCAL_STORAGE_KEYS = {
   INSTANCE_NAME_OVERRIDE: "tabtogether_instance_name_override", // Standardized key for user override
   SUBSCRIPTIONS: "tabtogether_subscriptions", // Stores an array of group names this specific device instance is subscribed to
   PROCESSED_TASKS: "tabtogether_processed_tasks", // Stores an object mapping taskId to true if processed locally
-  // Add any other local storage keys here
+  LAST_SYNC_TIME: "last_successful_sync_time", // deviceId
 };
 
 /**

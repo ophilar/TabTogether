@@ -158,3 +158,11 @@ export async function removeObjectKey(area, key, prop) {
   }
   return obj;
 }
+
+/**
+ * Records the current time as the last successful sync operation time in local storage.
+ */
+export async function recordSuccessfulSyncTime() {
+  // Note: Does not return a value, fire-and-forget for setting local timestamp.
+  await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.LAST_SYNC_TIME]: Date.now() }).catch(e => console.error("Failed to record successful sync time:", e));
+}

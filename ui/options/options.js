@@ -11,7 +11,6 @@ import {
   renameDeviceUnified,
   getUnifiedState,
 } from "../../core/actions.js";
-import { getInstanceName } from "../../core/instance.js";
 import { storage } from "../../core/storage.js";
 import { processIncomingTabsAndroid } from "../../core/tasks.js";
 import { debounce } from "../../common/utils.js";
@@ -26,7 +25,6 @@ import {
   renderDeviceRegistryUI,
   renderGroupListUI,
   createInlineEditControlsUI,
-  createGroupListItemUI,
   cancelInlineEditUI,
   setLastSyncTimeUI,
   showDebugInfoUI,
@@ -82,12 +80,16 @@ document.addEventListener("DOMContentLoaded", async () => {
         try {
           if (isAndroidPlatformGlobal) {
             await loadState();
+             // Explicitly update UI from the recorded time
+            const ts = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_SYNC_TIME, null);
+            if (ts && dom.syncStatus) dom.syncStatus.textContent = "Last sync: " + new Date(ts).toLocaleString();
             showMessage(dom.messageArea, STRINGS.syncComplete, false);
           } else {
             await browser.runtime.sendMessage({ action: "heartbeat" });
-            const now = new Date();
-            if (dom.syncStatus) dom.syncStatus.textContent = "Last sync: " + now.toLocaleString();
-            await storage.set(browser.storage.local, "lastSync", now.getTime());
+            // The background script's heartbeat handler will call recordSuccessfulSyncTime.
+            // The specificSyncDataChanged listener (or a direct fetch here) will update the UI.
+            const ts = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_SYNC_TIME, null);
+            if (ts && dom.syncStatus) dom.syncStatus.textContent = "Last sync: " + new Date(ts).toLocaleString();
             showMessage(dom.messageArea, STRINGS.backgroundSyncTriggered, false);
           }
         } catch (error) {
@@ -160,9 +162,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
     }
     if (dom.syncStatus) {
-      storage.get(browser.storage.local, "lastSync", null).then((ts) => {
+      storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_SYNC_TIME, null).then((ts) => {
         if (ts)
-          dom.syncStatus.textContent = "Last sync: " + new Date(ts).toLocaleString();
+          dom.syncStatus.textContent = "Last sync: " + new Date(ts).toLocaleString(); // Ensure this uses the correct key
       });
     }
 
@@ -209,7 +211,7 @@ document.addEventListener("DOMContentLoaded", async () => {
               renderDefinedGroups();
             }
           }
-          const ts = await storage.get(browser.storage.local, "lastSync", null);
+          const ts = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_SYNC_TIME, null);
           if (ts && dom.syncStatus) {
             dom.syncStatus.textContent = "Last sync: " + new Date(ts).toLocaleString();
           }
