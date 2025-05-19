@@ -57,7 +57,11 @@ async function initializeExtension() {
     let localInstanceName = await getInstanceName();
     const cachedDefinedGroups = syncData[SYNC_STORAGE_KEYS.DEFINED_GROUPS] ?? [];
     await setupAlarms();
-    await updateContextMenu(cachedDefinedGroups);
+    if (browser.contextMenus) {
+      await updateContextMenu(cachedDefinedGroups);
+    } else {
+      console.warn("Background:initializeExtension - ContextMenus API is not available. Context menu features will be disabled.");
+    }
     await performHeartbeat();
     console.log(`Background: Initialization complete. Name: ${localInstanceName}`);
   } catch (error) {
@@ -139,6 +143,10 @@ browser.alarms.onAlarm.addListener(async (alarm) => {
 });
 
 async function updateContextMenu(cachedDefinedGroups) {
+  if (!browser.contextMenus) {
+    console.warn("Background:updateContextMenu - ContextMenus API is not available. Skipping update.");
+    return;
+  }
   console.log("Background:updateContextMenu - Updating context menus.");
   await browser.contextMenus.removeAll();
   const groups =
@@ -201,69 +209,73 @@ async function updateContextMenu(cachedDefinedGroups) {
   }
 }
 
-browser.contextMenus.onClicked.addListener(async (info, tab) => {
-  console.log(
-    "Background:onContextMenuClicked - Triggered. Info:", info, "Tab:", tab
-  );
-
-  const menuItemId = info.menuItemId?.toString() || "";
-  if (
-    !menuItemId.startsWith("send-to-") ||
-    menuItemId === "send-to-group-parent"
-  ) {
-    return;
-  }
-
-  const groupName = menuItemId.replace("send-to-", "");
-
-  let urlToSend = info.pageUrl;
-  let titleToSend = tab?.title || "Link";
-
-  if (info.linkUrl) {
-    urlToSend = info.linkUrl;
-    titleToSend = info.linkText || urlToSend;
-  } else if (info.mediaType && info.srcUrl) {
-    urlToSend = info.srcUrl;
-    titleToSend = tab?.title || urlToSend;
-  } else if (info.selectionText) {
-    urlToSend = info.pageUrl || tab?.url;
-    titleToSend = `"${info.selectionText}" on ${tab?.title || urlToSend}`;
-  } else if (tab?.url) {
-    urlToSend = tab.url;
-    titleToSend = tab?.title || urlToSend;
-  }
-
-  if (!urlToSend || urlToSend === "about:blank") {
-    console.error(
-      "Background:onContextMenuClicked - Could not determine a valid URL to send from context:", info, "Tab:", tab
+if (browser.contextMenus) {
+  browser.contextMenus.onClicked.addListener(async (info, tab) => {
+    console.log(
+      "Background:onContextMenuClicked - Triggered. Info:", info, "Tab:", tab
     );
+
+    const menuItemId = info.menuItemId?.toString() || "";
+    if (
+      !menuItemId.startsWith("send-to-") ||
+      menuItemId === "send-to-group-parent"
+    ) {
+      return;
+    }
+
+    const groupName = menuItemId.replace("send-to-", "");
+
+    let urlToSend = info.pageUrl;
+    let titleToSend = tab?.title || "Link";
+
+    if (info.linkUrl) {
+      urlToSend = info.linkUrl;
+      titleToSend = info.linkText || urlToSend;
+    } else if (info.mediaType && info.srcUrl) {
+      urlToSend = info.srcUrl;
+      titleToSend = tab?.title || urlToSend;
+    } else if (info.selectionText) {
+      urlToSend = info.pageUrl || tab?.url;
+      titleToSend = `"${info.selectionText}" on ${tab?.title || urlToSend}`;
+    } else if (tab?.url) {
+      urlToSend = tab.url;
+      titleToSend = tab?.title || urlToSend;
+    }
+
+    if (!urlToSend || urlToSend === "about:blank") {
+      console.error(
+        "Background:onContextMenuClicked - Could not determine a valid URL to send from context:", info, "Tab:", tab
+      );
+      browser.notifications.create({
+        type: "basic",
+        iconUrl: browser.runtime.getURL("icons/icon-48.png"),
+        title: STRINGS.notificationSendFailedTitle,
+        message: STRINGS.notificationCannotSendLink,
+      });
+      return;
+    }
+
+    const tabData = { url: urlToSend, title: titleToSend };
+
+    console.log(
+      `Background:onContextMenuClicked - Sending task to group ${groupName}. URL: ${urlToSend}`
+    );
+    const { success, message: taskMessage } = await createAndStoreGroupTask(groupName, tabData);
+
+    const notificationMessage = success
+      ? STRINGS.notificationTabSentMessage(titleToSend, groupName)
+      : taskMessage || STRINGS.sendTabFailed;
+
     browser.notifications.create({
       type: "basic",
       iconUrl: browser.runtime.getURL("icons/icon-48.png"),
-      title: STRINGS.notificationSendFailedTitle,
-      message: STRINGS.notificationCannotSendLink,
+      title: success ? STRINGS.notificationTabSentTitle : STRINGS.notificationSendFailedTitle,
+      message: notificationMessage,
     });
-    return;
-  }
-
-  const tabData = { url: urlToSend, title: titleToSend };
-
-  console.log(
-    `Background:onContextMenuClicked - Sending task to group ${groupName}. URL: ${urlToSend}`
-  );
-  const { success, message: taskMessage } = await createAndStoreGroupTask(groupName, tabData);
-
-  const notificationMessage = success
-    ? STRINGS.notificationTabSentMessage(titleToSend, groupName)
-    : taskMessage || STRINGS.sendTabFailed;
-
-  browser.notifications.create({
-    type: "basic",
-    iconUrl: browser.runtime.getURL("icons/icon-48.png"),
-    title: success ? STRINGS.notificationTabSentTitle : STRINGS.notificationSendFailedTitle,
-    message: notificationMessage,
   });
-});
+} else {
+  console.warn("Background: ContextMenus API is not available. Skipping context menu click listener setup.");
+}
 
 browser.storage.onChanged.addListener(async (changes, areaName) => {
   console.log(`Background:storage.onChanged - Detected in area: '${areaName}'. Changes:`, JSON.stringify(changes));
@@ -286,7 +298,7 @@ browser.storage.onChanged.addListener(async (changes, areaName) => {
     specificRefreshActions.add("subscriptionsChanged");
   }
 
-  if (contextMenuNeedsUpdate) {
+  if (contextMenuNeedsUpdate && browser.contextMenus) {
     console.log("Background:storage.onChanged - Context menu needs update due to storage change.");
     const groupsForMenu = await storage.get(
       browser.storage.sync,
