@@ -310,8 +310,8 @@ export async function displaySyncRequirementBanner(containerElement, storageAPI)
   const isDismissed = await storageAPI.get(browser.storage.local, bannerDismissedKey, false);
 
   if (isDismissed) {
-    return; // Don't show if already dismissed
     console.log(`${new Date().toISOString()} OptionsUI:displaySyncRequirementBanner - Banner already dismissed.`);
+    return; // Don't show if already dismissed
   }
 
   // Prevent adding multiple banners
