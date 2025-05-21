@@ -1,6 +1,5 @@
 import { storage } from "./storage.js";
 import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from "../common/constants.js";
-import { getInstanceId } from "./instance.js";
 
 /**
  * Processes incoming tabs for the current device, typically on Android or manual sync.
@@ -19,7 +18,7 @@ export async function processIncomingTabsAndroid(currentState) {
   let localProcessedTasks = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, {});
   let tasksProcessedLocallyThisRun = false; // Renamed for clarity
 
-  console.log(`Tasks:processIncomingTabsAndroid - START for device ${localInstanceId}. Subscriptions: [${mySubscriptions.join(', ')}]. Received groupTasks:`, JSON.stringify(allGroupTasksFromState));
+  console.log(`Tasks:processIncomingTabsAndroid - START. Subscriptions: [${mySubscriptions.join(', ')}]. Received groupTasks:`, JSON.stringify(allGroupTasksFromState));
 
   for (const groupName in allGroupTasksFromState) {
     if (mySubscriptions.includes(groupName)) {
@@ -83,12 +82,10 @@ export async function processIncomingTabsAndroid(currentState) {
  */
 export async function createAndStoreGroupTask(groupName, tabData) {
   const taskId = globalThis.crypto?.randomUUID?.() || `mock-task-id-${Date.now()}`;
-  const creatorDeviceId = await getInstanceId();
 
   const newTaskData = {
     url: tabData.url,
     title: tabData.title || tabData.url,
-    processedByDeviceIds: [creatorDeviceId], // Sender has "processed" it by creating it
     creationTimestamp: Date.now(),
   };
 
