@@ -1,5 +1,5 @@
 import { storage } from '../core/storage.js';
-import { LOCAL_STORAGE_KEYS, SYNC_STORAGE_KEYS } from '../common/constants.js';
+import { LOCAL_STORAGE_KEYS, SYNC_STORAGE_KEYS, BACKGROUND_DEFAULT_TASK_EXPIRY_DAYS } from '../common/constants.js'; // Assuming BACKGROUND_DEFAULT_TASK_EXPIRY_DAYS is in constants or define it here
 export async function processIncomingTaskBookmark(changedBookmarkId, changeInfoOrNode) {
     console.log(`TaskProcessor:processIncomingTaskBookmark - Processing bookmark ID: ${changedBookmarkId}`);
 
@@ -17,7 +17,7 @@ export async function processIncomingTaskBookmark(changedBookmarkId, changeInfoO
         return [];
     }
 
-    // Ensure it's a task (has a URL) and not the config bookmark
+    // Ensure it's a task (has a URL) and not the config bookmark (which is also a SYNC_STORAGE_KEYS property)
     if (!bookmarkNode.url || bookmarkNode.title === SYNC_STORAGE_KEYS.CONFIG_BOOKMARK_TITLE) {
         console.log(`TaskProcessor: Bookmark ${changedBookmarkId} is not a processable task (no URL or is config).`);
         return [];
@@ -43,22 +43,55 @@ export async function processIncomingTaskBookmark(changedBookmarkId, changeInfoO
         return [];
     }
 
+    // Fetch task expiry for URL deduplication recency
+    const taskExpiryDays = await storage.get(
+        browser.storage.sync,
+        SYNC_STORAGE_KEYS.TASK_EXPIRY_DAYS,
+        BACKGROUND_DEFAULT_TASK_EXPIRY_DAYS // Fallback default
+    );
+    const recencyThresholdMs = taskExpiryDays * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+
     let newTasksProcessedThisRun = false;
     const openedTabsDetails = [];
+    let recentlyOpenedUrls = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.RECENTLY_OPENED_URLS, {});
+    let recentlyOpenedUrlsChanged = false;
 
-    try {
-        console.log(`TaskProcessor: Opening tab for task ${bookmarkNode.id} from group ${groupName}: ${bookmarkNode.url}`);
-        await browser.tabs.create({ url: bookmarkNode.url, active: false });
-
-        localProcessedBookmarkIds[bookmarkNode.id] = Date.now();
-        openedTabsDetails.push({ title: bookmarkNode.title, url: bookmarkNode.url, groupName: groupName });
-        newTasksProcessedThisRun = true;
-    } catch (error) {
-        console.error(`TaskProcessor: Failed to open tab for task ${bookmarkNode.id} (${bookmarkNode.url}):`, error);
+    const urlLastOpenedTimestamp = recentlyOpenedUrls[bookmarkNode.url];
+    if (urlLastOpenedTimestamp && (now - urlLastOpenedTimestamp < recencyThresholdMs)) {
+        console.log(`TaskProcessor: URL ${bookmarkNode.url} (task ${bookmarkNode.id}) was recently opened. Deduplicating (inter-run).`);
+        // Tab is not opened, but task is still marked processed below.
+    } else {
+        try {
+            console.log(`TaskProcessor: Opening tab for task ${bookmarkNode.id} from group ${groupName}: ${bookmarkNode.url}`);
+            await browser.tabs.create({ url: bookmarkNode.url, active: false });
+            openedTabsDetails.push({ title: bookmarkNode.title, url: bookmarkNode.url, groupName: groupName });
+            
+            recentlyOpenedUrls[bookmarkNode.url] = now;
+            recentlyOpenedUrlsChanged = true;
+        } catch (error) {
+            console.error(`TaskProcessor: Failed to open tab for task ${bookmarkNode.id} (${bookmarkNode.url}):`, error);
+        }
     }
+    
+    // Mark the bookmark ID as processed regardless of URL deduplication
+    localProcessedBookmarkIds[bookmarkNode.id] = now;
+    newTasksProcessedThisRun = true; // Indicates PROCESSED_BOOKMARK_IDS needs saving
+
     if (newTasksProcessedThisRun) {
         await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_BOOKMARK_IDS, localProcessedBookmarkIds);
         console.log('TaskProcessor: Updated local processed bookmark IDs list.');
+
+        const lastProcessedTimestampFromStorage = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_PROCESSED_BOOKMARK_TIMESTAMP, 0);
+        if (bookmarkNode.dateAdded && bookmarkNode.dateAdded > lastProcessedTimestampFromStorage) {
+            await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_PROCESSED_BOOKMARK_TIMESTAMP, bookmarkNode.dateAdded);
+            console.log(`TaskProcessor: Updated last processed bookmark timestamp to: ${new Date(bookmarkNode.dateAdded).toISOString()}`);
+        }
+    }
+
+    if (recentlyOpenedUrlsChanged) {
+        await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.RECENTLY_OPENED_URLS, recentlyOpenedUrls);
+        console.log('TaskProcessor: Updated recently opened URLs list.');
     }
     console.log('TaskProcessor: Finished processing bookmark. Opened tabs:', openedTabsDetails.length);
     return openedTabsDetails;

@@ -7,7 +7,7 @@
 export const LOCAL_STORAGE_KEYS = {  
   SUBSCRIPTIONS: "tabtogether_subscriptions", // Stores array of subscribed group names (folder names)
   PROCESSED_BOOKMARK_IDS: "tabtogether_processed_bookmark_ids", // Stores { bookmarkId: timestamp }
-  LAST_PROCESSED_TIME: "last_successful_processed_time", // Timestamp of last processing run
+  LAST_PROCESSED_BOOKMARK_TIMESTAMP: "tabtogether_last_processed_bookmark_timestamp", // Timestamp of the newest bookmark considered in the last processing run
   LAST_SYNC_TIME: "tabtogether_last_sync_time", // Timestamp of last manual/auto sync action
 };
 
@@ -23,8 +23,9 @@ export const SYNC_STORAGE_KEYS = {
   ROOT_BOOKMARK_FOLDER_TITLE: "TabTogetherData", // Title of the main folder in bookmarks
   CONFIG_BOOKMARK_TITLE: "TabTogetherConfig",    // Title of the bookmark holding config
   TASK_EXPIRY_DAYS: "taskExpiryDays", // Property name within the config bookmark's JSON
-  STALE_DEVICE_THRESHOLD_DAYS: "staleDeviceThresholdDays", // Property name for config (though device registry is being simplified)
 };
+
+export const BACKGROUND_DEFAULT_TASK_EXPIRY_DAYS = 30;
 
 /**
  * User-facing strings for UI elements, notifications, and messages.
