@@ -16,59 +16,32 @@ jest.mock('../common/constants.js', () => {
     };
 });
 
-let mockGetInstanceIdUtilFn = jest.fn();
-let mockGetInstanceNameUtilFn = jest.fn();
-let mockSetInstanceNameUtilFn = jest.fn();
-let mockGenerateShortIdUtil = jest.fn(); // If generateShortId is part of instance's public API
-
 jest.mock('../core/instance.js', () => {
-    const actualInstanceModule = jest.requireActual('../core/instance.js');
     return {
         __esModule: true,
-        getInstanceId: (...args) => mockGetInstanceIdUtilFn(...args),
-        getInstanceName: (...args) => mockGetInstanceNameUtilFn(...args),
-        setInstanceName: (...args) => mockSetInstanceNameUtilFn(...args),
-        generateShortId: (...args) => mockGenerateShortIdUtil(...args),
-        _clearInstanceIdCache: actualInstanceModule._clearInstanceIdCache,
-        _clearInstanceNameCache: actualInstanceModule._clearInstanceNameCache,
     };
 });
 
 
 import { jest } from '@jest/globals';
 import { STRINGS, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from '../common/constants.js';
-import { deepMerge, ensureObject } from '../common/utils.js'; // Removed unused imports
+import { deepMerge, ensureObject } from '../common/utils.js'; 
 import { storage } from '../core/storage.js';
 import { isAndroid, _clearPlatformInfoCache } from '../core/platform.js';
-import { renderDeviceRegistryUI } from '../ui/options/options-ui.js'; 
 
 describe('utils', () => {
     let mockStorage;
     let mockSyncStorage;
     let consoleErrorSpy, consoleWarnSpy, consoleLogSpy;
 
-    let performHeartbeat;
     let getUnifiedState, createGroupDirect, renameGroupDirect, deleteGroupDirect, subscribeToGroupDirect, unsubscribeFromGroupDirect, deleteDeviceDirect;
     let createAndStoreGroupTask;
-    let performStaleDeviceCheck, performTimeBasedTaskCleanup;
+    let performTimeBasedTaskCleanup;
 
     let instanceModule;
 
     beforeEach(async () => {
         jest.resetModules();
-
-        mockGetInstanceIdUtilFn = jest.fn();
-        mockGetInstanceNameUtilFn = jest.fn();
-        mockSetInstanceNameUtilFn = jest.fn();
-        mockGenerateShortIdUtil = jest.fn();
-
-        mockGetInstanceIdUtilFn.mockResolvedValue('utils-default-mock-id');
-        mockGetInstanceNameUtilFn.mockResolvedValue('Utils Default Mock Name');
-        mockSetInstanceNameUtilFn.mockResolvedValue({ success: true, newName: 'Utils Default Set Name' });
-        mockGenerateShortIdUtil.mockReturnValue('default-short-id'); // Default for generateShortId if used
-
-        const heartbeatModule = await import('../background/heartbeat.js');
-        performHeartbeat = heartbeatModule.performHeartbeat;
 
         const actionsModule = await import('../core/actions.js');
         getUnifiedState = actionsModule.getUnifiedState;
@@ -77,20 +50,16 @@ describe('utils', () => {
         deleteGroupDirect = actionsModule.deleteGroupDirect;
         subscribeToGroupDirect = actionsModule.subscribeToGroupDirect;
         unsubscribeFromGroupDirect = actionsModule.unsubscribeFromGroupDirect;
-        deleteDeviceDirect = actionsModule.deleteDeviceDirect;
 
         const tasksModule = await import('../core/tasks.js');
         createAndStoreGroupTask = tasksModule.createAndStoreGroupTask;
 
         const cleanupModule = await import('../background/cleanup.js');
-        performStaleDeviceCheck = cleanupModule.performStaleDeviceCheck;
         performTimeBasedTaskCleanup = cleanupModule.performTimeBasedTaskCleanup;
 
         instanceModule = await import('../core/instance.js'); // Re-import the mocked module
         
         if (typeof _clearPlatformInfoCache === 'function') _clearPlatformInfoCache();
-        instanceModule._clearInstanceIdCache();
-        instanceModule._clearInstanceNameCache();
 
         consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
         consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => { });
@@ -104,8 +73,6 @@ describe('utils', () => {
         await mockStorage.clear();
         await mockSyncStorage.clear();
         await mockSyncStorage.set({
-            [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: {},
-            [SYNC_STORAGE_KEYS.SUBSCRIPTIONS]: {},
             [SYNC_STORAGE_KEYS.DEFINED_GROUPS]: [],
             [SYNC_STORAGE_KEYS.GROUP_TASKS]: {},
             [LOCAL_STORAGE_KEYS.PROCESSED_TASKS]: {} // Also clear/init local processed tasks
@@ -143,37 +110,6 @@ describe('utils', () => {
         });
     });
 
-    describe('Instance ID/Name (Verifying Mock Usage by Other Utilities)', () => {
-        // test('Utilities calling getInstanceId receive the mocked ID', async () => {
-        //     const specificIdForTest = 'id-for-utility-test';
-        //     mockGetInstanceIdUtilFn.mockResolvedValue(specificIdForTest);
-
-        //     mockGetInstanceNameUtilFn.mockResolvedValue('Some Name');
-        //     await performHeartbeat(); // performHeartbeat calls getInstanceId internally
-        //     expect(mockGetInstanceIdUtilFn).toHaveBeenCalled();
-        // });
-
-        // test('Utilities calling getInstanceName receive the mocked Name', async () => {
-        //     const specificNameForTest = 'name-for-utility-test';
-        //     mockGetInstanceNameUtilFn.mockResolvedValue(specificNameForTest);
-
-        //     mockGetInstanceIdUtilFn.mockResolvedValue('some-id'); // Dependency for performHeartbeat
-        //     await performHeartbeat(); // performHeartbeat calls getInstanceName
-        //     expect(mockGetInstanceNameUtilFn).toHaveBeenCalled();
-        // });
-
-        //  test('Utilities calling setInstanceName trigger the mock', async () => {
-        //     const nameToSet = 'name-via-utility';
-        //     const mockResponse = {success: true, newName: nameToSet};
-        //     mockSetInstanceNameUtilFn.mockResolvedValue(mockResponse);
-
-        //     const result = await instanceModule.setInstanceName(nameToSet); // Direct call for simplicity here
-
-        //     expect(mockSetInstanceNameUtilFn).toHaveBeenCalledWith(nameToSet);
-        //     expect(result).toEqual(mockResponse);
-        // });
-    });
-
     describe('Platform Info', () => {
         test('isAndroid platform detection', async () => {
             _clearPlatformInfoCache();
@@ -198,37 +134,9 @@ describe('utils', () => {
             expect(await storage.get(mockSyncStorage, SYNC_STORAGE_KEYS.DEFINED_GROUPS)).not.toContain('UtilsGroupRenamed');
         });
 
-        // test('subscribe/unsubscribe affects sync storage', async () => {
-        //     const groupName = 'UtilsSubGroup';
-        //     await createGroupDirect(groupName); // Ensure group exists
-        //     const testInstanceId = 'utils-device-sub-id';
-        //     mockGetInstanceIdUtilFn.mockResolvedValue(testInstanceId); // Configure for subscribe/unsubscribe
-
-        //     const subRes = await subscribeToGroupDirect(groupName);
-        //     expect(subRes.success).toBe(true);
-        //     const subscriptionsAfterSub = await storage.get(mockSyncStorage, SYNC_STORAGE_KEYS.SUBSCRIPTIONS);
-        //     expect(subscriptionsAfterSub[groupName]).toContain(testInstanceId);
-
-        //     const unsubRes = await unsubscribeFromGroupDirect(groupName);
-        //     expect(unsubRes.success).toBe(true);
-        //     const subscriptionsAfterUnsub = await storage.get(mockSyncStorage, SYNC_STORAGE_KEYS.SUBSCRIPTIONS);
-        //     expect(subscriptionsAfterUnsub[groupName] || []).not.toContain(testInstanceId);
-        // });
-
-        test('device delete', async () => {
-            const instanceId = 'utils-id-to-delete';
-            await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, { [instanceId]: { name: 'Device to Delete', lastSeen: 1 } });
-            const res = await deleteDeviceDirect(instanceId);
-            expect(res.success).toBe(true);
-            expect(await storage.get(mockSyncStorage, SYNC_STORAGE_KEYS.DEVICE_REGISTRY)).not.toHaveProperty(instanceId);
-        });
-
         test('createAndStoreGroupTask creates task', async () => {
-            const senderId = 'utils-sender-task-id';
             const tabData = { url: 'https://example.com/utils', title: 'Utils Example' };
             const groupName = 'UtilsTaskGroup';
-            mockGetInstanceIdUtilFn.mockResolvedValue(senderId); // createAndStoreGroupTask uses getInstanceId
-            global.crypto.randomUUID.mockReturnValue('utils-fixed-task-uuid');
 
             const res = await createAndStoreGroupTask(groupName, tabData);
             expect(res.success).toBe(true);
@@ -237,28 +145,6 @@ describe('utils', () => {
     });
 
     describe('Background Logic Helpers', () => {
-        // test('performHeartbeat merges correct data into deviceRegistry', async () => {
-        //     const instanceId = 'utils-heartbeat-id';
-        //     const instanceName = 'Utils Heartbeat Device';
-        //     mockGetInstanceIdUtilFn.mockResolvedValue(instanceId);
-        //     mockGetInstanceNameUtilFn.mockResolvedValue(instanceName);
-
-        //     await mockSyncStorage.set({ [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: { 'other': {name: 'o', lastSeen:0}} });
-        //     const beforeTimestamp = Date.now();
-        //     await performHeartbeat(); // Calls mocked getInstanceId/Name
-
-        //     const registry = await storage.get(mockSyncStorage, SYNC_STORAGE_KEYS.DEVICE_REGISTRY);
-        //     expect(registry[instanceId]).toBeDefined();
-        //     expect(registry[instanceId].name).toBe(instanceName);
-        //     expect(registry[instanceId].lastSeen).toBeGreaterThanOrEqual(beforeTimestamp);
-        // });
-
-        // test('performHeartbeat handles missing instanceId', async () => {
-        //     mockGetInstanceIdUtilFn.mockResolvedValue(null); // Configure mock
-        //     await performHeartbeat();
-        //     expect(consoleWarnSpy).toHaveBeenCalledWith("Heartbeat skipped: Instance ID not available yet.");
-        // });
-
         // test('getUnifiedState updates lastSeen for current device in registry', async () => {
         //     jest.useFakeTimers(); // Use Jest's fake timers
         //     const initialSystemTime = Date.now();
@@ -300,15 +186,6 @@ describe('utils', () => {
         //     jest.useRealTimers(); // Restore real timers
         // });
 
-        // test('performStaleDeviceCheck removes stale devices', async () => {
-        //     const now = Date.now();
-        //     const staleTime = now - (1000 * 60 * 60 * 24 * 31);
-        //     await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, { 'stale-id': { name: 'Stale', lastSeen: staleTime }});
-        //     await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, { 'stale-id': ['G1']});
-        //     await performStaleDeviceCheck(undefined, undefined, 1000 * 60 * 60 * 24 * 30);
-        //     expect(await storage.get(mockSyncStorage, SYNC_STORAGE_KEYS.DEVICE_REGISTRY)).not.toHaveProperty('stale-id');
-        // });
-
         test('performTimeBasedTaskCleanup removes expired tasks from sync and local', async () => {
             const now = Date.now();
             const expiredTime = now - (1000 * 60 * 60 * 24 * 15);
@@ -331,19 +208,6 @@ describe('utils', () => {
             const finalLocalProcessed = await storage.get(mockStorage, LOCAL_STORAGE_KEYS.PROCESSED_TASKS);
             expect(finalLocalProcessed['expired-task']).toBeUndefined();
             expect(finalLocalProcessed['recent-task']).toBe(true);
-        });
-    });
-
-    describe('UI Rendering Helpers (DOM)', () => {
-        let container;
-        beforeEach(() => {
-            document.body.innerHTML = '';
-            container = document.createElement('div');
-            document.body.appendChild(container);
-        });
-        test('renderDeviceRegistryUI shows no devices', () => {
-            renderDeviceRegistryUI(container, { deviceRegistry: {}, instanceId: 'id', instanceName: 'name' }, {});
-            expect(container.textContent).toBe(STRINGS.noDevices);
         });
     });
 });
