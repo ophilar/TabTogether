@@ -68,11 +68,11 @@ export const storage = {
   },
 
   _validateTypeValue(key, value, defaultValue) {
-    if (key === LOCAL_STORAGE_KEYS.SUBSCRIPTIONS || key === SYNC_STORAGE_KEYS.DEFINED_GROUPS) { // SYNC_STORAGE_KEYS.DEFINED_GROUPS is conceptual for bookmarks
+    if (key === LOCAL_STORAGE_KEYS.SUBSCRIPTIONS) {
       return ensureArray(value, defaultValue ?? []);
     } else if (key === LOCAL_STORAGE_KEYS.PROCESSED_BOOKMARK_IDS || key === LOCAL_STORAGE_KEYS.RECENTLY_OPENED_URLS) {
       return ensureObject(value, defaultValue ?? {});
-    } else if (key === LOCAL_STORAGE_KEYS.LAST_PROCESSED_BOOKMARK_TIMESTAMP || key === LOCAL_STORAGE_KEYS.LAST_SYNC_TIME || key === SYNC_STORAGE_KEYS.TASK_EXPIRY_DAYS) { // TASK_EXPIRY_DAYS is conceptual
+    } else if (key === LOCAL_STORAGE_KEYS.LAST_PROCESSED_BOOKMARK_TIMESTAMP || key === LOCAL_STORAGE_KEYS.LAST_SYNC_TIME || key === SYNC_STORAGE_KEYS.TASK_EXPIRY_DAYS) { 
       return typeof value === 'number' ? value : (defaultValue ?? 0);
     }
     return value;

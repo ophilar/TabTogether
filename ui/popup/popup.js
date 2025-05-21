@@ -1,8 +1,8 @@
-import { STRINGS } from "../../common/constants.js";
+import { STRINGS, LOCAL_STORAGE_KEYS } from "../../common/constants.js";
 import { storage } from "../../core/storage.js";
 import { isAndroid } from "../../core/platform.js";
 import { getUnifiedState } from "../../core/actions.js";
-import { processIncomingTabsAndroid, createAndStoreGroupTask } from "../../core/tasks.js";
+import { processSubscribedGroupTasks, createAndStoreGroupTask } from "../../core/tasks.js";
 import {
   showAndroidBanner,
   setLastSyncTime, // Import the correct function name
@@ -84,20 +84,20 @@ document.addEventListener("DOMContentLoaded", async () => {
         const startTime = Date.now(); // Record start time
 
         try {
-          await loadStatus(); // Refresh popup view & process tabs (Android)
-
-          // After successful load/process, trigger heartbeat for non-Android.
-          if (!isAndroidPlatform) {
+          const isAndroidPlatform = await isAndroid();
+          if (isAndroidPlatform) {
+            console.log("Popup: Refresh - Android platform, calling processSubscribedGroupTasks directly.");
+            await processSubscribedGroupTasks(); // This now calls recordSuccessfulSyncTime
+          } else {
+            console.log("Popup: Refresh - Desktop platform, sending heartbeat message.");
             await browser.runtime.sendMessage({ action: "heartbeat" });
-          } else { // On Android, heartbeat is part of loadState/getUnifiedState implicitly
-            console.log("Android refresh: Heartbeat implicitly handled by getUnifiedState.");
+            // Background script handles processSubscribedGroupTasks and recordSuccessfulSyncTime
           }
-          const now = new Date();
-          await storage.set(browser.storage.local, "lastSync", now.getTime());
-          if (dom.messageArea) showMessage(dom.messageArea, STRINGS.syncComplete, false); // Check dom.messageArea
-          // Update last sync time display on Android after manual sync
+          // Update UI with the latest sync time
+          const ts = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_SYNC_TIME, null);
           const popupContainer = document.querySelector(".container");
-          if (isAndroidPlatform && popupContainer) setLastSyncTime(popupContainer, now.getTime());
+          if (popupContainer) setLastSyncTime(popupContainer, ts); // Update UI
+          if (dom.messageArea) showMessage(dom.messageArea, STRINGS.syncComplete, false); // Check dom.messageArea
         } catch (error) {
           // Log errors that might occur during loadStatus or subsequent actions
           console.error("Error during refresh action:", error);
@@ -164,9 +164,10 @@ async function loadStatus() {
 
     // Process incoming tabs immediately on Android after getting state
     if (isAndroidPlatform) {
-      await processIncomingTabsAndroid(state);
+      await processSubscribedGroupTasks();
+      const ts = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_SYNC_TIME, null);
       const popupContainer = document.querySelector(".container");
-      if (popupContainer) setLastSyncTime(popupContainer, Date.now());
+      if (popupContainer) setLastSyncTime(popupContainer, ts);
     }
 
 

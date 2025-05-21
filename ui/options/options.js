@@ -8,9 +8,10 @@ import {
   subscribeToGroupUnified,
   unsubscribeFromGroupUnified,
   getUnifiedState,
+  getDefinedGroupsFromBookmarks,
 } from "../../core/actions.js";
 import { storage } from "../../core/storage.js";
-import { processIncomingTabsAndroid } from "../../core/tasks.js";
+import { processSubscribedGroupTasks } from "../../core/tasks.js";
 import { debounce } from "../../common/utils.js";
 import {
   injectSharedUI, showAndroidBanner,
@@ -196,17 +197,26 @@ document.addEventListener("DOMContentLoaded", async () => {
             await loadState();
           } else if (currentState) { // Only proceed with incremental if currentState is populated
             if (message.changedItems.includes("definedGroupsChanged")) {
-              console.log(`${new Date().toISOString()} Options:specificSyncDataChanged - Handling definedGroupsChanged.`);
-              currentState.definedGroups = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []);
+              console.log(`${new Date().toISOString()} Options:specificSyncDataChanged - Handling definedGroupsChanged by fetching from bookmarks.`);
+              currentState.definedGroups = await getDefinedGroupsFromBookmarks(); // This already sorts
               currentState.definedGroups.sort();
               renderDefinedGroups();
             }
             if (message.changedItems.includes("subscriptionsChanged")) {
               console.log(`${new Date().toISOString()} Options:specificSyncDataChanged - Handling subscriptionsChanged.`);
-              const deviceSubscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, {});
+              const deviceSubscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
               console.log(`${new Date().toISOString()} Options:specificSyncDataChanged - Derived device subscriptions:`, deviceSubscriptions);
-              currentState.subscriptions = deviceSubscriptions.sort();
-              renderDefinedGroups();
+              // Ensure subscriptions is an array before sorting
+              currentState.subscriptions = Array.isArray(deviceSubscriptions) ? deviceSubscriptions : [];
+              currentState.subscriptions.sort(); // Sort the array
+              renderDefinedGroups(); // Re-render the UI
+            }
+            if (message.changedItems.includes("lastSyncTimeChanged")) {
+              console.log(`${new Date().toISOString()} Options:specificSyncDataChanged - Handling lastSyncTimeChanged.`);
+              const ts = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_SYNC_TIME, null);
+              if (ts && dom.syncStatus) {
+                dom.syncStatus.textContent = "Last sync: " + new Date(ts).toLocaleString();
+              }
             }
           } else {
             console.log(`${new Date().toISOString()} Options:specificSyncDataChanged - currentState is null and isLoadingState is true. Skipping incremental update.`);
@@ -245,7 +255,7 @@ async function loadState() {
     let state = await getUnifiedState(isAndroidPlatformGlobal);
     if (isAndroidPlatformGlobal) {
       console.log(`${new Date().toISOString()} Options:loadState - Android platform, processing incoming tabs with state:`, JSON.stringify(state));
-      await processIncomingTabsAndroid(state);
+      await processSubscribedGroupTasks();
       const container = document.querySelector(".container");
       setLastSyncTimeUI(container, Date.now());
       showDebugInfoUI(container, state);
@@ -369,18 +379,7 @@ async function handleSubscribe(event) {
   if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
   console.log(`${new Date().toISOString()} Options:handleSubscribe - Subscribing to group: "${groupName}"`);
   clearMessage(dom.messageArea);
-  try {
-    // SYNC_STORAGE_KEYS.SUBSCRIPTIONS is { groupName: [deviceId] }
-    const allSyncSubscriptions = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {});
-    // Check the length of the array for the specific group
-    const currentSubscribersToGroup = allSyncSubscriptions[groupName] ? allSyncSubscriptions[groupName].length : 0;
-
-    if (currentSubscribersToGroup >= MAX_DEVICES_PER_GROUP && !isAndroidPlatformGlobal) {
-      if (dom.messageArea) showMessage(dom.messageArea, STRINGS.groupFullCannotSubscribe(groupName), true);
-      console.warn(`${new Date().toISOString()} Options:handleSubscribe - Group "${groupName}" is full.`);
-      if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, false);
-      return;
-    }
+  try {   
     let response = await subscribeToGroupUnified(groupName, isAndroidPlatformGlobal);
     if (response.success) {
       if (currentState && !currentState.subscriptions.includes(response.subscribedGroup)) {
