@@ -1,76 +1,72 @@
 import { storage } from '../core/storage.js';
 import { LOCAL_STORAGE_KEYS, SYNC_STORAGE_KEYS } from '../common/constants.js';
 
-export async function processIncomingTasks(allGroupTasksFromStorage) {
-    console.log('TaskProcessor:processIncomingTasks - Processing incoming tasks from storage change...');
-    if (!allGroupTasksFromStorage || typeof allGroupTasksFromStorage !== 'object' || Object.keys(allGroupTasksFromStorage).length === 0) {
-        console.log('TaskProcessor:processIncomingTasks - No group tasks found in storage or tasks object is empty.');
+/**
+ * Processes incoming task bookmarks.
+ * This function is triggered when bookmark changes are detected.
+ * @param {string} changedBookmarkId - The ID of the bookmark that changed (created, modified).
+ * @param {object} changeInfo - For 'onChanged', contains {title, url}. For 'onCreated', it's the bookmark node.
+ */
+export async function processIncomingTaskBookmark(changedBookmarkId, changeInfoOrNode) {
+    console.log(`TaskProcessor:processIncomingTaskBookmark - Processing bookmark ID: ${changedBookmarkId}`);
+
+    // We need to get the full bookmark details to check its parent (group) and if it's a task
+    let bookmarkNode;
+    try {
+        const nodes = await browser.bookmarks.get(changedBookmarkId);
+        if (!nodes || nodes.length === 0) {
+            console.log(`TaskProcessor: Bookmark ${changedBookmarkId} not found or was deleted.`);
+            return [];
+        }
+        bookmarkNode = nodes[0];
+    } catch (e) {
+        console.log(`TaskProcessor: Error fetching bookmark ${changedBookmarkId}, likely deleted:`, e.message);
         return [];
     }
 
+    // Ensure it's a task (has a URL) and not the config bookmark
+    if (!bookmarkNode.url || bookmarkNode.title === SYNC_STORAGE_KEYS.CONFIG_BOOKMARK_TITLE) {
+        console.log(`TaskProcessor: Bookmark ${changedBookmarkId} is not a processable task (no URL or is config).`);
+        return [];
+    }
+
+    // Get parent folder to determine group name
+    if (!bookmarkNode.parentId) return [];
+    const parentNodes = await browser.bookmarks.get(bookmarkNode.parentId);
+    if (!parentNodes || parentNodes.length === 0 || parentNodes[0].url) return []; // Parent is not a folder
+    const groupName = parentNodes[0].title;
+
+    // Check if subscribed to this group
     const localSubscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
-    let localProcessedTasks = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, {});
+    if (!localSubscriptions.includes(groupName)) {
+        console.log(`TaskProcessor: Not subscribed to group "${groupName}" for task ${bookmarkNode.id}. Skipping.`);
+        return [];
+    }
+
+    // Check if already processed
+    let localProcessedBookmarkIds = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_BOOKMARK_IDS, {});
+    if (localProcessedBookmarkIds[bookmarkNode.id]) {
+        console.log(`TaskProcessor: Task bookmark ${bookmarkNode.id} already processed. Skipping.`);
+        return [];
+    }
+
     let newTasksProcessedThisRun = false;
-    let groupTasksModifiedInSync = false;
-    let taskUpdatesForSync = {}; // Collect updates for a single mergeItem call
     const openedTabsDetails = [];
 
-    for (const groupName in allGroupTasksFromStorage) {
-        console.log(`TaskProcessor:processIncomingTasks - Checking group: "${groupName}"`); // Can be verbose
-        if (!localSubscriptions.includes(groupName)) {
-            continue;
-        }
+    try {
+        console.log(`TaskProcessor: Opening tab for task ${bookmarkNode.id} from group ${groupName}: ${bookmarkNode.url}`);
+        await browser.tabs.create({ url: bookmarkNode.url, active: false });
 
-        const tasksInGroup = allGroupTasksFromStorage[groupName];
-        for (const taskId in tasksInGroup) {
-            const taskData = tasksInGroup[taskId];
-            console.log(`TaskProcessor:processIncomingTasks - Considering task "${taskId}" in group "${groupName}"`); // Can be verbose
-
-            if (!taskData ||
-                localProcessedTasks[taskId]) {
-                continue;
-            } else {
-                console.log(`TaskProcessor:processIncomingTasks - Task "${taskId}" is new for this device.`);
-            }
-
-            try {
-                console.log(`TaskProcessor:processIncomingTasks - Opening tab for task ${taskId} from group ${groupName}: ${taskData.url}`);
-                await browser.tabs.create({ url: taskData.url, active: false });
-
-                // Prepare update for this specific task
-                const currentProcessedBy = allGroupTasksFromStorage[groupName][taskId].processedByDeviceIds || [];
-                if (!currentProcessedBy.includes(localInstanceId)) {
-                    
-                    // Deeply ensure path exists in taskUpdatesForSync
-                    if (!taskUpdatesForSync[groupName]) {
-                        taskUpdatesForSync[groupName] = {};
-                    }
-                    if (!taskUpdatesForSync[groupName][taskId]) {
-                        taskUpdatesForSync[groupName][taskId] = {};
-                    }
-                    groupTasksModifiedInSync = true;
-                }
-
-
-                localProcessedTasks[taskId] = Date.now();
-                openedTabsDetails.push({ title: taskData.title, url: taskData.url, groupName: groupName });
-                newTasksProcessedThisRun = true;
-            } catch (error) {
-                console.error(`TaskProcessor:processIncomingTasks - Failed to open tab for task ${taskId} (${taskData.url}):`, error);
-            }
-        }
+        localProcessedBookmarkIds[bookmarkNode.id] = Date.now();
+        openedTabsDetails.push({ title: bookmarkNode.title, url: bookmarkNode.url, groupName: groupName });
+        newTasksProcessedThisRun = true;
+    } catch (error) {
+        console.error(`TaskProcessor: Failed to open tab for task ${bookmarkNode.id} (${bookmarkNode.url}):`, error);
     }
     if (newTasksProcessedThisRun) {
-        await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, localProcessedTasks);
-        console.log('TaskProcessor:processIncomingTasks - Updated local processed tasks list.');
-    } else {
-        console.log('TaskProcessor:processIncomingTasks - No new tasks were processed in this run.');
+        await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_BOOKMARK_IDS, localProcessedBookmarkIds);
+        console.log('TaskProcessor: Updated local processed bookmark IDs list.');
     }
-    if (groupTasksModifiedInSync) {
-        const mergeResult = await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, taskUpdatesForSync);
-        if(mergeResult.success) console.log('TaskProcessor:processIncomingTasks - Merged processedByDeviceIds updates into GROUP_TASKS in sync storage.');
-        else console.error('TaskProcessor:processIncomingTasks - FAILED to merge processedByDeviceIds updates into GROUP_TASKS.');
-    }
-    console.log('TaskProcessor:processIncomingTasks - Finished processing. Opened tabs:', openedTabsDetails.length);
+    console.log('TaskProcessor: Finished processing bookmark. Opened tabs:', openedTabsDetails.length);
     return openedTabsDetails;
 }

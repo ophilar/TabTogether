@@ -8,11 +8,10 @@ import { STRINGS } from "../../common/constants.js";
  * @returns {HTMLLIElement} The created list item element.
  */
 export function createGroupListItemUI(groupName, isSubscribed, handlers) {
-  // console.log(`${new Date().toISOString()} OptionsUI:createGroupListItemUI - Creating item for group: "${groupName}", isSubscribed: ${isSubscribed}`); // Can be verbose
   const li = document.createElement("li");
   li.setAttribute('role', 'listitem');
-  li.className = 'options-list-item'; // Use common class
-  li.dataset.groupName = groupName; // Add data attribute for easier selection
+  li.className = 'options-list-item'; 
+  li.dataset.groupName = groupName; 
 
   const nameSpan = document.createElement("span");
   nameSpan.textContent = groupName;
@@ -47,9 +46,8 @@ export function renderGroupListUI(
   definedGroupsListDiv,
   definedGroups,
   subscriptions,
-  handlers // Changed to accept an object of handlers
+  handlers
 ) {
-  console.log(`${new Date().toISOString()} OptionsUI:renderGroupListUI - Rendering groups. Count: ${definedGroups?.length || 0}`);
   definedGroupsListDiv.textContent = ""; // Clear previous content
 
   if (!definedGroups || definedGroups.length === 0) {
@@ -71,7 +69,6 @@ export function renderGroupListUI(
 }
 
 export function cancelInlineEditUI(originalSpan, inlineControlsContainer) {
-  console.log(`${new Date().toISOString()} OptionsUI:cancelInlineEditUI - Cancelling inline edit.`);
   if (inlineControlsContainer && inlineControlsContainer.parentNode) {
     inlineControlsContainer.remove();
   }
@@ -81,7 +78,6 @@ export function cancelInlineEditUI(originalSpan, inlineControlsContainer) {
 }
 
 export function createInlineEditControlsUI(currentValue, onSaveCallback, onCancelCallback) {
-  console.log(`${new Date().toISOString()} OptionsUI:createInlineEditControlsUI - Creating for value: "${currentValue}"`);
   const container = document.createElement('div');
   container.className = 'inline-edit-container';
 
@@ -134,20 +130,15 @@ export function createInlineEditControlsUI(currentValue, onSaveCallback, onCance
 
 export function setLastSyncTimeUI(containerElement, timestamp) {
   if (!containerElement) return;
-  console.log(`${new Date().toISOString()} OptionsUI:setLastSyncTimeUI - Setting time to: ${timestamp ? new Date(timestamp).toLocaleString() : "Never"}`);
 
   let syncTimeDiv = containerElement.querySelector(".last-sync-time"); // Corrected selector
   if (!syncTimeDiv) { // Styles moved to styles.css
     syncTimeDiv = document.createElement("div");
     syncTimeDiv.className = "last-sync-time"; // Class for styling from CSS
-    // Prepend to a specific section if available, or just the container
     const androidInfoSection = containerElement.querySelector('#androidSpecificInfo'); // Assuming such an ID exists in options.html
     if (androidInfoSection) {
       androidInfoSection.insertBefore(syncTimeDiv, androidInfoSection.firstChild);
     } else {
-      // Fallback: if no androidSpecificInfo, maybe prepend to a general settings area or log an error
-      // console.warn("TabTogether: #androidSpecificInfo container not found for last sync time. Appending to main container.");
-      // As a robust fallback, append to containerElement.firstChild.
       containerElement.insertBefore(syncTimeDiv, containerElement.firstChild);
     }
   }
@@ -156,7 +147,6 @@ export function setLastSyncTimeUI(containerElement, timestamp) {
 
 export function showDebugInfoUI(containerElement, state) {
   if (!containerElement || !state) return;
-  console.log(`${new Date().toISOString()} OptionsUI:showDebugInfoUI - Displaying debug info.`);
 
   let debugDiv = containerElement.querySelector(".options-debug-info"); // Styles moved to styles.css
   if (!debugDiv) {
@@ -167,7 +157,6 @@ export function showDebugInfoUI(containerElement, state) {
     if (androidInfoSection) {
       androidInfoSection.appendChild(debugDiv);
     } else {
-      // console.warn("TabTogether: #androidSpecificInfo container not found for debug info. Appending to main container.");
       containerElement.appendChild(debugDiv); // Fallback
     }
   }
@@ -178,7 +167,6 @@ export function showDebugInfoUI(containerElement, state) {
   debugDiv.appendChild(title);
 
   const pre = document.createElement("pre");
-  // pre styles (white-space, word-break) moved to styles.css under .options-debug-info pre
 
   const { subscriptions, definedGroups, groupTasks, isAndroid } = state;
   const debugState = {  subscriptions, definedGroups, groupTasksCount: Object.keys(groupTasks || {}).length, isAndroid };
@@ -193,20 +181,17 @@ export function showDebugInfoUI(containerElement, state) {
  * @param {object} storageAPI - The storage utility object.
  */
 export async function displaySyncRequirementBanner(containerElement, storageAPI) {
-  console.log(`${new Date().toISOString()} OptionsUI:displaySyncRequirementBanner - Checking if banner should be displayed.`);
   if (!containerElement) return;
 
   const bannerDismissedKey = 'optionsSyncBannerDismissed';
   const isDismissed = await storageAPI.get(browser.storage.local, bannerDismissedKey, false);
 
   if (isDismissed) {
-    console.log(`${new Date().toISOString()} OptionsUI:displaySyncRequirementBanner - Banner already dismissed.`);
     return; // Don't show if already dismissed
   }
 
   // Prevent adding multiple banners
   if (containerElement.querySelector('.sync-requirement-banner')) { // Simpler check for existing banner
-    console.log(`${new Date().toISOString()} OptionsUI:displaySyncRequirementBanner - Banner already exists.`);
     return;
   }
 
@@ -233,6 +218,5 @@ export async function displaySyncRequirementBanner(containerElement, storageAPI)
   };
   banner.appendChild(dismissButton);
 
-  console.log(`${new Date().toISOString()} OptionsUI:displaySyncRequirementBanner - Prepending banner.`);
   containerElement.insertBefore(banner, containerElement.firstChild); // Prepend to make it prominent
 }

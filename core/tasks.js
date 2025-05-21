@@ -1,5 +1,5 @@
 import { storage } from "./storage.js";
-import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from "../common/constants.js";
+import { LOCAL_STORAGE_KEYS } from "../common/constants.js";
 
 /**
  * Processes incoming tabs for the current device, typically on Android or manual sync.
@@ -9,68 +9,49 @@ import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from "../common/constants.js";
  */
 export async function processIncomingTabsAndroid(currentState) {
   const mySubscriptions = currentState.subscriptions || []; // Array of group names
-  // Get a mutable copy if it comes from currentState, or fetch fresh
-  let allGroupTasksFromState = currentState.groupTasks || await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, {});
-  // It's better to work on a deep copy if we plan to modify and then decide to merge or set
-  // Or, build a separate updates object. Let's go with a separate updates object.
-  let taskUpdatesForSync = {};
-  let groupTasksModifiedInSync = false;
-  let localProcessedTasks = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, {});
+  const allGroupTasksFromState = currentState.groupTasks || {}; // This is { groupName: { bookmarkId: taskData } }
+
+  let localProcessedBookmarkIds = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_BOOKMARK_IDS, {});
   let tasksProcessedLocallyThisRun = false; // Renamed for clarity
 
   console.log(`Tasks:processIncomingTabsAndroid - START. Subscriptions: [${mySubscriptions.join(', ')}]. Received groupTasks:`, JSON.stringify(allGroupTasksFromState));
 
   for (const groupName in allGroupTasksFromState) {
     if (mySubscriptions.includes(groupName)) {
-      const tasksInGroupObject = allGroupTasksFromState[groupName]; // This is an object { taskId1: data1, ...}
+      const tasksInGroupObject = allGroupTasksFromState[groupName]; // This is an object { bookmarkId1: data1, ...}
 
-      for (const taskId in tasksInGroupObject) {
-        const task = tasksInGroupObject[taskId];
+      for (const bookmarkId in tasksInGroupObject) {
+        const task = tasksInGroupObject[bookmarkId]; // task now contains { id, url, title, creationTimestamp }
 
         // Determine if the task should be skipped
-        const alreadyProcessed = localProcessedTasks[taskId];
+        const alreadyProcessed = localProcessedBookmarkIds[bookmarkId];
 
         if (alreadyProcessed) {
-          console.log(`Tasks:processIncomingTabsAndroid - Task "${taskId}" in group "${groupName}" skipped. Local: ${alreadyProcessed}`);
-          if (alreadyProcessed ) {
-            if (!taskUpdatesForSync[groupName]) taskUpdatesForSync[groupName] = {};
-            if (!taskUpdatesForSync[groupName][taskId]) taskUpdatesForSync[groupName][taskId] = {};
-            groupTasksModifiedInSync = true;
-          }
+          console.log(`Tasks:processIncomingTabsAndroid - Task (bookmarkId: "${bookmarkId}") in group "${groupName}" already processed locally.`);
           continue;
         }
 
         // Open the tab
         try {
-          console.log(`Tasks:processIncomingTabsAndroid - Opening tab: ${task.url} for group ${groupName}, task ID: ${taskId}`);
+          console.log(`Tasks:processIncomingTabsAndroid - Opening tab: ${task.url} for group ${groupName}, bookmark ID: ${bookmarkId}`);
           await browser.tabs.create({ url: task.url, active: false });
 
-          if (!taskUpdatesForSync[groupName]) taskUpdatesForSync[groupName] = {};
-          if (!taskUpdatesForSync[groupName][taskId]) taskUpdatesForSync[groupName][taskId] = {};
-          groupTasksModifiedInSync = true;
-
-          localProcessedTasks[taskId] = Date.now(); // Mark as processed with timestamp
+          localProcessedBookmarkIds[bookmarkId] = Date.now(); // Mark as processed with timestamp
           tasksProcessedLocallyThisRun = true;
+
         } catch (e) {
-          console.error(`Tasks:processIncomingTabsAndroid - Failed to open tab ${task.url} (task ID: ${taskId}):`, e);
+          console.error(`Tasks:processIncomingTabsAndroid - Failed to open tab ${task.url} (bookmark ID: ${bookmarkId}):`, e);
           // Do not mark as processed if opening failed
         }
       }
     }
   }
-
   if (tasksProcessedLocallyThisRun) {
     // Save the updated localProcessedTasks
-    await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, localProcessedTasks);
+    await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_BOOKMARK_IDS, localProcessedBookmarkIds);
     console.log("Tasks:processIncomingTabsAndroid - Finished processing, updated local processed task list.");
   } else {
     console.log("Tasks:processIncomingTabsAndroid - No new tabs to process for this device in this run.");
-  }
-
-   if (groupTasksModifiedInSync) {
-    const mergeResult = await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, taskUpdatesForSync);
-    if (mergeResult.success) console.log('Tasks:processIncomingTabsAndroid - Merged processedByDeviceIds updates into GROUP_TASKS in sync storage.');
-    else console.error('Tasks:processIncomingTabsAndroid - FAILED to merge processedByDeviceIds updates into GROUP_TASKS in sync storage.');
   }
 }
 
@@ -78,24 +59,23 @@ export async function processIncomingTabsAndroid(currentState) {
  * Creates a new task and stores it in sync storage.
  * @param {string} groupName - The name of the group.
  * @param {object} tabData - Object containing tab URL and title.
- * @returns {Promise<{success: boolean, taskId: string|null}>}
+ * @returns {Promise<{success: boolean, bookmarkId: string|null, message?: string}>}
  */
 export async function createAndStoreGroupTask(groupName, tabData) {
-  const taskId = globalThis.crypto?.randomUUID?.() || `mock-task-id-${Date.now()}`;
-
   const newTaskData = {
     url: tabData.url,
     title: tabData.title || tabData.url,
-    creationTimestamp: Date.now(),
+    // creationTimestamp is implicitly set by bookmark.dateAdded
   };
 
-  const taskUpdate = { [groupName]: { [taskId]: newTaskData } };
-  const opResult = await storage.mergeItem(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, taskUpdate);
+  // storage.createTaskBookmark will create the bookmark and return its ID
+  const opResult = await storage.createTaskBookmark(groupName, newTaskData);
 
   if (!opResult.success) {
-    console.error(`Failed to store task ${taskId} for group ${groupName}.`);
-    return { success: false, taskId: null, message: opResult.message || "Failed to save task to sync storage." };
+    console.error(`Failed to store task for group ${groupName}. Message: ${opResult.message}`);
+    return { success: false, bookmarkId: null, message: opResult.message || "Failed to save task as bookmark." };
   }
-  console.log(`Task ${taskId} created for group ${groupName}:`, newTaskData);
-  return { success: true, taskId };
+  // opResult.newBookmark contains the created bookmark object
+  console.log(`Task (bookmarkId: ${opResult.bookmarkId}) created for group ${groupName}:`, newTaskData);
+  return { success: true, bookmarkId: opResult.bookmarkId };
 }
