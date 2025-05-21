@@ -3,7 +3,6 @@ import { storage } from "../../core/storage.js";
 import { isAndroid } from "../../core/platform.js";
 import { getUnifiedState } from "../../core/actions.js";
 import { processIncomingTabsAndroid, createAndStoreGroupTask } from "../../core/tasks.js";
-import { getInstanceId } from "../../core/instance.js";
 import {
   showAndroidBanner,
   setLastSyncTime, // Import the correct function name
@@ -15,7 +14,6 @@ import { applyThemeFromStorage } from "../shared/theme.js";
 
 // Cache DOM elements at the top for repeated use
 const dom = {
-  deviceNameSpan: null,
   sendTabGroupsList: null,
   sendTabStatus: null,
   openOptionsLink: null,
@@ -38,7 +36,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     dom.loadingIndicator = document.getElementById("loadingIndicator");
     dom.messageArea = document.getElementById("messageArea");
     // Assign other elements
-    dom.deviceNameSpan = document.getElementById("deviceName");
     dom.sendTabGroupsList = document.getElementById("sendTabGroupsList");
     dom.sendTabStatus = document.getElementById("sendTabStatus");
     dom.openOptionsLink = document.getElementById("openOptionsLink");
@@ -133,7 +130,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         );
         dom.toggleDetailsBtn.setAttribute(
           "title",
-          isHidden ? "Show device info" : "Hide device info"
+          isHidden ? "Show subscriptions" : "Hide subscriptions"
         );
       });
     }
@@ -156,13 +153,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 // --- Load and Render Status ---
-let syncing = false; // Prevent multiple syncs at once, especially on Android
+let syncing = false;
 
 async function loadStatus() {
-  // Removed redundant syncing check here, as it's handled by the refreshLink click listener
-
-  const syncIcon = dom.refreshLink?.querySelector(".sync-icon-svg"); // Select icon if refreshLink exists
-
   if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
   try {
     const isAndroidPlatform = await isAndroid();
@@ -182,14 +175,12 @@ async function loadStatus() {
     if (state.error) throw new Error(state.error); // Propagate error from background
     console.log("Popup received state:", state); // Log received state for debugging
     // Render UI components
-    renderDeviceName(dom.deviceNameSpan, state.instanceName); // Use imported function
     renderSubscriptionsUI(state.subscriptions);
     renderSendTabGroups(state.definedGroups); // Uses the combined button approach
   } catch (error) {
     console.error("Error loading popup status:", error);
     if (dom.messageArea) showMessage(dom.messageArea, STRINGS.loadingSettingsError(error.message || "Unknown error"), true); // STRINGS.loadingSettingsError is good
 
-    if (dom.deviceNameSpan) dom.deviceNameSpan.textContent = STRINGS.error;
     if (dom.sendTabGroupsList) dom.sendTabGroupsList.textContent = "Error loading groups.";
     if (dom.subscriptionsUl) {
       dom.subscriptionsUl.textContent = ''; // Clear safely first
@@ -202,16 +193,6 @@ async function loadStatus() {
   }
 }
 
-/**
- * Renders the device name in a given container element. (Moved from options-ui.js)
- * @param {HTMLElement} container - The container element to render the name into.
- * @param {string} name - The device name.
- */
-function renderDeviceName(container, name) {
-  if (container) { // Guard clause
-    container.textContent = name || STRINGS.deviceNameNotSet;
-  }
-}
 // Renders the list of subscribed groups in the details section
 function renderSubscriptionsUI(subscriptions) {
   const ul = dom.subscriptionsUl;

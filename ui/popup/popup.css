@@ -48,12 +48,6 @@ body {
   padding-top: 4px; /* Align with first line of list items if list is multi-line */
 }
 
-#deviceName {
-  font-weight: bold;
-  color: var(--main-text);
-  padding-top: 4px; /* Match label padding for alignment */
-}
-
 .popup-subscriptions-list {
   list-style: none;
   padding: 0;

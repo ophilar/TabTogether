@@ -1,116 +1,6 @@
 import { STRINGS } from "../../common/constants.js";
 
 /**
- * Creates a list item element for a device.
- * @param {string} deviceId - The ID of the device.
- * @param {object} deviceData - The data object for the device.
- * @param {{id: string, name: string}} localInstance - Object containing the ID and name of the current local instance.
- * @param {object} handlers - Object containing event handlers (startRenameCurrentDevice, handleRemoveSelfDevice, handleDeleteDevice).
- * @returns {HTMLLIElement} The created list item element.
- */
-export function createDeviceListItemUI(deviceId, deviceData, localInstance, handlers) {
-  console.log(`${new Date().toISOString()} OptionsUI:createDeviceListItemUI - START. deviceId: ${deviceId}, deviceData.name: ${deviceData?.name}, localInstance.id: ${localInstance?.id}, localInstance.name: ${localInstance?.name}`);
-  const li = document.createElement('li');
-  li.setAttribute('role', 'listitem');
-  li.dataset.deviceId = deviceId;
-  li.className = 'options-list-item'; // Use common class
-
-  const nameAndInfoDiv = document.createElement('div');
-  nameAndInfoDiv.className = 'registry-item-info';
-
-  const nameSpan = document.createElement('span');
-  nameSpan.className = 'device-name-label';
-
-  // Determine the authoritative name for display and for the rename handler
-  let nameForDisplay = deviceData.name || STRINGS.deviceNameNotSet;
-  let nameForRenameHandlerStart = nameForDisplay;
-
-  if (deviceId === localInstance.id) {
-    // For "This Device", prioritize the name from local storage (passed via localInstance.name)
-    nameForDisplay = localInstance.name || deviceData.name || STRINGS.deviceNameNotSet;
-    nameForRenameHandlerStart = nameForDisplay; // Use this authoritative name for the rename handler too
-    console.log(`${new Date().toISOString()} OptionsUI:createDeviceListItemUI - "This Device" (${deviceId}). Determined nameForDisplay: ${nameForDisplay} (from localInstance.name: ${localInstance.name}, fallback deviceData.name: ${deviceData.name})`);
-  }
-
-  if (deviceId === localInstance.id) {
-    const strong = document.createElement('strong');
-    strong.textContent = nameForDisplay; // Use the authoritative name
-    nameSpan.appendChild(strong);
-    nameSpan.appendChild(document.createTextNode(' (This Device)'));
-    li.classList.add('this-device');
-
-    // Only make the name span clickable for renaming for the CURRENT device
-    nameSpan.style.cursor = 'pointer';
-    nameSpan.title = `Click to rename this device: ${nameForDisplay}`;
-    // Pass only the necessary DOM elements; deviceId and oldName will be sourced from currentState in options.js
-    nameSpan.onclick = () => handlers.startRenameCurrentDevice(li, nameSpan);
-  } else {
-    nameSpan.textContent = nameForDisplay;
-  }
-  nameAndInfoDiv.appendChild(nameSpan);
-
-  if (deviceData.lastSeen) {
-    const lastSeenSpan = document.createElement('span');
-    lastSeenSpan.className = 'small-text registry-item-lastseen';
-    lastSeenSpan.textContent = `Last seen: ${new Date(deviceData.lastSeen).toLocaleString()}`;
-    nameAndInfoDiv.appendChild(lastSeenSpan);
-  }
-  li.appendChild(nameAndInfoDiv);
-
-  const actionsDiv = document.createElement('div');
-  actionsDiv.className = 'registry-item-actions';
-
-  const deleteBtn = document.createElement('button');
-  deleteBtn.className = 'inline-btn danger';
-
-  if (deviceId === localInstance.id) {
-    deleteBtn.textContent = 'Remove';
-    deleteBtn.title = 'Remove this device from all groups and registry. This cannot be undone.';
-    deleteBtn.setAttribute('aria-label', 'Remove this device from registry');
-    deleteBtn.onclick = handlers.handleRemoveSelfDevice;
-  } else {
-    deleteBtn.textContent = 'Delete';
-    deleteBtn.title = 'Delete this device from the registry';
-    const currentDeviceNameForDelete = deviceData.name || 'Unnamed';
-    deleteBtn.setAttribute('aria-label', `Delete device ${currentDeviceNameForDelete} from registry`);
-    deleteBtn.onclick = () => handlers.handleDeleteDevice(deviceId, currentDeviceNameForDelete);
-  }
-  actionsDiv.appendChild(deleteBtn);
-  li.appendChild(actionsDiv);
-  return li;
-}
-export function renderDeviceRegistryUI(deviceRegistryListDiv, currentState, handlers) {
-  console.log(`${new Date().toISOString()} OptionsUI:renderDeviceRegistryUI - START. currentState.instanceName: ${currentState?.instanceName}, deviceRegistry for instanceId ('${currentState?.instanceId}') name: ${currentState?.deviceRegistry?.[currentState?.instanceId]?.name}`);
-  const devices = currentState.deviceRegistry;
-  deviceRegistryListDiv.textContent = ''; // Clear previous content safely
-
-  if (!devices || Object.keys(devices).length === 0) {
-    deviceRegistryListDiv.textContent = STRINGS.noDevices;
-    return;
-  }
-
-  const localInstance = { id: currentState.instanceId, name: currentState.instanceName };
-
-  const ul = document.createElement('ul');
-  ul.className = 'options-list'; // Use common class
-
-  Object.entries(devices)
-    .sort((a, b) => {
-      const [idA] = a;
-      const [idB] = b;
-      if (idA === localInstance.id) return -1;
-      if (idB === localInstance.id) return 1;
-      return (a[1]?.name || '').localeCompare(b[1]?.name || '');
-    })
-    .forEach(([id, device]) => {
-      // Use the new helper function to create each list item
-      const li = createDeviceListItemUI(id, device, localInstance, handlers);
-      ul.appendChild(li);
-    });
-  deviceRegistryListDiv.appendChild(ul);
-}
-
-/**
  * Creates a list item element for a group.
  * @param {string} groupName - The name of the group.
  * @param {boolean} isSubscribed - Whether the current device is subscribed to this group.
@@ -253,12 +143,12 @@ export function setLastSyncTimeUI(containerElement, timestamp) {
     // Prepend to a specific section if available, or just the container
     const androidInfoSection = containerElement.querySelector('#androidSpecificInfo'); // Assuming such an ID exists in options.html
     if (androidInfoSection) {
-        androidInfoSection.insertBefore(syncTimeDiv, androidInfoSection.firstChild);
+      androidInfoSection.insertBefore(syncTimeDiv, androidInfoSection.firstChild);
     } else {
-        // Fallback: if no androidSpecificInfo, maybe prepend to a general settings area or log an error
-        // console.warn("TabTogether: #androidSpecificInfo container not found for last sync time. Appending to main container.");
-        // As a robust fallback, append to containerElement.firstChild.
-        containerElement.insertBefore(syncTimeDiv, containerElement.firstChild);
+      // Fallback: if no androidSpecificInfo, maybe prepend to a general settings area or log an error
+      // console.warn("TabTogether: #androidSpecificInfo container not found for last sync time. Appending to main container.");
+      // As a robust fallback, append to containerElement.firstChild.
+      containerElement.insertBefore(syncTimeDiv, containerElement.firstChild);
     }
   }
   syncTimeDiv.textContent = "Last sync (this view): " + (timestamp ? new Date(timestamp).toLocaleString() : "Never");
@@ -275,10 +165,10 @@ export function showDebugInfoUI(containerElement, state) {
 
     const androidInfoSection = containerElement.querySelector('#androidSpecificInfo');
     if (androidInfoSection) {
-        androidInfoSection.appendChild(debugDiv);
+      androidInfoSection.appendChild(debugDiv);
     } else {
-        // console.warn("TabTogether: #androidSpecificInfo container not found for debug info. Appending to main container.");
-        containerElement.appendChild(debugDiv); // Fallback
+      // console.warn("TabTogether: #androidSpecificInfo container not found for debug info. Appending to main container.");
+      containerElement.appendChild(debugDiv); // Fallback
     }
   }
 
@@ -290,8 +180,8 @@ export function showDebugInfoUI(containerElement, state) {
   const pre = document.createElement("pre");
   // pre styles (white-space, word-break) moved to styles.css under .options-debug-info pre
 
-  const { instanceId, instanceName, subscriptions, definedGroups, deviceRegistry, groupTasks, isAndroid } = state;
-  const debugState = { instanceId, instanceName, subscriptions, definedGroups, deviceRegistryCount: Object.keys(deviceRegistry || {}).length, groupTasksCount: Object.keys(groupTasks || {}).length, isAndroid };
+  const { subscriptions, definedGroups, groupTasks, isAndroid } = state;
+  const debugState = {  subscriptions, definedGroups, groupTasksCount: Object.keys(groupTasks || {}).length, isAndroid };
 
   pre.textContent = JSON.stringify(debugState, null, 2);
   debugDiv.appendChild(pre);
@@ -322,7 +212,7 @@ export async function displaySyncRequirementBanner(containerElement, storageAPI)
 
   const banner = document.createElement('div');
   banner.className = 'sync-requirement-banner notice-banner'; // Styles moved to styles.css
-  
+
   const icon = document.createElement('span');
   icon.textContent = 'ℹ️'; // Info icon
   icon.style.marginRight = '8px';

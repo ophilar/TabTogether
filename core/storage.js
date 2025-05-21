@@ -99,13 +99,11 @@ export const storage = {
    * @private
    */
   _validateTypeValue(key, value, defaultValue) {
-    if (key === SYNC_STORAGE_KEYS.DEVICE_REGISTRY || key === SYNC_STORAGE_KEYS.GROUP_TASKS || key === SYNC_STORAGE_KEYS.SUBSCRIPTIONS) {
+    if (key === SYNC_STORAGE_KEYS.GROUP_TASKS ) {
       return ensureObject(value, defaultValue ?? {});
     } else if (key === LOCAL_STORAGE_KEYS.SUBSCRIPTIONS || key === SYNC_STORAGE_KEYS.DEFINED_GROUPS) {
       return ensureArray(value, defaultValue ?? []);
-    } else if (key === LOCAL_STORAGE_KEYS.INSTANCE_ID || key === LOCAL_STORAGE_KEYS.INSTANCE_NAME_OVERRIDE) {
-      return ensureString(value, defaultValue ?? "");
-    }
+    } 
     return value; // No specific validation for other keys, return as is or default
   }
 };

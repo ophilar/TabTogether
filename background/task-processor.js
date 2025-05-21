@@ -1,6 +1,5 @@
 import { storage } from '../core/storage.js';
 import { LOCAL_STORAGE_KEYS, SYNC_STORAGE_KEYS } from '../common/constants.js';
-import { getInstanceId } from '../core/instance.js';
 
 export async function processIncomingTasks(allGroupTasksFromStorage) {
     console.log('TaskProcessor:processIncomingTasks - Processing incoming tasks from storage change...');
@@ -9,7 +8,6 @@ export async function processIncomingTasks(allGroupTasksFromStorage) {
         return [];
     }
 
-    const localInstanceId = await getInstanceId();
     const localSubscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
     let localProcessedTasks = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, {});
     let newTasksProcessedThisRun = false;
@@ -28,10 +26,7 @@ export async function processIncomingTasks(allGroupTasksFromStorage) {
             const taskData = tasksInGroup[taskId];
             console.log(`TaskProcessor:processIncomingTasks - Considering task "${taskId}" in group "${groupName}"`); // Can be verbose
 
-            // Skip if no task data, or if this device is already in processedByDeviceIds (creator or already processed)
-            // Also skip if it's in the localProcessedTasks cache
             if (!taskData ||
-                (taskData.processedByDeviceIds && taskData.processedByDeviceIds.includes(localInstanceId)) ||
                 localProcessedTasks[taskId]) {
                 continue;
             } else {
@@ -45,7 +40,6 @@ export async function processIncomingTasks(allGroupTasksFromStorage) {
                 // Prepare update for this specific task
                 const currentProcessedBy = allGroupTasksFromStorage[groupName][taskId].processedByDeviceIds || [];
                 if (!currentProcessedBy.includes(localInstanceId)) {
-                    const updatedProcessedBy = [...currentProcessedBy, localInstanceId];
                     
                     // Deeply ensure path exists in taskUpdatesForSync
                     if (!taskUpdatesForSync[groupName]) {
@@ -54,7 +48,6 @@ export async function processIncomingTasks(allGroupTasksFromStorage) {
                     if (!taskUpdatesForSync[groupName][taskId]) {
                         taskUpdatesForSync[groupName][taskId] = {};
                     }
-                    taskUpdatesForSync[groupName][taskId].processedByDeviceIds = updatedProcessedBy;
                     groupTasksModifiedInSync = true;
                 }
 

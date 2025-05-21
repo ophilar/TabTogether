@@ -9,7 +9,6 @@ import { getInstanceId } from "./instance.js";
  * @returns {Promise<void>}
  */
 export async function processIncomingTabsAndroid(currentState) {
-  const localInstanceId = currentState.instanceId || await getInstanceId();
   const mySubscriptions = currentState.subscriptions || []; // Array of group names
   // Get a mutable copy if it comes from currentState, or fetch fresh
   let allGroupTasksFromState = currentState.groupTasks || await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS, {});
@@ -31,21 +30,12 @@ export async function processIncomingTabsAndroid(currentState) {
 
         // Determine if the task should be skipped
         const alreadyProcessed = localProcessedTasks[taskId];
-        const sentBySelfOrAlreadyProcessed = task.processedByDeviceIds && task.processedByDeviceIds.includes(localInstanceId);
-        const alreadyProcessedInSyncByThisDevice = task.processedByDeviceIds && task.processedByDeviceIds.includes(localInstanceId);
 
-        if (alreadyProcessedInSyncByThisDevice || alreadyProcessed) {
-          console.log(`Tasks:processIncomingTabsAndroid - Task "${taskId}" in group "${groupName}" skipped. InSync: ${alreadyProcessedInSyncByThisDevice}, Local: ${alreadyProcessed}`);
-          // If process update didn't work in the past, try again
-          // Self-correction: if locally processed but not marked in sync, update sync.
-          if (alreadyProcessed && !alreadyProcessedInSyncByThisDevice) {
-            // Prepare update for this specific task
-            const currentProcessedBy = task.processedByDeviceIds || [];
-            const updatedProcessedBy = [...currentProcessedBy, localInstanceId];
-
+        if (alreadyProcessed) {
+          console.log(`Tasks:processIncomingTabsAndroid - Task "${taskId}" in group "${groupName}" skipped. Local: ${alreadyProcessed}`);
+          if (alreadyProcessed ) {
             if (!taskUpdatesForSync[groupName]) taskUpdatesForSync[groupName] = {};
             if (!taskUpdatesForSync[groupName][taskId]) taskUpdatesForSync[groupName][taskId] = {};
-            taskUpdatesForSync[groupName][taskId].processedByDeviceIds = updatedProcessedBy;
             groupTasksModifiedInSync = true;
           }
           continue;
@@ -56,13 +46,8 @@ export async function processIncomingTabsAndroid(currentState) {
           console.log(`Tasks:processIncomingTabsAndroid - Opening tab: ${task.url} for group ${groupName}, task ID: ${taskId}`);
           await browser.tabs.create({ url: task.url, active: false });
 
-          // Add this device to the task's processedByDeviceIds for sync update
-          const currentProcessedBy = task.processedByDeviceIds || [];
-          const updatedProcessedBy = [...currentProcessedBy, localInstanceId];
-
           if (!taskUpdatesForSync[groupName]) taskUpdatesForSync[groupName] = {};
           if (!taskUpdatesForSync[groupName][taskId]) taskUpdatesForSync[groupName][taskId] = {};
-          taskUpdatesForSync[groupName][taskId].processedByDeviceIds = updatedProcessedBy;
           groupTasksModifiedInSync = true;
 
           localProcessedTasks[taskId] = Date.now(); // Mark as processed with timestamp

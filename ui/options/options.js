@@ -1,14 +1,12 @@
 console.log(`${new Date().toISOString()} Options: [[[ OPTIONS.JS TOP LEVEL EXECUTION POINT ]]]`);
-import { STRINGS, MAX_DEVICES_PER_GROUP, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from "../../common/constants.js";
+import { STRINGS, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from "../../common/constants.js";
 import { isAndroid } from "../../core/platform.js";
 import {
   createGroupUnified,
   deleteGroupUnified,
   renameGroupUnified,
-  deleteDeviceUnified,
   subscribeToGroupUnified,
   unsubscribeFromGroupUnified,
-  renameDeviceUnified,
   getUnifiedState,
 } from "../../core/actions.js";
 import { storage } from "../../core/storage.js";
@@ -22,7 +20,6 @@ import {
 } from "../shared/shared-ui.js";
 import { applyThemeFromStorage, setupThemeDropdown } from "../shared/theme.js";
 import {
-  renderDeviceRegistryUI,
   renderGroupListUI,
   createInlineEditControlsUI,
   cancelInlineEditUI,
@@ -34,7 +31,6 @@ import { setupOnboarding } from "./options-onboarding.js";
 import { setupAdvancedTiming } from "./options-advanced-timing.js";
 
 const dom = {
-  deviceRegistryListDiv: null,
   definedGroupsListDiv: null,
   newGroupNameInput: null,
   createGroupBtn: null,
@@ -66,7 +62,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     dom.manualSyncBtn = document.getElementById("manualSyncBtn");
     dom.syncIntervalInput = document.getElementById("syncIntervalInput");
     dom.syncStatus = document.getElementById("syncStatus");
-    dom.deviceRegistryListDiv = document.getElementById("deviceRegistryList");
     dom.definedGroupsListDiv = document.getElementById("definedGroupsList");
     dom.newGroupNameInput = document.getElementById("newGroupName");
     dom.createGroupBtn = document.getElementById("createGroupBtn");
@@ -200,11 +195,6 @@ document.addEventListener("DOMContentLoaded", async () => {
             console.log(`${new Date().toISOString()} Options:specificSyncDataChanged - No current state and not loading, performing full loadState.`);
             await loadState();
           } else if (currentState) { // Only proceed with incremental if currentState is populated
-            if (message.changedItems.includes("deviceRegistryChanged")) {
-              console.log(`${new Date().toISOString()} Options:specificSyncDataChanged - Handling deviceRegistryChanged.`);
-              currentState.deviceRegistry = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {});
-              renderDeviceRegistry();
-            }
             if (message.changedItems.includes("definedGroupsChanged")) {
               console.log(`${new Date().toISOString()} Options:specificSyncDataChanged - Handling definedGroupsChanged.`);
               currentState.definedGroups = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []);
@@ -213,13 +203,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
             if (message.changedItems.includes("subscriptionsChanged")) {
               console.log(`${new Date().toISOString()} Options:specificSyncDataChanged - Handling subscriptionsChanged.`);
-              const allSyncSubscriptions = await storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {});
-              const deviceSubscriptions = [];
-              for (const groupName in allSyncSubscriptions) {
-                if (allSyncSubscriptions[groupName] && allSyncSubscriptions[groupName].includes(currentState.instanceId)) {
-                  deviceSubscriptions.push(groupName);
-                }
-              }
+              const deviceSubscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, {});
               console.log(`${new Date().toISOString()} Options:specificSyncDataChanged - Derived device subscriptions:`, deviceSubscriptions);
               currentState.subscriptions = deviceSubscriptions.sort();
               renderDefinedGroups();
@@ -257,7 +241,6 @@ async function loadState() {
   if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
   clearMessage(dom.messageArea);
   try {
-    console.log(`${new Date().toISOString()} Options:loadState - Current currentState.instanceName before getUnifiedState: ${currentState?.instanceName}`);
     console.log(`${new Date().toISOString()} Options:loadState - Attempting to get unified state...`);
     let state = await getUnifiedState(isAndroidPlatformGlobal);
     if (isAndroidPlatformGlobal) {
@@ -267,7 +250,6 @@ async function loadState() {
       setLastSyncTimeUI(container, Date.now());
       showDebugInfoUI(container, state);
     }
-    console.log(`${new Date().toISOString()} Options:loadState - Unified state received. state.instanceName: ${state?.instanceName}, state.deviceRegistry['${state?.instanceId}']?.name: ${state?.deviceRegistry?.[state?.instanceId]?.name}`);
     currentState = state;
     if (!currentState || currentState.error) {
       console.error(`${new Date().toISOString()} Options:loadState - Error in received state: ${currentState?.error}`);
@@ -275,7 +257,6 @@ async function loadState() {
         currentState?.error || "Failed to load state."
       );
     }
-    console.log(`${new Date().toISOString()} Options:loadState - currentState updated. currentState.instanceName: ${currentState?.instanceName}`);
     renderAll();
     console.log(`${new Date().toISOString()} Options:loadState - renderAll completed.`);
   } catch (error) {
@@ -285,7 +266,6 @@ async function loadState() {
     }
     if (dom.messageArea) showMessage(dom.messageArea, STRINGS.loadingSettingsError(error.message), true);
     if (dom.definedGroupsListDiv) dom.definedGroupsListDiv.textContent = STRINGS.loadingGroups;
-    if (dom.deviceRegistryListDiv) dom.deviceRegistryListDiv.textContent = STRINGS.loadingRegistry;
   } finally {
     if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, false);
     isLoadingState = false;
@@ -296,10 +276,6 @@ async function loadState() {
 function renderAll() {
   if (!currentState) return;
   try {
-    console.log(`${new Date().toISOString()} Options:renderAll - START. currentState.instanceName: ${currentState?.instanceName}`);
-    console.log(`${new Date().toISOString()} Options:renderAll - Rendering device registry...`);
-    renderDeviceRegistry();
-    console.log(`${new Date().toISOString()} Options:renderAll - AFTER renderDeviceRegistry. currentState.instanceName: ${currentState?.instanceName}`);
     console.log(`${new Date().toISOString()} Options:renderAll - Rendering defined groups...`);
     renderDefinedGroups();
   } catch (error) {
@@ -309,16 +285,6 @@ function renderAll() {
     }
     if (dom.messageArea) showMessage(dom.messageArea, STRINGS.errorUpdatingUIAfterSync, true);
   }
-}
-
-function renderDeviceRegistry() {
-  console.log(`${new Date().toISOString()} Options:renderDeviceRegistry - START.`);
-  if (!dom.deviceRegistryListDiv) return;
-  if (!currentState) {
-    console.warn(`${new Date().toISOString()} Options:renderDeviceRegistry - currentState is null, skipping render.`);
-    return;
-  }
-  renderDeviceRegistryUI(dom.deviceRegistryListDiv, currentState, { startRenameCurrentDevice: startRenameCurrentDevice, handleRemoveSelfDevice, handleDeleteDevice });
 }
 
 function renderDefinedGroups() {
@@ -395,114 +361,6 @@ async function finishRenameGroup(oldName, newName, nameSpan, inlineControlsConta
       nameSpan.style.display = '';
     }
     cancelInlineEditUI(nameSpan, inlineControlsContainer); // Always clean up editor
-  }
-}
-function startRenameCurrentDevice(listItem, nameSpan) {
-  console.log(`${new Date().toISOString()} Options:startRenameCurrentDevice - Called.`);
-  if (!currentState || !currentState.instanceId || typeof currentState.instanceName === 'undefined') {
-    console.error(`${new Date().toISOString()} Options:startRenameCurrentDevice - Current state (instanceId/instanceName) not available.`);
-    showMessage(dom.messageArea, "Cannot rename device: current device information is missing.", true);
-    return;
-  }
-  const oldName = currentState.instanceName;  // Get oldName from currentState
-
-  if (listItem.querySelector('.inline-edit-container')) {
-    return;
-  }
-  const onSave = (newName) => {
-    finishRenameDevice(newName, listItem, nameSpan, inlineControls.element);
-  };
-
-  const onCancel = () => {
-    cancelInlineEditUI(nameSpan, inlineControls.element);
-  };
-
-  const inlineControls = createInlineEditControlsUI(oldName, onSave, onCancel);
-  nameSpan.style.display = 'none';
-  const nameContainer = nameSpan.parentNode;
-  nameContainer.insertBefore(inlineControls.element, nameSpan.nextSibling);
-  inlineControls.focusInput();
-}
-async function finishRenameDevice(newName, listItem, nameSpan, inlineControlsContainer) {
-  console.log(`${new Date().toISOString()} Options:finishRenameDevice - Renaming current device to "${newName}"`);
-  newName = newName.trim();
-  const currentDeviceName = currentState?.instanceName;
-  if (!newName || newName === currentDeviceName) {
-    cancelInlineEditUI(nameSpan, inlineControlsContainer);
-    if (newName === currentDeviceName && dom.messageArea) clearMessage(dom.messageArea);
-    console.log(`${new Date().toISOString()} Options:finishRenameDevice - New name is empty or same as current. Aborting.`);
-    return;
-  }
-  if (!currentState || !currentState.instanceId) {
-    console.error(`${new Date().toISOString()} Options:finishRenameDevice - Current state (instanceId) not available.`);
-    showMessage(dom.messageArea, "Cannot save device name: current device ID is missing.", true);
-    cancelInlineEditUI(nameSpan, inlineControlsContainer); // Ensure UI is reset
-    return;
-  }
-  const deviceId = currentState.instanceId;
-  if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
-  let success = false;
-  console.log(`${new Date().toISOString()} Options:finishRenameDevice - Current deviceId: ${deviceId}, oldName (from UI): ${nameSpan.textContent.replace(' (This Device)', '').trim()}, newName: ${newName}`);
-  try {
-    let response = await renameDeviceUnified(newName, isAndroidPlatformGlobal);
-
-    if (response.success) {
-      console.log(`${new Date().toISOString()} Options:finishRenameDevice - renameDeviceUnified SUCCESS. response.newName: ${response.newName}`);
-      success = true;
-      if (currentState) {
-        currentState.instanceName = newName;
-        if (currentState.deviceRegistry && currentState.deviceRegistry[deviceId]) {
-          currentState.deviceRegistry[deviceId].name = newName;
-        }
-      }
-      console.log(`${new Date().toISOString()} Options:finishRenameDevice - currentState updated. instanceName: ${currentState?.instanceName}, deviceRegistry['${deviceId}']?.name: ${currentState?.deviceRegistry?.[deviceId]?.name}`);
-      renderDeviceRegistry(); // Re-render the device list from updated currentState
-      showMessage(dom.messageArea, STRINGS.deviceRenameSuccess(newName), false);
-    } else {
-      showMessage(dom.messageArea, response.message || STRINGS.deviceRenameFailed, true);
-      console.warn(`${new Date().toISOString()} Options:finishRenameDevice - renameDeviceUnified FAILED. Message: ${response.message}`);
-    }
-  } catch (e) {
-    console.error(`${new Date().toISOString()} Options:finishRenameDevice - Error:`, e);
-    if (dom.messageArea) showMessage(dom.messageArea, `${STRINGS.deviceRenameFailed}: ${e.message || 'Unknown error'}`, true);
-  } finally {
-    cancelInlineEditUI(nameSpan, inlineControlsContainer);
-    if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, false);
-    if (!success) {
-      nameSpan.style.display = '';
-    }
-  }
-}
-
-async function handleDeleteDevice(deviceId, deviceName) {
-  console.log(`${new Date().toISOString()} Options:handleDeleteDevice - Deleting deviceId: "${deviceId}", name: "${deviceName}"`);
-  if (!confirm(STRINGS.confirmDeleteDevice(deviceName))) {
-    return;
-  }
-  if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
-  try {
-    const response = await deleteDeviceUnified(deviceId, isAndroidPlatformGlobal);
-    if (response.success) {
-      console.log(`${new Date().toISOString()} Options:handleDeleteDevice - Success.`);
-      if (dom.messageArea) showMessage(dom.messageArea, STRINGS.deviceDeleteSuccess(deviceName), false);
-      if (currentState && currentState.deviceRegistry[deviceId]) {
-        delete currentState.deviceRegistry[deviceId];
-        renderDeviceRegistry(); // Re-render from state
-      }
-    } else {
-      if (dom.messageArea) {
-        console.warn(`${new Date().toISOString()} Options:handleDeleteDevice - Failed. Message: ${response.message}`);
-        showMessage(dom.messageArea,
-          response.message || STRINGS.deviceDeleteFailed,
-          true
-        );
-      }
-    }
-  } catch (e) {
-    console.error(`${new Date().toISOString()} Options:handleDeleteDevice - Error:`, e);
-    if (dom.messageArea) showMessage(dom.messageArea, `${STRINGS.deviceDeleteFailed}: ${e.message || 'Unknown error'}`, true);
-  } finally {
-    if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, false);
   }
 }
 
@@ -597,39 +455,3 @@ async function handleDeleteGroup(event) {
     if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, false);
   }
 }
-async function handleRemoveSelfDevice() {
-  console.log(`${new Date().toISOString()} Options:handleRemoveSelfDevice - Attempting to remove current device.`);
-  if (
-    !confirm(
-      STRINGS.confirmRemoveSelfDevice
-    )
-  )
-    return;
-  if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
-  clearMessage(dom.messageArea);
-  try {
-    const instanceId = currentState?.instanceId;
-    if (!instanceId) throw new Error(STRINGS.currentDeviceIdNotFound);
-    console.log(`${new Date().toISOString()} Options:handleRemoveSelfDevice - Current instanceId: ${instanceId}`);
-    const res = await deleteDeviceUnified(instanceId, isAndroidPlatformGlobal);
-    if (res.success) {
-      console.log(`${new Date().toISOString()} Options:handleRemoveSelfDevice - Success.`);
-      if (dom.messageArea) showMessage(dom.messageArea, STRINGS.selfDeviceRemoved, false);
-      if (currentState && currentState.deviceRegistry[instanceId]) {
-        delete currentState.deviceRegistry[instanceId];
-        renderDeviceRegistry(); // Re-render from state
-      }
-    } else {
-      console.warn(`${new Date().toISOString()} Options:handleRemoveSelfDevice - Failed. Message: ${res.message}`);
-      if (dom.messageArea) showMessage(dom.messageArea, res.message || STRINGS.failedToRemoveSelfDevice, true);
-    }
-  } catch (e) {
-    console.error(`${new Date().toISOString()} Options:handleRemoveSelfDevice - Error:`, e);
-    if (dom.messageArea) showMessage(dom.messageArea, STRINGS.errorRemovingSelfDevice(e.message || 'Unknown error'), true);
-  } finally {
-    if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, false);
-  }
-}
-
-// Ensure all console logs have timestamps and context (e.g., "Options:FunctionName - Message")
-// This was partially done, but a full pass would be good.
