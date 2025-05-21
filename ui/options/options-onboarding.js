@@ -5,11 +5,6 @@ const onboardingSteps = [
       "<p>TabTogether lets you send tabs to groups of devices instantly. This onboarding will guide you through the main features.</p>",
   },
   {
-    title: "Device Settings",
-    content:
-      "<p>Set your device name and icon. This helps you identify your devices in groups and the registry.</p>",
-  },
-  {
     title: "Groups",
     content:
       "<p>Create, rename, and delete groups. Subscribe your devices to groups to send tabs between them.</p>",
