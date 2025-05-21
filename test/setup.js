@@ -66,6 +66,55 @@ const getMockStorage = () => {
     };
 };
 
+const getMockBookmarksAPI = () => {
+    let bookmarkStore = [];
+    let nextId = 1;
+
+    const findDescendantIds = (parentId) => {
+        let ids = [];
+        const children = bookmarkStore.filter(bm => bm.parentId === parentId);
+        for (const child of children) {
+            ids.push(child.id);
+            ids = ids.concat(findDescendantIds(child.id));
+        }
+        return ids;
+    };
+
+    return {
+        _store: bookmarkStore, // For inspection in tests
+        _resetStore: () => { bookmarkStore = []; nextId = 1; },
+        get: jest.fn(async (idOrIds) => {
+            if (Array.isArray(idOrIds)) {
+                return bookmarkStore.filter(bm => idOrIds.includes(bm.id));
+            }
+            const found = bookmarkStore.find(bm => bm.id === idOrIds);
+            return found ? [found] : [];
+        }),
+        getChildren: jest.fn(async (parentId) => bookmarkStore.filter(bm => bm.parentId === parentId)),
+        create: jest.fn(async (bookmark) => {
+            const newBookmark = { ...bookmark, id: `mock-bookmark-${nextId++}`, dateAdded: Date.now() };
+            bookmarkStore.push(newBookmark);
+            return newBookmark;
+        }),
+        remove: jest.fn(async (id) => {
+            bookmarkStore = bookmarkStore.filter(bm => bm.id !== id);
+        }),
+        removeTree: jest.fn(async (id) => {
+            const idsToRemove = [id, ...findDescendantIds(id)];
+            bookmarkStore = bookmarkStore.filter(bm => !idsToRemove.includes(bm.id));
+        }),
+        update: jest.fn(async (id, updates) => {
+            bookmarkStore = bookmarkStore.map(bm => bm.id === id ? { ...bm, ...updates, dateModified: Date.now() } : bm);
+            return bookmarkStore.find(bm => bm.id === id);
+        }),
+        search: jest.fn(async (query) => {
+            if (query.title) return bookmarkStore.filter(bm => bm.title === query.title);
+            if (query.url) return bookmarkStore.filter(bm => bm.url === query.url);
+            return []; // Simple mock, extend if more complex queries are needed
+        }),
+    };
+};
+
 // --- Reset mocks before each test ---
 beforeEach(() => {
     // Reset all mocks (call counts, implementations, etc.)
@@ -114,10 +163,12 @@ beforeEach(() => {
                 removeListener: jest.fn(),
             },
         },
+        bookmarks: getMockBookmarksAPI(),
     };
 
     return Promise.all([
         global.browser.storage.local.clear(),
-        global.browser.storage.sync.clear()
+        global.browser.storage.sync.clear(),
+        global.browser.bookmarks._resetStore(), // Reset bookmark store
     ]);
 });

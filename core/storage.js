@@ -1,5 +1,5 @@
-import { ensureArray, deepMerge } from "../common/utils.js";
-import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, TAB_TOGETHER_BOOKMARKS_ROOT_TITLE } from "../common/constants.js";
+import { ensureArray, ensureObject, deepMerge } from "../common/utils.js";
+import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from "../common/constants.js";
 
 
 export const storage = {
@@ -68,20 +68,24 @@ export const storage = {
   },
 
   _validateTypeValue(key, value, defaultValue) {
-    if (key === LOCAL_STORAGE_KEYS.SUBSCRIPTIONS || key === SYNC_STORAGE_KEYS.DEFINED_GROUPS) {
+    if (key === LOCAL_STORAGE_KEYS.SUBSCRIPTIONS || key === SYNC_STORAGE_KEYS.DEFINED_GROUPS) { // SYNC_STORAGE_KEYS.DEFINED_GROUPS is conceptual for bookmarks
       return ensureArray(value, defaultValue ?? []);
-    } 
+    } else if (key === LOCAL_STORAGE_KEYS.PROCESSED_BOOKMARK_IDS || key === LOCAL_STORAGE_KEYS.RECENTLY_OPENED_URLS) {
+      return ensureObject(value, defaultValue ?? {});
+    } else if (key === LOCAL_STORAGE_KEYS.LAST_PROCESSED_BOOKMARK_TIMESTAMP || key === LOCAL_STORAGE_KEYS.LAST_SYNC_TIME || key === SYNC_STORAGE_KEYS.TASK_EXPIRY_DAYS) { // TASK_EXPIRY_DAYS is conceptual
+      return typeof value === 'number' ? value : (defaultValue ?? 0);
+    }
     return value;
   },
 
   async getRootBookmarkFolder() {
     try {
-      const results = await browser.bookmarks.search({ title: TAB_TOGETHER_BOOKMARKS_ROOT_TITLE });
-      const folder = results.find(bookmark => !bookmark.url && bookmark.title === TAB_TOGETHER_BOOKMARKS_ROOT_TITLE);
+      const results = await browser.bookmarks.search({ title: SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE });
+      const folder = results.find(bookmark => !bookmark.url && bookmark.title === SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE);
       if (folder) {
         return folder;
       }
-      console.log(`Storage: Root bookmark folder "${TAB_TOGETHER_BOOKMARKS_ROOT_TITLE}" not found, creating...`);
+      console.log(`Storage: Root bookmark folder "${SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE}" not found, creating...`);
       
       let parentId = undefined; 
       try {
@@ -102,7 +106,7 @@ export const storage = {
       }
 
       return await browser.bookmarks.create({
-        title: TAB_TOGETHER_BOOKMARKS_ROOT_TITLE,
+        title: SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE,
         parentId: parentId 
       });
     } catch (error) {
