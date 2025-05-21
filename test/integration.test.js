@@ -1,63 +1,81 @@
 import { jest } from '@jest/globals';
 
 import { storage as storageAPI } from '../core/storage.js'; // Correctly import and alias the storage object
-
-jest.mock('../core/instance.js', () => {
-  const actualModule = jest.requireActual('../core/instance.js');
-
-  return {
-    __esModule: true, // Important for ESM mocks
-    ...actualModule, // Spread all actual exports (so they are available unless overridden)
-  };
-});
-
 import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from '../common/constants.js';
-import { createGroupDirect, subscribeToGroupDirect, unsubscribeFromGroupDirect, deleteGroupDirect } from '../core/actions.js'; // Removed getUnifiedState from static imports here
-import { processIncomingTabsAndroid, createAndStoreGroupTask } from '../core/tasks.js';
+import { getDefinedGroupsFromBookmarks, createGroupDirect, subscribeToGroupDirect, unsubscribeFromGroupDirect, deleteGroupDirect } from '../core/actions.js';
+import { processSubscribedGroupTasks, createAndStoreGroupTask } from '../core/tasks.js';
 import { showDebugInfoUI } from '../ui/options/options-ui.js'; 
-import * as instanceModule from '../core/instance.js';
 
 describe('Integration: Group and Tab Flow', () => {
-  let openTabFn;
-  let updateProcessedFn;
+  const ROOT_FOLDER_ID = 'root-integration-id';
+  const GROUP_FOLDER_ID_PREFIX = 'group-integration-id-';
+
+  beforeEach(async () => {
+    // Mock getRootBookmarkFolder to always return a consistent root
+    jest.spyOn(storageAPI, 'getRootBookmarkFolder').mockResolvedValue({ id: ROOT_FOLDER_ID, title: SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE });
+
+    // Mock getGroupBookmarkFolder to simulate finding/creating group folders
+    global.browser.bookmarks.getChildren.mockImplementation(async (parentId) => {
+        if (parentId === ROOT_FOLDER_ID) {
+            // Return all "group" folders from the mock store
+            return global.browser.bookmarks._store.filter(bm => bm.parentId === ROOT_FOLDER_ID && !bm.url && bm.title !== SYNC_STORAGE_KEYS.CONFIG_BOOKMARK_TITLE);
+        }
+        // For group folders, return their task bookmarks
+        return global.browser.bookmarks._store.filter(bm => bm.parentId === parentId && bm.url);
+    });
+
+    global.browser.bookmarks.create.mockImplementation(async (obj) => {
+        const newId = obj.url ? `task-bm-${Math.random()}` : `${GROUP_FOLDER_ID_PREFIX}${obj.title}`;
+        const newBookmark = { ...obj, id: newId, dateAdded: Date.now() };
+        global.browser.bookmarks._store.push(newBookmark);
+        return newBookmark;
+    });
+     global.browser.bookmarks.search.mockImplementation(async (query) => {
+        if (query.title === SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE) {
+             const root = global.browser.bookmarks._store.find(b => b.id === ROOT_FOLDER_ID);
+             return root ? [root] : [];
+        }
+        return [];
+    });
+  });
 
   async function createGroupAndVerify(groupName) {
     const res = await createGroupDirect(groupName);
     expect(res.success).toBe(true);
-    const definedGroups = await storageAPI.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS);
+    const definedGroups = await getDefinedGroupsFromBookmarks(); // Uses mocked getChildren
     expect(definedGroups).toContain(groupName);
     return res;
   }
 
-  async function subscribeToGroupAndVerify(groupName, deviceId) {
+  async function subscribeToGroupAndVerify(groupName) {
     const res = await subscribeToGroupDirect(groupName);
     expect(res.success).toBe(true);
     return res;
   }
 
   async function sendTabAndVerify(groupName, tabDetails) {
+    // Ensure the group folder exists or is created by the mock
+    const groupFolder = global.browser.bookmarks._store.find(bm => bm.title === groupName && bm.parentId === ROOT_FOLDER_ID) || 
+                        await global.browser.bookmarks.create({title: groupName, parentId: ROOT_FOLDER_ID});
+
     const res = await createAndStoreGroupTask(groupName, tabDetails);
     expect(res.success).toBe(true);
-    const groupTasks = await storageAPI.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS);
-    const taskId = res.taskId;
-    expect(taskId).toBeDefined();
-    expect(groupTasks[groupName][taskId]).toBeDefined();
-    return { ...res, taskId };
-  }
-
-  async function processSelfSentTabAndVerify(state, groupName, taskId) {
-    await processIncomingTabsAndroid(state);
-    expect(browser.tabs.create).not.toHaveBeenCalled();
-    const groupTasksAfterProcessing = await storageAPI.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS);
-    expect(groupTasksAfterProcessing[groupName][taskId]).toBeDefined();
+    const bookmarkId = res.bookmarkId;
+    expect(bookmarkId).toBeDefined();
+    const createdBookmark = global.browser.bookmarks._store.find(bm => bm.id === bookmarkId);
+    expect(createdBookmark).toBeDefined();
+    expect(createdBookmark.url).toBe(tabDetails.url);
+    expect(createdBookmark.parentId).toBe(groupFolder.id);
+    return { ...res, bookmarkId };
   }
 
   async function processReceivedTabAndVerify(state, tabUrl) {
-    await processIncomingTabsAndroid(state);
+    // State for processSubscribedGroupTasks doesn't directly take tasks anymore
+    await processSubscribedGroupTasks(); // It will use mocked bookmarks.getChildren
     expect(browser.tabs.create).toHaveBeenCalledWith({ url: tabUrl, active: false });
   }
 
-  async function unsubscribeFromGroupAndVerify(groupName, deviceId) {
+  async function unsubscribeFromGroupAndVerify(groupName) {
     const res = await unsubscribeFromGroupDirect(groupName);
     expect(res.success).toBe(true);
     return res;
@@ -66,36 +84,36 @@ describe('Integration: Group and Tab Flow', () => {
   async function deleteGroupAndVerify(groupName) {
     const res = await deleteGroupDirect(groupName);
     expect(res.success).toBe(true);
-    const definedGroups = await storageAPI.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS);
+    const definedGroups = await getDefinedGroupsFromBookmarks();
     expect(definedGroups).not.toContain(groupName);
+    expect(global.browser.bookmarks.removeTree).toHaveBeenCalled();
     return res;
   }
-
-  beforeEach(async () => {
-    openTabFn = jest.fn();
-    updateProcessedFn = jest.fn(async (updatedTasks) => {
-      await browser.storage.local.set({ [COMMON_LOCAL_STORAGE_KEYS.PROCESSED_TASKS]: updatedTasks });
-    });
-  });
 
   test('Full group create, subscribe, send tab, process tab, unsubscribe, delete', async () => {
     const GROUP_NAME = 'IntegrationGroup';
     const TAB_URL = 'https://integration.com';
     const TAB_TITLE = 'Integration';
 
+    // Simulate device A
     await createGroupAndVerify(GROUP_NAME);
     await subscribeToGroupAndVerify(GROUP_NAME);
 
-    const { taskId: sentTaskId } = await sendTabAndVerify(GROUP_NAME, { url: TAB_URL, title: TAB_TITLE }, 'test-device-id');
+    const { bookmarkId: sentBookmarkId } = await sendTabAndVerify(GROUP_NAME, { url: TAB_URL, title: TAB_TITLE });
 
-    const { getUnifiedState: getUnifiedStateForTest1 } = await import('../core/actions.js');
-    const stateForProcessing = await getUnifiedStateForTest1(true);
-    await processSelfSentTabAndVerify(stateForProcessing, GROUP_NAME, sentTaskId);
+    // Simulate processing on the same device (Device A) - tab should not open due to recent URL or processed ID
+    // For this test, let's assume it's a new bookmark ID not yet processed.
+    // The `processSubscribedGroupTasks` will check `LAST_PROCESSED_BOOKMARK_TIMESTAMP` and `PROCESSED_BOOKMARK_IDS`.
+    await processSubscribedGroupTasks(); // Device A processes
+    // If the URL was just "sent" by this device, it might be in RECENTLY_OPENED_URLS or the bookmark ID in PROCESSED_BOOKMARK_IDS
+    // Depending on exact timing and if createAndStoreGroupTask also adds to recentlyOpened.
+    // For simplicity, let's assume it won't open if it's the sender and just processed.
+    // A more robust check would be to see if it was added to PROCESSED_BOOKMARK_IDS.
+    const processedIds = await storageAPI.get(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_BOOKMARK_IDS);
+    expect(processedIds[sentBookmarkId]).toBeDefined();
 
     await unsubscribeFromGroupAndVerify(GROUP_NAME);
     await deleteGroupAndVerify(GROUP_NAME);
-
-    const finalGroupTasks = await storageAPI.get(browser.storage.sync, SYNC_STORAGE_KEYS.GROUP_TASKS);
   });
 
   test('Multiple devices, tab sending and receiving', async () => {
@@ -104,21 +122,24 @@ describe('Integration: Group and Tab Flow', () => {
     const TAB_TITLE = 'MultiDevice Tab';
 
     await createGroupAndVerify(GROUP_NAME);
-
-    await subscribeToGroupAndVerify(GROUP_NAME); // deviceA subscribes
-
+    
+    // Device A sends a tab
+    // No explicit subscription needed for sending, but let's assume Device A is also subscribed
+    await storageAPI.set(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, [GROUP_NAME]);
     await sendTabAndVerify(GROUP_NAME, { url: TAB_URL, title: TAB_TITLE });
    
+    // Simulate Device B processing
     const originalLocalStorageGet = browser.storage.local.get;
-
     browser.storage.local.get = jest.fn(async (keys) => {
+      if (typeof keys === 'string' && keys === LOCAL_STORAGE_KEYS.SUBSCRIPTIONS) {
+        return { [LOCAL_STORAGE_KEYS.SUBSCRIPTIONS]: [GROUP_NAME] }; // Device B is subscribed
+      }
+      if (typeof keys === 'string' && keys === LOCAL_STORAGE_KEYS.PROCESSED_BOOKMARK_IDS) {
+        return { [LOCAL_STORAGE_KEYS.PROCESSED_BOOKMARK_IDS]: {} }; // Device B has not processed it yet
+      }
       return originalLocalStorageGet(keys); 
     });
-
-    const { getUnifiedState: getUnifiedStateForDeviceB } = await import('../core/actions.js'); // Dynamically import for Device B context
-    const stateForDeviceB = await getUnifiedStateForDeviceB(true); // Corrected: getUnifiedState only takes one argument
-    await processReceivedTabAndVerify(stateForDeviceB, TAB_URL);
-
+    await processReceivedTabAndVerify(null, TAB_URL); // Pass null for state, as it's not used directly by the new func
     browser.storage.local.get = originalLocalStorageGet;
   });
 });

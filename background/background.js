@@ -1,4 +1,4 @@
-import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, STRINGS, TAB_TOGETHER_BOOKMARKS_ROOT_TITLE, CONFIG_BOOKMARK_TITLE } from "../common/constants.js";
+import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, STRINGS, BACKGROUND_DEFAULT_TASK_EXPIRY_DAYS } from "../common/constants.js";
 import { storage } from "../core/storage.js";
 import {
   createGroupDirect,
@@ -13,7 +13,6 @@ import { performTimeBasedTaskCleanup } from "./cleanup.js";
 
 const ALARM_TASK_CLEANUP = "taskCleanup";
 const TASK_CLEANUP_INTERVAL_MIN = 60 * 24 * 2;
-const BACKGROUND_DEFAULT_TASK_EXPIRY_DAYS = 30;
 
 async function initializeExtension() {
   console.log("Background: Initializing TabTogether (Advanced)...");
@@ -35,7 +34,17 @@ async function initializeExtension() {
       await browser.storage.sync.set(updates);
       console.log("Background: Storage initialized with defaults:", updates);
     }
-    let localInstanceName = await getInstanceName();
+    // Ensure LAST_PROCESSED_BOOKMARK_TIMESTAMP is initialized if it's the first run
+    const lastProcessedTs = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_PROCESSED_BOOKMARK_TIMESTAMP, null);
+    if (lastProcessedTs === null) {
+      console.log("Background: Initializing LAST_PROCESSED_BOOKMARK_TIMESTAMP to 0.");
+      await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_PROCESSED_BOOKMARK_TIMESTAMP, 0);
+    }
+    const recentlyOpenedUrls = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.RECENTLY_OPENED_URLS, null);
+    if (recentlyOpenedUrls === null) {
+      console.log("Background: Initializing RECENTLY_OPENED_URLS to {}.");
+      await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.RECENTLY_OPENED_URLS, {}); // Ensure it's an object
+    }
     await storage.getRootBookmarkFolder(); // Ensure root bookmark folder exists
     const cachedDefinedGroups = syncData[SYNC_STORAGE_KEYS.DEFINED_GROUPS] ?? [];
     await setupAlarms();
@@ -45,7 +54,7 @@ async function initializeExtension() {
       console.warn("Background:initializeExtension - ContextMenus API is not available. Context menu features will be disabled.");
     }
     await processSubscribedGroupTasks(); // Process any existing tasks on startup
-    console.log(`Background: Initialization complete. Name: ${localInstanceName}`);
+    console.log(`Background: Initialization complete.`);
   } catch (error) {
     console.error("Background: CRITICAL ERROR during initializeExtension:", error);
   }
@@ -275,13 +284,13 @@ async function isTaskBookmark(bookmarkId) {
         if (!parentNodes || parentNodes.length === 0) return false;
         const parent = parentNodes[0];
 
-        if (!parent || !parent.parentId || parent.url || parent.title === CONFIG_BOOKMARK_TITLE) return false; 
+        if (!parent || !parent.parentId || parent.url || parent.title === SYNC_STORAGE_KEYS.CONFIG_BOOKMARK_TITLE) return false; 
 
         const grandParentNodes = await browser.bookmarks.get(parent.parentId);
         if (!grandParentNodes || grandParentNodes.length === 0) return false;
         const grandParent = grandParentNodes[0];
         
-        return grandParent && grandParent.title === TAB_TOGETHER_BOOKMARKS_ROOT_TITLE;
+        return grandParent && grandParent.title === SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE;
     } catch (e) {
         console.warn(`Background:isTaskBookmark - Error checking bookmark ${bookmarkId}:`, e.message);
         return false;
@@ -400,7 +409,7 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
       const minutes = Math.max(
         1,
         Math.min(120, parseInt(request.minutes, 10) || 5)
-      );
+      ); // This value is calculated but not used to update any alarm intervals.
       
       return { success: true };
     }
