@@ -2,7 +2,7 @@ import { SYNC_STORAGE_KEYS } from "../../common/constants.js";
 import { storage } from "../../core/storage.js";
 
 const DEFAULT_STALE_THRESHOLD_DAYS = 30;
-const DEFAULT_TASK_EXPIRY_DAYS = 14;
+const DEFAULT_TASK_EXPIRY_DAYS = 30;
 
 let staleDeviceThresholdInputElem = null;
 let taskExpiryInputElem = null;
