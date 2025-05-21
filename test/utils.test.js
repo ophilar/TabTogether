@@ -16,12 +16,6 @@ jest.mock('../common/constants.js', () => {
     };
 });
 
-jest.mock('../core/instance.js', () => {
-    return {
-        __esModule: true,
-    };
-});
-
 
 import { jest } from '@jest/globals';
 import { STRINGS, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from '../common/constants.js';
@@ -33,12 +27,10 @@ describe('utils', () => {
     let mockStorage;
     let mockSyncStorage;
     let consoleErrorSpy, consoleWarnSpy, consoleLogSpy;
-
-    let getUnifiedState, createGroupDirect, renameGroupDirect, deleteGroupDirect, subscribeToGroupDirect, unsubscribeFromGroupDirect, deleteDeviceDirect;
+    let getUnifiedState, createGroupDirect, renameGroupDirect, deleteGroupDirect, subscribeToGroupDirect, unsubscribeFromGroupDirect;
     let createAndStoreGroupTask;
     let performTimeBasedTaskCleanup;
 
-    let instanceModule;
 
     beforeEach(async () => {
         jest.resetModules();
@@ -56,8 +48,6 @@ describe('utils', () => {
 
         const cleanupModule = await import('../background/cleanup.js');
         performTimeBasedTaskCleanup = cleanupModule.performTimeBasedTaskCleanup;
-
-        instanceModule = await import('../core/instance.js'); // Re-import the mocked module
         
         if (typeof _clearPlatformInfoCache === 'function') _clearPlatformInfoCache();
 
@@ -72,11 +62,7 @@ describe('utils', () => {
         
         await mockStorage.clear();
         await mockSyncStorage.clear();
-        await mockSyncStorage.set({
-            [SYNC_STORAGE_KEYS.DEFINED_GROUPS]: [],
-            [SYNC_STORAGE_KEYS.GROUP_TASKS]: {},
-            [LOCAL_STORAGE_KEYS.PROCESSED_TASKS]: {} // Also clear/init local processed tasks
-        });
+        await global.browser.bookmarks._resetStore(); // Clear bookmarks
     });
 
     afterEach(() => {
@@ -118,96 +104,101 @@ describe('utils', () => {
         });
     });
 
-    describe('Direct Storage Logic (Groups, Devices, Tabs)', () => {
-        test('create, rename, and delete group', async () => {
+    describe('Direct Storage Logic (Groups and Tasks)', () => {
+        test('create, rename, and delete group (bookmark folders)', async () => {
             const groupName = 'UtilsGroup';
+            const rootFolderId = SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE; // Assuming getRootBookmarkFolder creates/finds this
+            global.browser.bookmarks.search.mockImplementation(async (query) => {
+                if (query.title === SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE) {
+                    // Simulate root folder exists or is created
+                    const existing = global.browser.bookmarks._store.find(b => b.title === SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE && !b.url);
+                    if (existing) return [existing];
+                    return [{ id: 'root-folder-id', title: SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE }];
+                }
+                return [];
+            });
+            global.browser.bookmarks.getChildren.mockImplementation(async (parentId) => {
+                 if (parentId === 'root-folder-id') { // Mock children of root
+                    return global.browser.bookmarks._store.filter(bm => bm.parentId === 'root-folder-id' && !bm.url && bm.title !== SYNC_STORAGE_KEYS.CONFIG_BOOKMARK_TITLE);
+                 }
+                 return [];
+            });
+
             const createRes = await createGroupDirect(groupName);
             expect(createRes.success).toBe(true);
-            expect(await storage.get(mockSyncStorage, SYNC_STORAGE_KEYS.DEFINED_GROUPS)).toContain(groupName);
+            expect(global.browser.bookmarks.create).toHaveBeenCalledWith(expect.objectContaining({ title: groupName, parentId: 'root-folder-id' }));
 
             const renameRes = await renameGroupDirect(groupName, 'UtilsGroupRenamed');
             expect(renameRes.success).toBe(true);
-            expect(await storage.get(mockSyncStorage, SYNC_STORAGE_KEYS.DEFINED_GROUPS)).toContain('UtilsGroupRenamed');
+            // Assuming getGroupBookmarkFolder was called and then update
+            expect(global.browser.bookmarks.update).toHaveBeenCalledWith(expect.any(String), { title: 'UtilsGroupRenamed' });
 
             const deleteRes = await deleteGroupDirect('UtilsGroupRenamed');
             expect(deleteRes.success).toBe(true);
-            expect(await storage.get(mockSyncStorage, SYNC_STORAGE_KEYS.DEFINED_GROUPS)).not.toContain('UtilsGroupRenamed');
+            expect(global.browser.bookmarks.removeTree).toHaveBeenCalled();
         });
 
         test('createAndStoreGroupTask creates task', async () => {
             const tabData = { url: 'https://example.com/utils', title: 'Utils Example' };
             const groupName = 'UtilsTaskGroup';
 
+            // Mock getRootBookmarkFolder and getGroupBookmarkFolder to return mock IDs
+            // These are called by storage.createTaskBookmark
+            jest.spyOn(storage, 'getRootBookmarkFolder').mockResolvedValue({ id: 'mock-root-id', title: SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE });
+            jest.spyOn(storage, 'getGroupBookmarkFolder').mockResolvedValue({ id: 'mock-group-folder-id', title: groupName, parentId: 'mock-root-id' });
+
             const res = await createAndStoreGroupTask(groupName, tabData);
             expect(res.success).toBe(true);
-            expect(res.taskId).toBe('utils-fixed-task-uuid');
+            // The ID will be generated by the mock in setup.js, e.g., 'mock-bookmark-1'
+            expect(res.bookmarkId).toMatch(/^mock-bookmark-\d+$/);
+
+            // Verify the actual call to browser.bookmarks.create for the task bookmark itself
+            // It should be called once with the correct parentId from the mocked getGroupBookmarkFolder
+            expect(global.browser.bookmarks.create).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    url: tabData.url,
+                    title: tabData.title,
+                    parentId: 'mock-group-folder-id' // This is the ID of the group folder
+                })
+            );
         });
     });
 
     describe('Background Logic Helpers', () => {
-        // test('getUnifiedState updates lastSeen for current device in registry', async () => {
-        //     jest.useFakeTimers(); // Use Jest's fake timers
-        //     const initialSystemTime = Date.now();
-        //     jest.setSystemTime(initialSystemTime); // Set a fixed starting time
-        //     const mockId = 'utils-unified-state-id';
-        //     const mockName = 'Utils Unified Device';
-        //     const oldTimestamp = Date.now() - 200000; // Ensure a clearly older timestamp
-        //     mockGetInstanceIdUtilFn.mockResolvedValue(mockId);
-        //     // Ensure local override is not set for this test path to correctly test registry update logic
-        //     await storage.set(mockStorage, LOCAL_STORAGE_KEYS.INSTANCE_NAME_OVERRIDE, "");
-
-        //     mockGetInstanceNameUtilFn.mockResolvedValue(mockName);
-
-        //     await storage.set(mockSyncStorage, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {
-        //         [mockId]: { name: mockName, lastSeen: oldTimestamp }
-        //     });
-        //     const storageSetSpy = jest.spyOn(mockSyncStorage, 'set');
-            
-        //     // Advance time slightly before getUnifiedState is called to ensure Date.now() inside it is different
-        //     jest.advanceTimersByTime(10); // Advance by 10ms
-        //     const timeBeforeGetUnifiedState = Date.now(); // This will be initialSystemTime + 10
-
-        //     await getUnifiedState(false);
-
-        //     const relevantSetCallArgsArray = storageSetSpy.mock.calls.find(callArgs =>
-        //         callArgs[0] && // Ensure callArgs[0] (the object passed to set) exists
-        //         callArgs[0].hasOwnProperty(SYNC_STORAGE_KEYS.DEVICE_REGISTRY) && // Check if this object has DEVICE_REGISTRY key
-        //         callArgs[0][SYNC_STORAGE_KEYS.DEVICE_REGISTRY].hasOwnProperty(mockId) // Check if the device entry exists
-        //     );
-        //     expect(relevantSetCallArgsArray).toBeDefined(); // Check if such a call was made
-
-        //     // relevantSetCallArgsArray is the array of arguments for the found call, so relevantSetCallArgsArray[0] is the object.
-        //     const updatedDeviceRegistryObject = relevantSetCallArgsArray[0][SYNC_STORAGE_KEYS.DEVICE_REGISTRY];
-        //     const updatedDeviceEntry = updatedDeviceRegistryObject[mockId];
-
-        //     expect(updatedDeviceEntry.name).toBe(mockName);
-        //     expect(updatedDeviceEntry.lastSeen).toBeGreaterThan(oldTimestamp);
-        //     expect(updatedDeviceEntry.lastSeen).toBeGreaterThanOrEqual(timeBeforeGetUnifiedState); // Ensure it's at least the time of the call
-        //     jest.useRealTimers(); // Restore real timers
-        // });
-
-        test('performTimeBasedTaskCleanup removes expired tasks from sync and local', async () => {
+        test('performTimeBasedTaskCleanup removes expired tasks and updates local processed IDs', async () => {
             const now = Date.now();
             const expiredTime = now - (1000 * 60 * 60 * 24 * 15);
             const recentTime = now - (1000 * 60 * 60);
-            await mockSyncStorage.set({
-                [SYNC_STORAGE_KEYS.GROUP_TASKS]: {
-                    G1: {
-                        'expired-task': { creationTimestamp: expiredTime },
-                        'recent-task': { creationTimestamp: recentTime }
-                    }
-                }
-            });
-            await storage.set(mockStorage, LOCAL_STORAGE_KEYS.PROCESSED_TASKS, { 'expired-task': true, 'recent-task': true });
+            const rootFolder = { id: 'root-cleanup-id', title: SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE, url: null };
+            const groupFolder = { id: 'group-cleanup-id', title: 'G1', parentId: rootFolder.id, url: null };
+            const expiredBookmark = { id: 'expired-task-bm-id', url: 'http://expired.com', title: 'Expired', parentId: groupFolder.id, dateAdded: expiredTime, };
+            const recentBookmark = { id: 'recent-task-bm-id', url: 'http://recent.com', title: 'Recent', parentId: groupFolder.id, dateAdded: recentTime, };
 
-            const initialLocalProcessed = await storage.get(mockStorage, LOCAL_STORAGE_KEYS.PROCESSED_TASKS);
+            jest.spyOn(storage, 'getRootBookmarkFolder').mockResolvedValue(rootFolder);
+            global.browser.bookmarks.getChildren.mockImplementation(async (parentId) => {
+                if (parentId === rootFolder.id) return [groupFolder];
+                if (parentId === groupFolder.id) return [expiredBookmark, recentBookmark];
+                return [];
+            });
+
+            const initialLocalProcessed = { 
+                [expiredBookmark.id]: true, 
+                [recentBookmark.id]: true 
+            };
+            // Store initial processed IDs in mock local storage
+            await storage.set(mockStorage, LOCAL_STORAGE_KEYS.PROCESSED_BOOKMARK_IDS, initialLocalProcessed);
+
+            // Call the cleanup function
             await performTimeBasedTaskCleanup(initialLocalProcessed, 1000 * 60 * 60 * 24 * 14);
 
-            const finalGroupTasks = await storage.get(mockSyncStorage, SYNC_STORAGE_KEYS.GROUP_TASKS);
-            expect(finalGroupTasks.G1['expired-task']).toBeUndefined();
-            const finalLocalProcessed = await storage.get(mockStorage, LOCAL_STORAGE_KEYS.PROCESSED_TASKS);
-            expect(finalLocalProcessed['expired-task']).toBeUndefined();
-            expect(finalLocalProcessed['recent-task']).toBe(true);
+            // Verify browser.bookmarks.remove was called for the expired task
+            expect(global.browser.bookmarks.remove).toHaveBeenCalledWith(expiredBookmark.id);
+            expect(global.browser.bookmarks.remove).not.toHaveBeenCalledWith(recentBookmark.id);
+
+            // Verify local processed IDs were updated
+            const finalLocalProcessed = await storage.get(mockStorage, LOCAL_STORAGE_KEYS.PROCESSED_BOOKMARK_IDS);
+            expect(finalLocalProcessed[expiredBookmark.id]).toBeUndefined();
+            expect(finalLocalProcessed[recentBookmark.id]).toBe(true);
         });
     });
 });
