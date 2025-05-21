@@ -67,12 +67,11 @@ const getMockStorage = () => {
 };
 
 const getMockBookmarksAPI = () => {
-    let bookmarkStore = [];
-    let nextId = 1;
+    const state = { bookmarkStore: [], nextId: 1 };
 
     const findDescendantIds = (parentId) => {
         let ids = [];
-        const children = bookmarkStore.filter(bm => bm.parentId === parentId);
+        const children = state.bookmarkStore.filter(bm => bm.parentId === parentId); // Use state.bookmarkStore
         for (const child of children) {
             ids.push(child.id);
             ids = ids.concat(findDescendantIds(child.id));
@@ -81,35 +80,35 @@ const getMockBookmarksAPI = () => {
     };
 
     return {
-        _store: bookmarkStore, // For inspection in tests
-        _resetStore: () => { bookmarkStore = []; nextId = 1; },
+        _store: state.bookmarkStore, // For inspection in tests
+        _resetStore: () => { state.bookmarkStore = []; state.nextId = 1; },
         get: jest.fn(async (idOrIds) => {
             if (Array.isArray(idOrIds)) {
-                return bookmarkStore.filter(bm => idOrIds.includes(bm.id));
+                return state.bookmarkStore.filter(bm => idOrIds.includes(bm.id));
             }
-            const found = bookmarkStore.find(bm => bm.id === idOrIds);
+            const found = state.bookmarkStore.find(bm => bm.id === idOrIds);
             return found ? [found] : [];
         }),
-        getChildren: jest.fn(async (parentId) => bookmarkStore.filter(bm => bm.parentId === parentId)),
+        getChildren: jest.fn(async (parentId) => state.bookmarkStore.filter(bm => bm.parentId === parentId)),
         create: jest.fn(async (bookmark) => {
-            const newBookmark = { ...bookmark, id: `mock-bookmark-${nextId++}`, dateAdded: Date.now() };
-            bookmarkStore.push(newBookmark);
+            const newBookmark = { ...bookmark, id: `mock-bookmark-${state.nextId++}`, dateAdded: Date.now() };
+            state.bookmarkStore.push(newBookmark);
             return newBookmark;
         }),
         remove: jest.fn(async (id) => {
-            bookmarkStore = bookmarkStore.filter(bm => bm.id !== id);
+            state.bookmarkStore = state.bookmarkStore.filter(bm => bm.id !== id);
         }),
         removeTree: jest.fn(async (id) => {
-            const idsToRemove = [id, ...findDescendantIds(id)];
-            bookmarkStore = bookmarkStore.filter(bm => !idsToRemove.includes(bm.id));
+            const idsToRemove = [id, ...findDescendantIds(id)]; // findDescendantIds needs to use state.bookmarkStore
+            state.bookmarkStore = state.bookmarkStore.filter(bm => !idsToRemove.includes(bm.id));
         }),
         update: jest.fn(async (id, updates) => {
-            bookmarkStore = bookmarkStore.map(bm => bm.id === id ? { ...bm, ...updates, dateModified: Date.now() } : bm);
-            return bookmarkStore.find(bm => bm.id === id);
+            state.bookmarkStore = state.bookmarkStore.map(bm => bm.id === id ? { ...bm, ...updates, dateModified: Date.now() } : bm);
+            return state.bookmarkStore.find(bm => bm.id === id);
         }),
         search: jest.fn(async (query) => {
-            if (query.title) return bookmarkStore.filter(bm => bm.title === query.title);
-            if (query.url) return bookmarkStore.filter(bm => bm.url === query.url);
+            if (query.title) return state.bookmarkStore.filter(bm => bm.title === query.title);
+            if (query.url) return state.bookmarkStore.filter(bm => bm.url === query.url);
             return []; // Simple mock, extend if more complex queries are needed
         }),
     };

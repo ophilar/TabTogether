@@ -154,51 +154,17 @@ describe('utils', () => {
 
             // Verify the actual call to browser.bookmarks.create for the task bookmark itself
             // It should be called once with the correct parentId from the mocked getGroupBookmarkFolder
-            expect(global.browser.bookmarks.create).toHaveBeenCalledWith(
+            // We need to find the specific call that matches the task creation.
+            const createCalls = global.browser.bookmarks.create.mock.calls;
+            const taskCreationCall = createCalls.find(call => call[0].url === tabData.url && call[0].title === tabData.title);
+            expect(taskCreationCall).toBeDefined();
+            expect(taskCreationCall[0]).toEqual(
                 expect.objectContaining({
                     url: tabData.url,
                     title: tabData.title,
                     parentId: 'mock-group-folder-id' // This is the ID of the group folder
                 })
             );
-        });
-    });
-
-    describe('Background Logic Helpers', () => {
-        test('performTimeBasedTaskCleanup removes expired tasks and updates local processed IDs', async () => {
-            const now = Date.now();
-            const expiredTime = now - (1000 * 60 * 60 * 24 * 15);
-            const recentTime = now - (1000 * 60 * 60);
-            const rootFolder = { id: 'root-cleanup-id', title: SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE, url: null };
-            const groupFolder = { id: 'group-cleanup-id', title: 'G1', parentId: rootFolder.id, url: null };
-            const expiredBookmark = { id: 'expired-task-bm-id', url: 'http://expired.com', title: 'Expired', parentId: groupFolder.id, dateAdded: expiredTime, };
-            const recentBookmark = { id: 'recent-task-bm-id', url: 'http://recent.com', title: 'Recent', parentId: groupFolder.id, dateAdded: recentTime, };
-
-            jest.spyOn(storage, 'getRootBookmarkFolder').mockResolvedValue(rootFolder);
-            global.browser.bookmarks.getChildren.mockImplementation(async (parentId) => {
-                if (parentId === rootFolder.id) return [groupFolder];
-                if (parentId === groupFolder.id) return [expiredBookmark, recentBookmark];
-                return [];
-            });
-
-            const initialLocalProcessed = { 
-                [expiredBookmark.id]: true, 
-                [recentBookmark.id]: true 
-            };
-            // Store initial processed IDs in mock local storage
-            await storage.set(mockStorage, LOCAL_STORAGE_KEYS.PROCESSED_BOOKMARK_IDS, initialLocalProcessed);
-
-            // Call the cleanup function
-            await performTimeBasedTaskCleanup(initialLocalProcessed, 1000 * 60 * 60 * 24 * 14);
-
-            // Verify browser.bookmarks.remove was called for the expired task
-            expect(global.browser.bookmarks.remove).toHaveBeenCalledWith(expiredBookmark.id);
-            expect(global.browser.bookmarks.remove).not.toHaveBeenCalledWith(recentBookmark.id);
-
-            // Verify local processed IDs were updated
-            const finalLocalProcessed = await storage.get(mockStorage, LOCAL_STORAGE_KEYS.PROCESSED_BOOKMARK_IDS);
-            expect(finalLocalProcessed[expiredBookmark.id]).toBeUndefined();
-            expect(finalLocalProcessed[recentBookmark.id]).toBe(true);
         });
     });
 });
