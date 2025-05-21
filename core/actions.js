@@ -8,19 +8,12 @@ import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, STRINGS} from "../common/constan
  */
 export async function getUnifiedState(isAndroid) {
   try {
-    let thisDeviceSubscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
-
-    const syncDataToGet = {
-      // [SYNC_STORAGE_KEYS.DEFINED_GROUPS]: [], // This will be derived from bookmark folder names
-    };
-    console.log(`Actions: Getting synced data for keys: ${Object.keys(syncDataToGet).join(', ')}`);
-    // const syncData = await browser.storage.sync.get(syncDataToGet); // No longer fetching defined_groups this way
-    // console.log("Actions: Retrieved synced data:", syncData);
+    let subscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
 
     const definedGroups = await getDefinedGroupsFromBookmarks(); // Helper to get group names from bookmark folders
     const groupTasks = {}; // Tasks are individual bookmarks, not fetched as a single object here.
     return {
-      thisDeviceSubscriptions,
+      subscriptions,
       definedGroups: definedGroups.sort(),
       groupTasks,
       isAndroid,
@@ -146,25 +139,23 @@ export async function renameGroupDirect(oldName, newName) {
  * @private
  */
 async function _addDeviceSubscriptionToGroup(groupName) {
-  let success = false;
   let localSubscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
   if (!localSubscriptions.includes(groupName)) {
     localSubscriptions.push(groupName);
-    localSubscriptions.sort();
     localSubscriptions = [...new Set(localSubscriptions)].sort();
-    console.log(`Actions: Added local subscription to group "${groupName}"`);
-    success = await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, localSubscriptions);
+    const success = await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, localSubscriptions);
     if (success) {
       console.log(`Actions: Added local subscription to group "${groupName}"`);
+      return { success: true, message: STRINGS.subscribedToGroup(groupName), subscribedGroup: groupName };
     } else {
       console.error(`Actions: Failed to save local subscription for group "${groupName}"`);
+      return { success: false, message: STRINGS.failedToSubscribe };
     }
+  } else {
+    // Already subscribed, consider it a success.
+    console.log(`Actions: Already subscribed to group "${groupName}"`);
+    return { success: true, message: STRINGS.subscribedToGroup(groupName), subscribedGroup: groupName };
   }
-
-  if (success) {
-    return { success: true, message: `Subscribed to "${groupName}".`, subscribedGroup: groupName };
-  }
-  return { success: false, message: "Failed to save subscription." };
 }
 
 /**
@@ -175,14 +166,20 @@ async function _addDeviceSubscriptionToGroup(groupName) {
  */
 async function _removeDeviceSubscriptionFromGroup(groupName) {
   // Update local subscriptions
+  let changed = false;
   let localSubscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
   if (localSubscriptions.includes(groupName)) {
     localSubscriptions = localSubscriptions.filter(sub => sub !== groupName);
-    await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, localSubscriptions);
-    console.log(`Actions: Removed local subscription for group "${groupName}"`);
+    const success = await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, localSubscriptions);
+    if (success) {
+      console.log(`Actions: Removed local subscription for group "${groupName}"`);
+      changed = true;
+    } else {
+      console.error(`Actions: Failed to save removal of local subscription for group "${groupName}"`);
+      return { success: false, message: STRINGS.failedToUnsubscribe };
+    }
   }
-
-  return { success: true, message: `Not subscribed to "${groupName}".`, unsubscribedGroup: groupName };
+  return { success: true, message: changed ? STRINGS.unsubscribedFromGroup(groupName) : `Not subscribed to "${groupName}".`, unsubscribedGroup: groupName };
 }
 
 export async function subscribeToGroupDirect(groupName) {

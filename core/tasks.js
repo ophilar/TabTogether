@@ -1,4 +1,4 @@
-import { storage } from "./storage.js";
+import { storage, recordSuccessfulSyncTime } from "./storage.js";
 import { LOCAL_STORAGE_KEYS, SYNC_STORAGE_KEYS, BACKGROUND_DEFAULT_TASK_EXPIRY_DAYS } from "../common/constants.js"; // Assuming BACKGROUND_DEFAULT_TASK_EXPIRY_DAYS
 
 export async function processSubscribedGroupTasks() {
@@ -103,6 +103,9 @@ export async function processSubscribedGroupTasks() {
     await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_PROCESSED_BOOKMARK_TIMESTAMP, newLatestTimestampConsidered);
     console.log(`Tasks:processSubscribedGroupTasks - Updated last processed bookmark timestamp to: ${new Date(newLatestTimestampConsidered).toISOString()}`);
   }
+
+  // Record that a sync attempt was made
+  await recordSuccessfulSyncTime();
 }
 export async function createAndStoreGroupTask(groupName, tabData) {
   const newTaskData = {
