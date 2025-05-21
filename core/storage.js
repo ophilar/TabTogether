@@ -1,21 +1,21 @@
-import { ensureObject, ensureArray, ensureString, deepMerge } from "../common/utils.js";
-import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from "../common/constants.js";
+import { ensureArray, deepMerge } from "../common/utils.js";
+import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, TAB_TOGETHER_BOOKMARKS_ROOT_TITLE } from "../common/constants.js";
 
 
-/**
- * Wrapper for browser.storage API to simplify get/set operations.
- */
 export const storage = {
-  /**
-   * Retrieves an item from the specified storage area.
-   * @param {browser.storage.StorageArea} area - browser.storage.sync or browser.storage.local
-   * @param {string|object} keys - A single key string to retrieve, or an object where keys are storage keys and values are their default values.
-   * @param {any} [defaultValue=null] - A default value to return if the key is not found.
-   * @returns {Promise<any>} A promise that resolves with the storage item(s).
-   */
   async get(area, key, defaultValue = null) {
     try {
-      const result = await area.get(key); // area.get() with a string key returns {[key]: value}
+      if (key === null || typeof key === 'object') {
+        const result = await area.get(key);
+        if (key === null) return result;
+
+        const validatedResult = {};
+        for (const k in key) {
+          validatedResult[k] = this._validateTypeValue(k, result[k] ?? key[k], key[k]);
+        }
+        return validatedResult;
+      }
+      const result = await area.get(key);
       let value = result[key] ?? defaultValue;
 
       // Type validation for known keys
@@ -27,13 +27,6 @@ export const storage = {
     }
   },
 
-  /**
-   * Sets an item in the specified storage area.
-   * @param {browser.storage.StorageArea} area - browser.storage.sync or browser.storage.local
-   * @param {string} key - The key of the item to set.
-   * @param {any} value - The value to store.
-   * @returns {Promise<boolean>} A promise that resolves with true on success, false on failure.
-   */
   async set(area, key, value) {
     try {
       await area.set({ [key]: value });
@@ -44,34 +37,19 @@ export const storage = {
     }
   },
 
-  /**
-   * Merges data into browser.storage.sync, ensuring deep merge for objects.
-   * @param {object} newData - The new data to merge.
-   * @returns {Promise<void>}
-   * This method merges `newData` into the *root* of `browser.storage.sync`.
-   * `newData` should be an object where keys are top-level storage keys.
-   */
   async mergeSyncStorage(newData) {
     try {
-      // browser.storage.sync.get(null) gets all items in sync storage.
       const currentData = await browser.storage.sync.get(null);
       const mergedData = deepMerge(currentData, newData);
-      await browser.storage.sync.set(mergedData); // Sets the entire merged object back.
+      await browser.storage.sync.set(mergedData);
     } catch (error) {
       console.error("Error merging sync storage:", error, { newData });
     }
   },
 
-  /**
-   * Merges updates into a specific keyed item within a storage area.
-   * @param {browser.storage.StorageArea} area - The storage area.
-   * @param {string} key - The key of the item to merge.
-   * @param {object} updates - The updates to merge into the item.
-   * @returns {Promise<{success: boolean, mergedData: object|null, dataChanged: boolean, message?: string}>}
-   */
   async mergeItem(area, key, updates) {
     try {
-      const currentItem = await this.get(area, key, {}); // Get the specific item, defaulting to {}
+      const currentItem = await this.get(area, key, {});
       const mergedItem = deepMerge(currentItem, updates);
       let dataChanged = JSON.stringify(currentItem) !== JSON.stringify(mergedItem);
       let setSuccess = true; // Assume success unless set fails
@@ -79,7 +57,6 @@ export const storage = {
       if (dataChanged) {
         setSuccess = await this.set(area, key, mergedItem); // Capture success of the set operation
         if (!setSuccess) {
-          // If set failed, the merge operation is not truly successful.
           return { success: false, mergedData: currentItem, dataChanged: false, message: `Failed to save merged item for key '${key}'.` };
         }
       }
@@ -90,22 +67,89 @@ export const storage = {
     }
   },
 
-  /**
-   * Internal helper to validate and ensure type of a retrieved storage value.
-   * @param {string} key The storage key.
-   * @param {any} value The retrieved value.
-   * @param {any} defaultValue The default value for this key.
-   * @returns {any} The validated (and potentially type-coerced) value.
-   * @private
-   */
   _validateTypeValue(key, value, defaultValue) {
-    if (key === SYNC_STORAGE_KEYS.GROUP_TASKS ) {
-      return ensureObject(value, defaultValue ?? {});
-    } else if (key === LOCAL_STORAGE_KEYS.SUBSCRIPTIONS || key === SYNC_STORAGE_KEYS.DEFINED_GROUPS) {
+    if (key === LOCAL_STORAGE_KEYS.SUBSCRIPTIONS || key === SYNC_STORAGE_KEYS.DEFINED_GROUPS) {
       return ensureArray(value, defaultValue ?? []);
     } 
-    return value; // No specific validation for other keys, return as is or default
-  }
+    return value;
+  },
+
+  async getRootBookmarkFolder() {
+    try {
+      const results = await browser.bookmarks.search({ title: TAB_TOGETHER_BOOKMARKS_ROOT_TITLE });
+      const folder = results.find(bookmark => !bookmark.url && bookmark.title === TAB_TOGETHER_BOOKMARKS_ROOT_TITLE);
+      if (folder) {
+        return folder;
+      }
+      console.log(`Storage: Root bookmark folder "${TAB_TOGETHER_BOOKMARKS_ROOT_TITLE}" not found, creating...`);
+      
+      let parentId = undefined; 
+      try {
+        const otherBookmarks = await browser.bookmarks.getTree();
+        if (otherBookmarks && otherBookmarks.length > 0) {
+            const rootNode = otherBookmarks[0]; 
+            const potentialParents = rootNode.children.filter(node => node.type === "folder" && node.id !== "toolbar_____" && node.id !== "menu________" && node.id !== "mobile______" && node.id !== "tags________");
+            if (potentialParents.find(p => p.title === "Other Bookmarks" || p.id === "unfiled_____")) { // Firefox "Other Bookmarks"
+                parentId = potentialParents.find(p => p.title === "Other Bookmarks" || p.id === "unfiled_____").id;
+            } else if (potentialParents.length > 0) {
+                 parentId = potentialParents[0].id; // Fallback to the first generic folder
+            } else {
+                 parentId = rootNode.children.find(c => c.type === "folder")?.id || rootNode.id; // last resort
+            }
+        }
+      } catch (e) {
+        console.warn("Storage: Could not determine a specific parent for root folder, will create at top level if possible.", e);
+      }
+
+      return await browser.bookmarks.create({
+        title: TAB_TOGETHER_BOOKMARKS_ROOT_TITLE,
+        parentId: parentId 
+      });
+    } catch (error) {
+      console.error("Storage: Error getting/creating root bookmark folder:", error);
+      return null;
+    }
+  },
+
+  async getGroupBookmarkFolder(groupName, rootFolderId) {
+    if (!rootFolderId) {
+      console.error("Storage:getGroupBookmarkFolder - Root folder ID is required.");
+      return null;
+    }
+    try {
+      const children = await browser.bookmarks.getChildren(rootFolderId);
+      const groupFolder = children.find(child => !child.url && child.title === groupName);
+      if (groupFolder) {
+        return groupFolder;
+      }
+      return await browser.bookmarks.create({
+        parentId: rootFolderId,
+        title: groupName,
+      });
+    } catch (error) {
+      console.error(`Storage: Error getting/creating group bookmark folder "${groupName}":`, error);
+      return null;
+    }
+  },
+
+  async createTaskBookmark(groupName, taskData) {
+    const rootFolder = await this.getRootBookmarkFolder();
+    if (!rootFolder) return { success: false, bookmarkId: null, message: "Could not get or create root task folder." };
+    const groupFolder = await this.getGroupBookmarkFolder(groupName, rootFolder.id);
+    if (!groupFolder) return { success: false, bookmarkId: null, message: `Could not get or create group folder "${groupName}".` };
+
+    try {
+      const newBookmark = await browser.bookmarks.create({
+        parentId: groupFolder.id,
+        title: taskData.title,
+        url: taskData.url,
+      });
+      return { success: true, bookmarkId: newBookmark.id, newBookmark };
+    } catch (error) {
+      console.error(`Storage: Error creating task bookmark for group ${groupName}:`, error);
+      return { success: false, bookmarkId: null, message: error.message };
+    }
+  },
 };
 
 // --- Generic Storage List/Object Updaters ---
@@ -133,7 +177,6 @@ export async function renameInList(area, key, oldValue, newValue) {
   const list = await storage.get(area, key, []);
   const updated = list.map((item) => (item === oldValue ? newValue : item));
   // Note: This implementation does not sort the list after renaming.
-  // If sorting is desired (like in addToList), add list.sort() here.
   await storage.set(area, key, updated);
   return updated;
 }
@@ -157,10 +200,6 @@ export async function removeObjectKey(area, key, prop) {
   return obj;
 }
 
-/**
- * Records the current time as the last successful sync operation time in local storage.
- */
 export async function recordSuccessfulSyncTime() {
-  // Note: Does not return a value, fire-and-forget for setting local timestamp.
   await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.LAST_SYNC_TIME]: Date.now() }).catch(e => console.error("Failed to record successful sync time:", e));
 }

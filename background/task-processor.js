@@ -1,12 +1,5 @@
 import { storage } from '../core/storage.js';
 import { LOCAL_STORAGE_KEYS, SYNC_STORAGE_KEYS } from '../common/constants.js';
-
-/**
- * Processes incoming task bookmarks.
- * This function is triggered when bookmark changes are detected.
- * @param {string} changedBookmarkId - The ID of the bookmark that changed (created, modified).
- * @param {object} changeInfo - For 'onChanged', contains {title, url}. For 'onCreated', it's the bookmark node.
- */
 export async function processIncomingTaskBookmark(changedBookmarkId, changeInfoOrNode) {
     console.log(`TaskProcessor:processIncomingTaskBookmark - Processing bookmark ID: ${changedBookmarkId}`);
 
