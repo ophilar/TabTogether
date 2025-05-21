@@ -20,8 +20,6 @@ The extension stores two types of data:
 
 2.  **Synced Data (`storage.sync`):** This data is stored using Mozilla's Firefox Sync infrastructure and is accessible only to you across your devices logged into the same Firefox Account where Sync is enabled. The developer **cannot** access this data. It includes:
     *   Definitions of the groups you create (`definedGroups`).
-    *   The state of your groups, including which devices are subscribed (`groupState`).
-    *   The registry of your devices known to the extension, including their names and subscription details (`deviceRegistry`).
     *   The tab data (URL and Title) you explicitly choose to send to a group (`groupTasks`). This data is temporary and automatically cleaned up based on your settings or default expiry times.
     *   Configurable thresholds for device and task cleanup (`staleDeviceThresholdDays`, `taskExpiryDays`).
 
