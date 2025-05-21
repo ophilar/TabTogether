@@ -17,7 +17,6 @@ export const LOCAL_STORAGE_KEYS = {
 export const SYNC_STORAGE_KEYS = {
   // These are no longer direct storage keys but conceptual names for bookmark structures
   // GROUP_TASKS will be individual bookmarks within group folders
-  // DEFINED_GROUPS will be folder names under the root bookmark folder
   // TASK_EXPIRY_DAYS will be stored in a special config bookmark
 
   ROOT_BOOKMARK_FOLDER_TITLE: "TabTogetherData", // Title of the main folder in bookmarks
