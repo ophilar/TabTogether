@@ -1,4 +1,4 @@
-import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, MAX_DEVICES_PER_GROUP, STRINGS } from "../common/constants.js";
+import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, STRINGS } from "../common/constants.js";
 import { storage } from "../core/storage.js";
 import {
   getInstanceId,
@@ -17,7 +17,6 @@ import { createAndStoreGroupTask } from "../core/tasks.js";
 import { processIncomingTasks } from "./task-processor.js";
 import { performHeartbeat } from "./heartbeat.js";
 import {
-  performStaleDeviceCheck,
   performTimeBasedTaskCleanup,
 } from "./cleanup.js";
 
@@ -29,8 +28,7 @@ const HEARTBEAT_INTERVAL_MIN = 5;
 const STALE_CHECK_INTERVAL_MIN = 60 * 24;
 const TASK_CLEANUP_INTERVAL_MIN = 60 * 24 * 2;
 
-const BACKGROUND_DEFAULT_STALE_DEVICE_THRESHOLD_DAYS = 30;
-const BACKGROUND_DEFAULT_TASK_EXPIRY_DAYS = 14;
+const BACKGROUND_DEFAULT_TASK_EXPIRY_DAYS = 30;
 
 async function initializeExtension() {
   console.log("Background: Initializing TabTogether (Advanced)...");
@@ -41,8 +39,6 @@ async function initializeExtension() {
     const defaults = {
       [SYNC_STORAGE_KEYS.DEFINED_GROUPS]: [],
       [SYNC_STORAGE_KEYS.GROUP_TASKS]: {},
-      [SYNC_STORAGE_KEYS.DEVICE_REGISTRY]: {},
-      [SYNC_STORAGE_KEYS.SUBSCRIPTIONS]: {},
     };
     const updates = {};
     for (const key of syncKeysToInitialize) {
@@ -74,12 +70,6 @@ async function initializeExtension() {
 async function setupAlarms() {
   await browser.alarms.clearAll();
   console.log("Background: Setting up alarms...");
-  browser.alarms.create(ALARM_HEARTBEAT, {
-    periodInMinutes: HEARTBEAT_INTERVAL_MIN,
-  });
-  browser.alarms.create(ALARM_STALE_CHECK, {
-    periodInMinutes: STALE_CHECK_INTERVAL_MIN,
-  });
   browser.alarms.create(ALARM_TASK_CLEANUP, {
     periodInMinutes: TASK_CLEANUP_INTERVAL_MIN,
   });
@@ -91,34 +81,6 @@ browser.runtime.onStartup.addListener(initializeExtension);
 browser.alarms.onAlarm.addListener(async (alarm) => {
   console.log(`Background: Alarm triggered: ${alarm.name}`);
   switch (alarm.name) {
-    case ALARM_HEARTBEAT:
-      {
-        console.log("Background: ALARM_HEARTBEAT triggered.");
-        await performHeartbeat();
-      }
-      break;
-    case ALARM_STALE_CHECK:
-      {
-        console.log("Background: ALARM_STALE_CHECK triggered.");
-        // Stale check needs registry and group state
-        const cachedDeviceRegistry = await storage.get(
-          browser.storage.sync,
-          SYNC_STORAGE_KEYS.DEVICE_REGISTRY,
-          {}
-        );
-        const staleThresholdDays = await storage.get(
-          browser.storage.sync,
-          SYNC_STORAGE_KEYS.STALE_DEVICE_THRESHOLD_DAYS,
-          BACKGROUND_DEFAULT_STALE_DEVICE_THRESHOLD_DAYS
-        );
-        const currentStaleDeviceThresholdMs =
-          staleThresholdDays * 24 * 60 * 60 * 1000;
-        await performStaleDeviceCheck(
-          cachedDeviceRegistry,
-          currentStaleDeviceThresholdMs
-        );
-      }
-      break;
     case ALARM_TASK_CLEANUP:
       {
         console.log("Background: ALARM_TASK_CLEANUP triggered.");
@@ -281,21 +243,12 @@ browser.storage.onChanged.addListener(async (changes, areaName) => {
   console.log(`Background:storage.onChanged - Detected in area: '${areaName}'. Changes:`, JSON.stringify(changes));
   if (areaName !== "sync") return;
   let contextMenuNeedsUpdate = false;
-  const changedKeys = Object.keys(changes);
   let specificRefreshActions = new Set();
 
   if (changes[SYNC_STORAGE_KEYS.DEFINED_GROUPS]) {
     console.log("Background:storage.onChanged - DEFINED_GROUPS changed.");
     contextMenuNeedsUpdate = true;
     specificRefreshActions.add("definedGroupsChanged");
-  }
-  if (changes[SYNC_STORAGE_KEYS.DEVICE_REGISTRY]) {
-    console.log("Background:storage.onChanged - DEVICE_REGISTRY changed.");
-    specificRefreshActions.add("deviceRegistryChanged");
-  }
-  if (changes[SYNC_STORAGE_KEYS.SUBSCRIPTIONS]) {
-    console.log("Background:storage.onChanged - SUBSCRIPTIONS changed.");
-    specificRefreshActions.add("subscriptionsChanged");
   }
 
   if (contextMenuNeedsUpdate && browser.contextMenus) {
@@ -351,30 +304,18 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
     case "getState": {
       console.log("Background:runtime.onMessage - Handling 'getState'.");
       const [
-        localInstanceId,
-        localInstanceName,
         localSubscriptions,
         definedGroups,
         groupState,
-        deviceRegistry,
-        allSubscriptionsSync,
       ] = await Promise.all([
-        getInstanceId(),
-        getInstanceName(),
         storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []),
         storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []),
-        storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEVICE_REGISTRY, {}),
-        storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.SUBSCRIPTIONS, {}),
       ]);
 
       return {
-        instanceId: localInstanceId,
-        instanceName: localInstanceName,
         subscriptions: localSubscriptions,
         definedGroups: definedGroups.sort(),
         groupState,
-        deviceRegistry,
-        allSubscriptions: allSubscriptionsSync,
       };
     }
 
@@ -405,50 +346,16 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
       }
       return await renameGroupDirect(oldName, newName.trim());
     }
-    case "renameDevice": {
-      console.log(`Background:runtime.onMessage - Handling 'renameDevice' to "${request.newName}"`);
-      const { newName } = request;
-      if (
-        !newName ||
-        typeof newName !== "string" ||
-        newName.trim().length === 0
-      ) {
-        return {
-          success: false,
-          message: STRINGS.invalidDeviceName,
-        };
-      }
-      try {
-        const setResult = await setInstanceNameInCore(newName.trim());
-        return setResult;
-      } catch (error) {
-        console.error("Background:runtime.onMessage - Error during renameDevice call:", error);
-        return {
-          success: false,
-          message:
-            error.message || "An unexpected error occurred during rename.",
-        };
-      }
-    }
-    case "deleteDevice": {
-      console.log(`Background:runtime.onMessage - Handling 'deleteDevice' with ID: "${request.deviceId}"`);
-      const { deviceId } = request;
-      if (!deviceId) {
-        return { success: false, message: STRINGS.noDeviceIdProvided };
-      }
-      return await deleteDeviceDirect(deviceId);
-    }
 
     case "subscribeToGroup": {
       console.log(`Background:runtime.onMessage - Handling 'subscribeToGroup' for group: "${request.groupName}"`);
       const groupToSubscribe = request.groupName;
-      const localInstanceId = await getInstanceId();
 
       if (!groupToSubscribe) {
         return { success: false, message: STRINGS.noGroupNameProvided };
       }
       // Call the consolidated helper from actions.js
-      const result = await _addDeviceSubscriptionToGroup(localInstanceId, groupToSubscribe);
+      const result = await _addDeviceSubscriptionToGroup(groupToSubscribe);
       if (result.success) {
         await performHeartbeat();
       }
@@ -457,24 +364,18 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
     case "unsubscribeFromGroup": {
       console.log(`Background:runtime.onMessage - Handling 'unsubscribeFromGroup' for group: "${request.groupName}"`);
       const groupToUnsubscribe = request.groupName;
-      const localInstanceId = await getInstanceId();
       let localSubscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
 
       if (!groupToUnsubscribe) {
         return { success: false, message: STRINGS.noGroupNameProvided };
       }
       // Call the consolidated helper from actions.js
-      return await _removeDeviceSubscriptionFromGroup(localInstanceId, groupToUnsubscribe);
+      return await _removeDeviceSubscriptionFromGroup(groupToUnsubscribe);
     }
     case "sendTabFromPopup": {
       console.log(`Background:runtime.onMessage - Handling 'sendTabFromPopup' for group: "${request.groupName}"`);
       const { groupName, tabData } = request;
       return await createAndStoreGroupTask(groupName, tabData);
-    }
-    case "heartbeat": {
-      console.log("Background:runtime.onMessage - Handling 'heartbeat'.");
-      await performHeartbeat();
-      return { success: true };
     }
     case "testNotification": {
       console.log("Background:runtime.onMessage - Handling 'testNotification'.");
@@ -492,10 +393,7 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
         1,
         Math.min(120, parseInt(request.minutes, 10) || 5)
       );
-      await browser.alarms.clear(ALARM_HEARTBEAT);
-      await browser.alarms.create(ALARM_HEARTBEAT, {
-        periodInMinutes: minutes,
-      });
+      
       return { success: true };
     }
     default:
