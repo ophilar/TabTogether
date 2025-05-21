@@ -1,44 +1,29 @@
-import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, STRINGS } from "../common/constants.js";
+import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, STRINGS, TAB_TOGETHER_BOOKMARKS_ROOT_TITLE, CONFIG_BOOKMARK_TITLE } from "../common/constants.js";
 import { storage } from "../core/storage.js";
-import {
-  getInstanceId,
-  getInstanceName,
-  setInstanceName as setInstanceNameInCore,
-} from "../core/instance.js";
 import {
   createGroupDirect,
   deleteGroupDirect,
   renameGroupDirect,
-  deleteDeviceDirect,
   _addDeviceSubscriptionToGroup, // Assuming exported from actions.js
   _removeDeviceSubscriptionFromGroup, // Assuming exported from actions.js
-} from "../core/actions.js";
-import { createAndStoreGroupTask } from "../core/tasks.js";
-import { processIncomingTasks } from "./task-processor.js";
-import { performHeartbeat } from "./heartbeat.js";
-import {
-  performTimeBasedTaskCleanup,
-} from "./cleanup.js";
+} from "../core/actions.js"; // createGroupDirect, deleteGroupDirect, renameGroupDirect are used
+import { createAndStoreGroupTask, processSubscribedGroupTasks } from "../core/tasks.js";
+import { processIncomingTaskBookmark } from "./task-processor.js";
+import { performTimeBasedTaskCleanup } from "./cleanup.js";
 
-const ALARM_HEARTBEAT = "deviceHeartbeat";
-const ALARM_STALE_CHECK = "staleDeviceCheck";
 const ALARM_TASK_CLEANUP = "taskCleanup";
-
-const HEARTBEAT_INTERVAL_MIN = 5;
-const STALE_CHECK_INTERVAL_MIN = 60 * 24;
 const TASK_CLEANUP_INTERVAL_MIN = 60 * 24 * 2;
-
 const BACKGROUND_DEFAULT_TASK_EXPIRY_DAYS = 30;
 
 async function initializeExtension() {
   console.log("Background: Initializing TabTogether (Advanced)...");
   try {
     console.log("Background: Initializing storage...");
-    const syncKeysToInitialize = Object.values(SYNC_STORAGE_KEYS);
+    const syncKeysToInitialize = [SYNC_STORAGE_KEYS.DEFINED_GROUPS, SYNC_STORAGE_KEYS.TASK_EXPIRY_DAYS]; // Only initialize relevant sync keys
     const syncData = await browser.storage.sync.get(syncKeysToInitialize);
     const defaults = {
       [SYNC_STORAGE_KEYS.DEFINED_GROUPS]: [],
-      [SYNC_STORAGE_KEYS.GROUP_TASKS]: {},
+      [SYNC_STORAGE_KEYS.TASK_EXPIRY_DAYS]: BACKGROUND_DEFAULT_TASK_EXPIRY_DAYS,
     };
     const updates = {};
     for (const key of syncKeysToInitialize) {
@@ -51,6 +36,7 @@ async function initializeExtension() {
       console.log("Background: Storage initialized with defaults:", updates);
     }
     let localInstanceName = await getInstanceName();
+    await storage.getRootBookmarkFolder(); // Ensure root bookmark folder exists
     const cachedDefinedGroups = syncData[SYNC_STORAGE_KEYS.DEFINED_GROUPS] ?? [];
     await setupAlarms();
     if (browser.contextMenus) {
@@ -58,13 +44,11 @@ async function initializeExtension() {
     } else {
       console.warn("Background:initializeExtension - ContextMenus API is not available. Context menu features will be disabled.");
     }
-    await performHeartbeat();
+    await processSubscribedGroupTasks(); // Process any existing tasks on startup
     console.log(`Background: Initialization complete. Name: ${localInstanceName}`);
   } catch (error) {
     console.error("Background: CRITICAL ERROR during initializeExtension:", error);
   }
-
-  // console.log("Background: Initialization complete."); // Already logged inside try or if error
 }
 
 async function setupAlarms() {
@@ -86,7 +70,7 @@ browser.alarms.onAlarm.addListener(async (alarm) => {
         console.log("Background: ALARM_TASK_CLEANUP triggered.");
         const localProcessedTasks = await storage.get(
           browser.storage.local,
-          LOCAL_STORAGE_KEYS.PROCESSED_TASKS,
+          LOCAL_STORAGE_KEYS.PROCESSED_BOOKMARK_IDS,
           {}
         );
         const taskExpiryDays = await storage.get(
@@ -261,23 +245,6 @@ browser.storage.onChanged.addListener(async (changes, areaName) => {
     await updateContextMenu(groupsForMenu);
   }
 
-  if (changes[SYNC_STORAGE_KEYS.GROUP_TASKS]) {
-    console.log("Background:storage.onChanged - GROUP_TASKS changed. Processing...");
-    const newTasksObject = changes[SYNC_STORAGE_KEYS.GROUP_TASKS].newValue;
-    if (newTasksObject && typeof newTasksObject === "object") {
-      const openedTabs = await processIncomingTasks(newTasksObject);
-      if (openedTabs && openedTabs.length > 0) {
-        for (const tabDetail of openedTabs) {
-          await showTabNotification(tabDetail);
-        }
-      }
-    } else if (!newTasksObject) {
-      console.log(
-        "Background:storage.onChanged - GROUP_TASKS was deleted or set to null. No tasks to process."
-      );
-    }
-  }
-
   if (specificRefreshActions.size > 0) {
     try {
       await browser.runtime.sendMessage({
@@ -296,6 +263,53 @@ browser.storage.onChanged.addListener(async (changes, areaName) => {
   }
 });
 
+async function isTaskBookmark(bookmarkId) {
+    try {
+        const nodes = await browser.bookmarks.get(bookmarkId);
+        if (!nodes || nodes.length === 0) return false;
+        const bookmark = nodes[0];
+
+        if (!bookmark || !bookmark.parentId || !bookmark.url || bookmark.url.startsWith("place:")) return false;
+
+        const parentNodes = await browser.bookmarks.get(bookmark.parentId);
+        if (!parentNodes || parentNodes.length === 0) return false;
+        const parent = parentNodes[0];
+
+        if (!parent || !parent.parentId || parent.url || parent.title === CONFIG_BOOKMARK_TITLE) return false; 
+
+        const grandParentNodes = await browser.bookmarks.get(parent.parentId);
+        if (!grandParentNodes || grandParentNodes.length === 0) return false;
+        const grandParent = grandParentNodes[0];
+        
+        return grandParent && grandParent.title === TAB_TOGETHER_BOOKMARKS_ROOT_TITLE;
+    } catch (e) {
+        console.warn(`Background:isTaskBookmark - Error checking bookmark ${bookmarkId}:`, e.message);
+        return false;
+    }
+}
+
+browser.bookmarks.onCreated.addListener(async (id, bookmarkNode) => {
+    if (await isTaskBookmark(id)) {
+        console.log(`Background:bookmarks.onCreated - Task bookmark created: ${id} - ${bookmarkNode.title}`);
+        const openedTabs = await processIncomingTaskBookmark(id, bookmarkNode);
+        if (openedTabs && openedTabs.length > 0) {
+            for (const tabDetail of openedTabs) {
+                await showTabNotification(tabDetail);
+            }
+        }
+    }
+});
+
+browser.bookmarks.onChanged.addListener(async (id, changeInfo) => {
+    if (changeInfo.url || changeInfo.title) { // Only process if URL or title changed
+        if (await isTaskBookmark(id)) {
+            console.log(`Background:bookmarks.onChanged - Task bookmark changed: ${id}`, changeInfo);
+            const openedTabs = await processIncomingTaskBookmark(id, changeInfo); // processIncomingTaskBookmark can handle changeInfo
+            // Notifications for changed tasks might be noisy, decide if needed.
+        }
+    }
+});
+
 browser.runtime.onMessage.addListener(async (request, sender) => {
   console.log("Message received:", request.action, "Data:", request);
   console.log(`Background:runtime.onMessage - Received action: '${request.action}' from sender:`, sender?.tab?.id || sender?.id || 'unknown');
@@ -306,16 +320,13 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
       const [
         localSubscriptions,
         definedGroups,
-        groupState,
       ] = await Promise.all([
         storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []),
         storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.DEFINED_GROUPS, []),
       ]);
-
       return {
         subscriptions: localSubscriptions,
         definedGroups: definedGroups.sort(),
-        groupState,
       };
     }
 
@@ -356,9 +367,6 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
       }
       // Call the consolidated helper from actions.js
       const result = await _addDeviceSubscriptionToGroup(groupToSubscribe);
-      if (result.success) {
-        await performHeartbeat();
-      }
       return result;
     }
     case "unsubscribeFromGroup": {
