@@ -55,7 +55,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       const container = document.querySelector(".container");
       if (container) { // Check if container exists before using it
         showAndroidBanner(
-          container, STRINGS.androidBannerPopup
+          container, STRINGS.androidBanner
         );
       }
     }

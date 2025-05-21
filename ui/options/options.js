@@ -179,7 +179,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       const container = document.querySelector(".container");
       if (container) {
         showAndroidBanner(container,
-          STRINGS.androidBannerOptions);
+          STRINGS.androidBanner);
       }
       setLastSyncTimeUI(container, Date.now());
       showDebugInfoUI(container, currentState);
