@@ -1,5 +1,5 @@
 import { storage, recordSuccessfulSyncTime } from "./storage.js";
-import { LOCAL_STORAGE_KEYS, SYNC_STORAGE_KEYS, BACKGROUND_DEFAULT_TASK_EXPIRY_DAYS } from "../common/constants.js"; // Assuming BACKGROUND_DEFAULT_TASK_EXPIRY_DAYS
+import { LOCAL_STORAGE_KEYS, SYNC_STORAGE_KEYS, BACKGROUND_DEFAULT_TASK_EXPIRY_DAYS } from "../common/constants.js";
 
 export async function processSubscribedGroupTasks() {
   const mySubscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
@@ -120,5 +120,8 @@ export async function createAndStoreGroupTask(groupName, tabData) {
     return { success: false, bookmarkId: null, message: opResult.message || "Failed to save task as bookmark." };
   }
   console.log(`Task (bookmarkId: ${opResult.bookmarkId}) created for group ${groupName}:`, newTaskData);
+
+
+
   return { success: true, bookmarkId: opResult.bookmarkId };
 }
