@@ -81,36 +81,57 @@ export const storage = {
   async getRootBookmarkFolder() {
     try {
       const results = await browser.bookmarks.search({ title: SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE });
+      // Ensure it's a folder and not just a bookmark with the same title
       const folder = results.find(bookmark => !bookmark.url && bookmark.title === SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE);
       if (folder) {
         return folder;
       }
       console.log(`Storage: Root bookmark folder "${SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE}" not found, creating...`);
       
-      let parentId = undefined; 
+      let parentIdToUse = undefined; // Explicitly undefined
       try {
-        const otherBookmarks = await browser.bookmarks.getTree();
-        if (otherBookmarks && otherBookmarks.length > 0) {
-            const rootNode = otherBookmarks[0]; 
-            const potentialParents = rootNode.children.filter(node => node.type === "folder" && node.id !== "toolbar_____" && node.id !== "menu________" && node.id !== "mobile______" && node.id !== "tags________");
-            if (potentialParents.find(p => p.title === "Other Bookmarks" || p.id === "unfiled_____")) { // Firefox "Other Bookmarks"
-                parentId = potentialParents.find(p => p.title === "Other Bookmarks" || p.id === "unfiled_____").id;
-            } else if (potentialParents.length > 0) {
-                 parentId = potentialParents[0].id; // Fallback to the first generic folder
-            } else {
-                 parentId = rootNode.children.find(c => c.type === "folder")?.id || rootNode.id; // last resort
+        const tree = await browser.bookmarks.getTree();
+        // tree[0] is the root of the bookmark tree (e.g., id "root________")
+        // tree[0].children are the top-level folders like "Bookmarks Menu", "Mobile Bookmarks", etc.
+        if (tree && tree.length > 0 && tree[0] && tree[0].children) {
+            const rootChildren = tree[0].children;
+
+            // Preferred parent folders by ID or Title. Order matters.
+            const preferredParentCandidates = [
+                { id: "mobile______", title: "Mobile Bookmarks" }, // Firefox Android: Mobile Bookmarks
+                { id: "unfiled_____", title: "Other Bookmarks" }, // Firefox Desktop/Sync: Other Bookmarks
+                { id: "menu________", title: "Bookmarks Menu" }    // Firefox Desktop: Bookmarks Menu
+            ];
+
+            for (const candidate of preferredParentCandidates) {
+                const foundParent = rootChildren.find(node =>
+                    node.type === "folder" && (node.id === candidate.id || (candidate.title && node.title === candidate.title))
+                );
+                if (foundParent) {
+                    parentIdToUse = foundParent.id;
+                    console.log(`Storage: Identified preferred parent folder "${foundParent.title || foundParent.id}" (ID: ${parentIdToUse}) for the root TabTogether folder.`);
+                    break; 
+                }
             }
         }
+        // If no preferred parent is found, parentIdToUse remains undefined.
+        // In this case, browser.bookmarks.create will use the browser's default location.
       } catch (e) {
-        console.warn("Storage: Could not determine a specific parent for root folder, will create at top level if possible.", e);
+        console.warn(`Storage: Error while trying to determine a specific parent for the root TabTogether folder. Will use browser's default location. Error: ${e.message}`, e);
+        // parentIdToUse remains undefined, which is the desired fallback.
       }
 
-      return await browser.bookmarks.create({
-        title: SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE,
-        parentId: parentId 
-      });
+      const createOptions = { title: SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE };
+      if (parentIdToUse) {
+        createOptions.parentId = parentIdToUse;
+        console.log(`Storage: Attempting to create root folder "${SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE}" under parentId: ${parentIdToUse}.`);
+      } else {
+        console.log(`Storage: Attempting to create root folder "${SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE}" in browser's default location (no specific parentId).`);
+      }
+
+      return await browser.bookmarks.create(createOptions);
     } catch (error) {
-      console.error("Storage: Error getting/creating root bookmark folder:", error);
+      console.error(`Storage: CRITICAL - Error getting/creating root bookmark folder "${SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE}":`, error);
       return null;
     }
   },
@@ -129,7 +150,7 @@ export const storage = {
       return await browser.bookmarks.create({
         parentId: rootFolderId,
         title: groupName,
-      });
+      }); // Creates if not exists
     } catch (error) {
       console.error(`Storage: Error getting/creating group bookmark folder "${groupName}":`, error);
       return null;
