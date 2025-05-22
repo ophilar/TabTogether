@@ -8,6 +8,7 @@ export const LOCAL_STORAGE_KEYS = {
   SUBSCRIPTIONS: "tabtogether_subscriptions", // Stores array of subscribed group names (folder names)
   PROCESSED_BOOKMARK_IDS: "tabtogether_processed_bookmark_ids", // Stores { bookmarkId: timestamp }
   LAST_PROCESSED_BOOKMARK_TIMESTAMP: "tabtogether_last_processed_bookmark_timestamp", // Timestamp of the newest bookmark considered in the last processing run
+  RECENTLY_OPENED_URLS: "",
   LAST_SYNC_TIME: "tabtogether_last_sync_time", // Timestamp of last manual/auto sync action
 };
 
