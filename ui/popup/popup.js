@@ -281,7 +281,6 @@ async function sendTabToGroup(groupName) {
     // Send differently based on platform
     console.log(`Popup: Sending tab to group "${groupName}" (Platform: ${await isAndroid() ? 'Android' : 'Desktop'})`);
     if (await isAndroid()) {
-      const instanceId = await getInstanceId();
       response = await createAndStoreGroupTask(groupName, tabData);
       console.log(`Popup:sendTabToGroup (Android) - Response from createAndStoreGroupTask for group "${groupName}":`, response);
     } else {
