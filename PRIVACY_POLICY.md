@@ -11,14 +11,12 @@ TabTogether is designed to facilitate sending browser tabs between your own devi
 The extension stores two types of data:
 
 1.  **Locally Stored Data (`storage.local`):** This data is stored only on the specific device where the extension is installed and is **not** synced or shared elsewhere. It includes:
-    *   A unique identifier (`myInstanceId`) for your device within the extension.
-    *   The name you assign to your device (`myInstanceName`).
-    *   Your group subscription preferences (`mySubscriptions`, `myGroupBits`).
+    *   Your group subscription preferences (`mySubscriptions`).
     *   A record of tasks already processed by this device (`processedTaskIds`) to prevent duplicates.
     *   Your extension settings preferences (e.g., theme, sync interval, notification settings).
     *   Cached platform information (`platformInfo`) for efficient operation.
 
-2.  **Synced Data (`storage.sync`):** This data is stored using Mozilla's Firefox Sync infrastructure and is accessible only to you across your devices logged into the same Firefox Account where Sync is enabled. The developer **cannot** access this data. It includes:
+2.  **Synced Data (`browser.bookmark`):** This data is stored using Mozilla's Firefox Sync infrastructure and is accessible only to you across your devices logged into the same Firefox Account where Sync is enabled. The developer **cannot** access this data. It includes:
     *   Definitions of the groups you create (`definedGroups`).
     *   The tab data (URL and Title) you explicitly choose to send to a group (`groupTasks`). This data is temporary and automatically cleaned up based on your settings or default expiry times.
     *   Configurable thresholds for device and task cleanup (`staleDeviceThresholdDays`, `taskExpiryDays`).
