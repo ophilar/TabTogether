@@ -1,5 +1,5 @@
 import { storage, recordSuccessfulSyncTime } from "./storage.js";
-import { LOCAL_STORAGE_KEYS, SYNC_STORAGE_KEYS, BACKGROUND_DEFAULT_TASK_EXPIRY_DAYS } from "../common/constants.js"; // Assuming BACKGROUND_DEFAULT_TASK_EXPIRY_DAYS
+import { LOCAL_STORAGE_KEYS, SYNC_STORAGE_KEYS, BACKGROUND_DEFAULT_TASK_EXPIRY_DAYS } from "../common/constants.js";
 
 export async function processSubscribedGroupTasks() {
   const mySubscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
@@ -119,6 +119,32 @@ export async function createAndStoreGroupTask(groupName, tabData) {
     console.error(`Failed to store task for group ${groupName}. Message: ${opResult.message}`);
     return { success: false, bookmarkId: null, message: opResult.message || "Failed to save task as bookmark." };
   }
+
+  // Add the sent tab's bookmark ID to the sender's processed list.
+  // This prevents the sender from opening the tab if they are also subscribed to the group.
+  if (opResult.bookmarkId) {
+    try {
+      const updates = { [opResult.bookmarkId]: Date.now() };
+      // PROCESSED_BOOKMARK_IDS is an object, mergeItem will add/update the property.
+      const addProcessedResult = await storage.mergeItem( // Use storage.mergeItem
+        browser.storage.local,
+        LOCAL_STORAGE_KEYS.PROCESSED_BOOKMARK_IDS,
+        updates
+      );
+      if (addProcessedResult.success) {
+        console.log(`Tasks:createAndStoreGroupTask - Successfully added ${opResult.bookmarkId} to processed list. Data changed: ${addProcessedResult.dataChanged}`);
+      } else {
+        console.error(`Tasks:createAndStoreGroupTask - mergeItem failed for ${opResult.bookmarkId} when adding to processed list. Message: ${addProcessedResult.message}`);
+      }
+      // Do not return here; continue to the main success return of createAndStoreGroupTask
+    } catch (error) {
+      console.error(`Tasks:createAndStoreGroupTask - Error adding ${opResult.bookmarkId} to processed list:`, error);
+      // Do not return here; the main task creation was successful. Log the error and continue.
+      // If this step failing should fail the whole operation, then a return is appropriate.
+      // For now, let's assume the primary task creation is the key success factor.
+    }
+  }
+
   console.log(`Task (bookmarkId: ${opResult.bookmarkId}) created for group ${groupName}:`, newTaskData);
   return { success: true, bookmarkId: opResult.bookmarkId };
 }
