@@ -94,9 +94,28 @@ export async function processSubscribedGroupTasks() {
     console.log("Tasks:processSubscribedGroupTasks - No new tasks to process for this device in this run.");
   }
 
-  if (recentlyOpenedUrlsChanged) {
-    await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.RECENTLY_OPENED_URLS, recentlyOpenedUrls);
-    console.log('Tasks:processSubscribedGroupTasks - Updated recently opened URLs list.');
+  // Prune stale entries from recentlyOpenedUrls and save if changed
+  let finalRecentlyOpenedUrls = {};
+  let anUrlWasPruned = false;
+  // recentlyOpenedUrlsChanged tracks if new URLs were added/updated in *this run*
+  // anUrlWasPruned tracks if any old URLs were removed in *this run*
+  for (const url in recentlyOpenedUrls) {
+    if (now - recentlyOpenedUrls[url] < recencyThresholdMs) { // Keep if still recent
+      finalRecentlyOpenedUrls[url] = recentlyOpenedUrls[url];
+    } else {
+      anUrlWasPruned = true;
+    }
+  }
+
+  if (recentlyOpenedUrlsChanged || anUrlWasPruned) {
+    await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.RECENTLY_OPENED_URLS, finalRecentlyOpenedUrls);
+    if (recentlyOpenedUrlsChanged && anUrlWasPruned) {
+      console.log('Tasks:processSubscribedGroupTasks - Updated and pruned recently opened URLs list.');
+    } else if (recentlyOpenedUrlsChanged) {
+      console.log('Tasks:processSubscribedGroupTasks - Updated recently opened URLs list (no prunes needed this time).');
+    } else if (anUrlWasPruned) { // Only pruning happened
+      console.log('Tasks:processSubscribedGroupTasks - Pruned stale entries from recently opened URLs list.');
+    }
   }
 
   if (newLatestTimestampConsidered > lastProcessedTimestampFromStorage) {
@@ -146,8 +165,5 @@ export async function createAndStoreGroupTask(groupName, tabData) {
   }
 
   console.log(`Task (bookmarkId: ${opResult.bookmarkId}) created for group ${groupName}:`, newTaskData);
-
-
-
   return { success: true, bookmarkId: opResult.bookmarkId };
 }
