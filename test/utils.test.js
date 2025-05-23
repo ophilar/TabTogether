@@ -1,6 +1,4 @@
 const mockedStringsObject = {
-    deviceNameNotSet: '(Not Set)',
-    noDevices: 'No devices registered.',
     groupExists: (groupName) => `${groupName} already exists.`,
 };
 
@@ -18,7 +16,7 @@ jest.mock('../common/constants.js', () => {
 
 
 import { jest } from '@jest/globals';
-import { STRINGS, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from '../common/constants.js';
+import { SYNC_STORAGE_KEYS } from '../common/constants.js';
 import { deepMerge, ensureObject } from '../common/utils.js'; 
 import { storage } from '../core/storage.js';
 import { isAndroid, _clearPlatformInfoCache } from '../core/platform.js';
@@ -27,7 +25,7 @@ describe('utils', () => {
     let mockStorage;
     let mockSyncStorage;
     let consoleErrorSpy, consoleWarnSpy, consoleLogSpy;
-    let getUnifiedState, createGroupDirect, renameGroupDirect, deleteGroupDirect, subscribeToGroupDirect, unsubscribeFromGroupDirect;
+    let createGroupDirect, renameGroupDirect, deleteGroupDirect, subscribeToGroupDirect, unsubscribeFromGroupDirect;
     let createAndStoreGroupTask;
     let performTimeBasedTaskCleanup;
 
