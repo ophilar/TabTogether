@@ -146,5 +146,8 @@ export async function createAndStoreGroupTask(groupName, tabData) {
   }
 
   console.log(`Task (bookmarkId: ${opResult.bookmarkId}) created for group ${groupName}:`, newTaskData);
+
+
+
   return { success: true, bookmarkId: opResult.bookmarkId };
 }
