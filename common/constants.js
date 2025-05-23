@@ -36,7 +36,6 @@ export const STRINGS = {
     loadingGroups: 'Loading groups...',
     error: 'Error',
     confirmDeleteGroup: groupName => `Are you sure you want to delete the group "${groupName}"? This cannot be undone and will affect all devices.`,
-    confirmDeleteDevice: deviceName => `Are you sure you want to delete device "${deviceName}"? This cannot be undone and will affect all groups.`,
     sendTabToGroup: groupName => `Send current tab to group '${groupName}'`,
     sendTabToGroupAria: groupName => `Send current tab to group ${groupName}`,
     sendTabFailed: 'Send failed.',
