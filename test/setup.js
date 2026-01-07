@@ -111,6 +111,18 @@ const getMockBookmarksAPI = () => {
             if (query.url) return state.bookmarkStore.filter(bm => bm.url === query.url);
             return []; // Simple mock, extend if more complex queries are needed
         }),
+        getTree: jest.fn(async () => {
+            // Very simple tree construction: only root and its children
+            const buildNode = (id) => {
+                const node = state.bookmarkStore.find(bm => bm.id === id) || { id, title: 'root' };
+                const children = state.bookmarkStore.filter(bm => bm.parentId === id);
+                if (children.length > 0) {
+                    node.children = children.map(c => buildNode(c.id));
+                }
+                return node;
+            };
+            return [buildNode('root________')];
+        }),
     };
 };
 

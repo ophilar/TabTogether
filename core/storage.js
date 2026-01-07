@@ -5,6 +5,14 @@ import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from "../common/constants.js";
 export const storage = {
   async get(area, key, defaultValue = null) {
     try {
+      // Bridging: If we're accessing sync storage, check if it's a bridged key
+      if (area === browser.storage.sync && this._isBridgedSyncKey(key)) {
+        const configFromBookmark = await this.getSyncConfigFromBookmarks();
+        if (configFromBookmark && configFromBookmark[key] !== undefined) {
+          return configFromBookmark[key];
+        }
+      }
+
       if (key === null || typeof key === 'object') {
         const result = await area.get(key);
         if (key === null) return result;
@@ -29,6 +37,11 @@ export const storage = {
 
   async set(area, key, value) {
     try {
+      // Bridging: If we're setting sync storage, check if it's a bridged key
+      if (area === browser.storage.sync && this._isBridgedSyncKey(key)) {
+        await this.saveSyncConfigToBookmarks({ [key]: value });
+        // Fallthrough to also set in browser.storage.sync for secondary backup
+      }
       await area.set({ [key]: value });
       return true;
     } catch (error) {
@@ -72,47 +85,119 @@ export const storage = {
       return ensureArray(value, defaultValue ?? []);
     } else if (key === LOCAL_STORAGE_KEYS.PROCESSED_BOOKMARK_IDS || key === LOCAL_STORAGE_KEYS.RECENTLY_OPENED_URLS) {
       return ensureObject(value, defaultValue ?? {});
-    } else if (key === LOCAL_STORAGE_KEYS.LAST_PROCESSED_BOOKMARK_TIMESTAMP || key === LOCAL_STORAGE_KEYS.LAST_SYNC_TIME || key === SYNC_STORAGE_KEYS.TASK_EXPIRY_DAYS) { 
+    } else if (key === LOCAL_STORAGE_KEYS.LAST_PROCESSED_BOOKMARK_TIMESTAMP || key === LOCAL_STORAGE_KEYS.LAST_SYNC_TIME || key === SYNC_STORAGE_KEYS.TASK_EXPIRY_DAYS) {
       return typeof value === 'number' ? value : (defaultValue ?? 0);
+    } else if (key === LOCAL_STORAGE_KEYS.TAB_HISTORY) {
+      return ensureArray(value, defaultValue ?? []);
     }
     return value;
   },
 
+  _isBridgedSyncKey(key) {
+    const bridgedKeys = [
+      SYNC_STORAGE_KEYS.TASK_EXPIRY_DAYS,
+      "staleDeviceThreshold", // Not in SYNC_STORAGE_KEYS yet but used in UI
+    ];
+    return bridgedKeys.includes(key);
+  },
+
+  async getSyncConfigFromBookmarks() {
+    try {
+      const rootFolder = await this.getRootBookmarkFolder();
+      if (!rootFolder) return null;
+
+      const children = await browser.bookmarks.getChildren(rootFolder.id);
+      const configBookmark = children.find(child => child.url && child.title === SYNC_STORAGE_KEYS.CONFIG_BOOKMARK_TITLE);
+
+      if (configBookmark && configBookmark.url.startsWith("data:application/json,")) {
+        const jsonStr = decodeURIComponent(configBookmark.url.replace("data:application/json,", ""));
+        return JSON.parse(jsonStr);
+      }
+    } catch (e) {
+      console.warn("Storage: Failed to read config from bookmark:", e.message);
+    }
+    return null;
+  },
+
+  async saveSyncConfigToBookmarks(updates) {
+    try {
+      const rootFolder = await this.getRootBookmarkFolder();
+      if (!rootFolder) return false;
+
+      const currentConfig = (await this.getSyncConfigFromBookmarks()) || {};
+      const newConfig = { ...currentConfig, ...updates, _lastUpdated: Date.now() };
+      const jsonStr = JSON.stringify(newConfig);
+      const dataUri = `data:application/json,${encodeURIComponent(jsonStr)}`;
+
+      const children = await browser.bookmarks.getChildren(rootFolder.id);
+      const configBookmark = children.find(child => child.url && child.title === SYNC_STORAGE_KEYS.CONFIG_BOOKMARK_TITLE);
+
+      if (configBookmark) {
+        await browser.bookmarks.update(configBookmark.id, { url: dataUri });
+      } else {
+        await browser.bookmarks.create({
+          parentId: rootFolder.id,
+          title: SYNC_STORAGE_KEYS.CONFIG_BOOKMARK_TITLE,
+          url: dataUri
+        });
+      }
+      return true;
+    } catch (e) {
+      console.error("Storage: Failed to save config to bookmark:", e);
+      return false;
+    }
+  },
+
   async getRootBookmarkFolder() {
     try {
-      const results = await browser.bookmarks.search({ title: SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE });
-      // Ensure it's a folder and not just a bookmark with the same title
-      const folder = results.find(bookmark => !bookmark.url && bookmark.title === SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE);
+      // 1. Manually search the tree (Dramatically more reliable on Android than bookmarks.search)
+      let folder = null;
+      try {
+        const tree = await browser.bookmarks.getTree();
+        folder = this._findFirstFolderByTitle(tree, SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE);
+      } catch (e) {
+        console.warn("Storage: Failed to search tree manually, falling back to search API:", e);
+        try {
+          if (browser.bookmarks.search) {
+            const results = await browser.bookmarks.search({ title: SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE });
+            folder = results.find(bookmark => !bookmark.url && bookmark.title === SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE);
+          }
+        } catch (e2) {
+          console.error("Storage: Search API also failed:", e2);
+        }
+      }
+
       if (folder) {
         return folder;
       }
-      console.log(`Storage: Root bookmark folder "${SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE}" not found, creating...`);
-      
-      let parentIdToUse = undefined; // Explicitly undefined
+
+      console.log(`Storage: Root bookmark folder "${SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE}" not found, identifying parent for creation...`);
+
+      let parentIdToUse = "unfiled_____"; // Default to Other Bookmarks (highly synced)
       try {
         const tree = await browser.bookmarks.getTree();
         // tree[0] is the root of the bookmark tree (e.g., id "root________")
         // tree[0].children are the top-level folders like "Bookmarks Menu", "Mobile Bookmarks", etc.
         if (tree && tree.length > 0 && tree[0] && tree[0].children) {
-            const rootChildren = tree[0].children;
+          const rootChildren = tree[0].children;
 
-            // Preferred parent folders by ID or Title. Order matters.
-            const preferredParentCandidates = [
-                { id: "mobile______", title: "Mobile Bookmarks" }, // Firefox Android: Mobile Bookmarks
-                { id: "unfiled_____", title: "Other Bookmarks" }, // Firefox Desktop/Sync: Other Bookmarks
-                { id: "menu________", title: "Bookmarks Menu" }    // Firefox Desktop: Bookmarks Menu
-            ];
+          // Preferred parent folders by ID or Title. Order matters.
+          const preferredParentCandidates = [
+            { id: "unfiled_____", title: "Other Bookmarks" }, // Highest priority: Syncs well as "Desktop Bookmarks" on mobile
+            { id: "mobile______", title: "Mobile Bookmarks" },
+            { id: "menu________", title: "Bookmarks Menu" }
+          ];
 
-            for (const candidate of preferredParentCandidates) {
-                const foundParent = rootChildren.find(node =>
-                    node.type === "folder" && (node.id === candidate.id || (candidate.title && node.title === candidate.title))
-                );
-                if (foundParent) {
-                    parentIdToUse = foundParent.id;
-                    console.log(`Storage: Identified preferred parent folder "${foundParent.title || foundParent.id}" (ID: ${parentIdToUse}) for the root TabTogether folder.`);
-                    break; 
-                }
+          for (const candidate of preferredParentCandidates) {
+            const foundParent = rootChildren.find(node =>
+              node.type === "folder" && (node.id === candidate.id || (candidate.title && node.title === candidate.title))
+            );
+            if (foundParent) {
+              parentIdToUse = foundParent.id;
+              console.log(`Storage: Identified preferred parent folder "${foundParent.title || foundParent.id}" (ID: ${parentIdToUse}) for the root TabTogether folder.`);
+              break;
             }
+          }
         }
         // If no preferred parent is found, parentIdToUse remains undefined.
         // In this case, browser.bookmarks.create will use the browser's default location.
@@ -175,6 +260,24 @@ export const storage = {
       return { success: false, bookmarkId: null, message: error.message };
     }
   },
+
+  /**
+   * Recursive helper to find the first folder with a specific title in a bookmark tree.
+   * Useful on Android where browser.bookmarks.search is missing or limited.
+   */
+  _findFirstFolderByTitle(nodes, title) {
+    if (!nodes) return null;
+    for (const node of nodes) {
+      if (!node.url && node.title === title) {
+        return node;
+      }
+      if (node.children) {
+        const found = this._findFirstFolderByTitle(node.children, title);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
 };
 
 // --- Generic Storage List/Object Updaters ---
@@ -227,4 +330,23 @@ export async function removeObjectKey(area, key, prop) {
 
 export async function recordSuccessfulSyncTime() {
   await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.LAST_SYNC_TIME]: Date.now() }).catch(e => console.error("Failed to record successful sync time:", e));
+}
+
+export async function addToHistory(tabInfo) {
+  try {
+    const history = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.TAB_HISTORY, []);
+    const newEntry = {
+      ...tabInfo,
+      receivedAt: Date.now()
+    };
+
+    const updatedHistory = [newEntry, ...history].slice(0, 50); // Cap at 50
+    await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.TAB_HISTORY, updatedHistory);
+  } catch (e) {
+    console.error("Storage: Failed to add to history:", e);
+  }
+}
+
+export async function getDeviceNickname() {
+  return await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.DEVICE_NICKNAME, "Unknown Device");
 }

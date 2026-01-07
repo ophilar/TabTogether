@@ -1,4 +1,3 @@
-console.log(`${new Date().toISOString()} Options: [[[ OPTIONS.JS TOP LEVEL EXECUTION POINT ]]]`);
 import { STRINGS, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from "../../common/constants.js";
 import { isAndroid } from "../../core/platform.js";
 import {
@@ -18,6 +17,7 @@ import {
   showLoadingIndicator,
   showMessage,
   clearMessage,
+  renderHistoryUI,
 } from "../shared/shared-ui.js";
 import { applyThemeFromStorage, setupThemeDropdown } from "../shared/theme.js";
 import {
@@ -40,6 +40,8 @@ const dom = {
   manualSyncBtn: null,
   syncIntervalInput: null,
   syncStatus: null,
+  deviceNicknameInput: null,
+  tabHistoryListDiv: null,
 };
 let currentState = null;
 let isAndroidPlatformGlobal = false;
@@ -47,11 +49,8 @@ let isLoadingState = false; // Flag to prevent re-entrant loadState calls
 
 
 document.addEventListener("DOMContentLoaded", async () => {
-  console.log(`${new Date().toISOString()} Options: [DOMContentLoaded] START`);
   try {
     isAndroidPlatformGlobal = await isAndroid();
-
-    console.log(`${new Date().toISOString()} Options:DOMContentLoaded - Platform isAndroid: ${isAndroidPlatformGlobal}`);
     const mainOptionsContainer = document.querySelector('.container');
     if (mainOptionsContainer) {
       await displaySyncRequirementBanner(mainOptionsContainer, storage);
@@ -66,11 +65,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     dom.definedGroupsListDiv = document.getElementById("definedGroupsList");
     dom.newGroupNameInput = document.getElementById("newGroupName");
     dom.createGroupBtn = document.getElementById("createGroupBtn");
+    dom.deviceNicknameInput = document.getElementById("deviceNicknameInput");
+    dom.tabHistoryListDiv = document.getElementById("tabHistoryList");
     dom.loadingIndicator = document.getElementById("loadingIndicator");
     dom.messageArea = document.getElementById("messageArea");
     if (dom.manualSyncBtn) {
       dom.manualSyncBtn.addEventListener("click", async () => {
-        console.log(`${new Date().toISOString()} Options: Manual Sync button clicked.`);
         const syncIcon = dom.manualSyncBtn.querySelector('.sync-icon-svg');
         const startTime = Date.now();
         dom.manualSyncBtn.disabled = true;
@@ -78,14 +78,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         clearMessage(dom.messageArea);
         try {
           if (isAndroidPlatformGlobal) {
-            console.log(`${new Date().toISOString()} Options: Manual Sync - Android platform, calling loadState.`);
             await loadState();
             // Explicitly update UI from the recorded time
             const ts = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_SYNC_TIME, null);
             if (ts && dom.syncStatus) dom.syncStatus.textContent = "Last sync: " + new Date(ts).toLocaleString();
             showMessage(dom.messageArea, STRINGS.syncComplete, false);
           } else {
-            console.log(`${new Date().toISOString()} Options: Manual Sync - Desktop platform, sending heartbeat message.`);
             await browser.runtime.sendMessage({ action: "heartbeat" });
             // The background script's heartbeat handler will call recordSuccessfulSyncTime.
             // The specificSyncDataChanged listener (or a direct fetch here) will update the UI.
@@ -94,7 +92,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             showMessage(dom.messageArea, STRINGS.backgroundSyncTriggered, false);
           }
         } catch (error) {
-          console.error(`${new Date().toISOString()} Options: Manual sync failed:`, error);
+          console.error(`Options: Manual sync failed:`, error);
           showMessage(dom.messageArea, STRINGS.manualSyncFailed(error.message || 'Unknown error'), true);
         } finally {
           const duration = Date.now() - startTime;
@@ -112,14 +110,19 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
     }
 
+    if (dom.deviceNicknameInput) {
+      dom.deviceNicknameInput.addEventListener("change", async (e) => {
+        const val = e.target.value.trim() || "Unknown Device";
+        await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.DEVICE_NICKNAME, val);
+      });
+    }
+
     if (dom.syncIntervalInput) {
       storage.get(browser.storage.local, "syncInterval", 5).then((val) => {
-        console.log(`${new Date().toISOString()} Options: Initial syncInterval loaded: ${val}`);
         dom.syncIntervalInput.value = val;
       });
       dom.syncIntervalInput.addEventListener("change", async (e) => {
         let val = parseInt(e.target.value, 10);
-        console.log(`${new Date().toISOString()} Options: syncIntervalInput changed. Raw value: ${e.target.value}, Parsed: ${val}`);
         if (isNaN(val) || val < 1) val = 1;
         if (val > 120) val = 120;
         dom.syncIntervalInput.value = val;
@@ -149,7 +152,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         try {
           const response = await createGroupUnified(groupName, isAndroidPlatformGlobal);
           if (response.success) {
-            console.log(`${new Date().toISOString()} Options: Group "${response.newGroup}" created successfully.`);
+            console.log(`Options: Group "${response.newGroup}" created successfully.`);
             if (currentState && !currentState.definedGroups.includes(response.newGroup)) {
               currentState.definedGroups.push(response.newGroup);
               renderDefinedGroups(); // Re-render from state
@@ -158,11 +161,11 @@ document.addEventListener("DOMContentLoaded", async () => {
             dom.newGroupNameInput.value = "";
             dom.createGroupBtn.disabled = true;
           } else {
-            console.warn(`${new Date().toISOString()} Options: Failed to create group. Message: ${response.message}`);
+            console.warn(`Options: Failed to create group. Message: ${response.message}`);
             if (dom.messageArea) showMessage(dom.messageArea, response.message || STRINGS.groupCreateFailed, true);
           }
         } catch (error) {
-          console.error(`${new Date().toISOString()} Options: Error creating group:`, error);
+          console.error(`Options: Error creating group:`, error);
           if (dom.messageArea) showMessage(dom.messageArea, `${STRINGS.groupCreateFailed}: ${error.message || 'Unknown error'}`, true);
         } finally {
           if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, false);
@@ -171,7 +174,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     if (dom.syncStatus) {
       storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_SYNC_TIME, null).then((ts) => {
-        console.log(`${new Date().toISOString()} Options: Initial lastSyncTime loaded: ${ts ? new Date(ts).toLocaleString() : 'Never'}`);
+        console.log(`Options: Initial lastSyncTime loaded: ${ts ? new Date(ts).toLocaleString() : 'Never'}`);
         if (ts && dom.syncStatus) dom.syncStatus.textContent = "Last sync: " + new Date(ts).toLocaleString();
       });
     }
@@ -188,45 +191,45 @@ document.addEventListener("DOMContentLoaded", async () => {
     setupAdvancedTiming();
     browser.runtime.onMessage.addListener(async (message) => {
       if (message.action === "specificSyncDataChanged" && message.changedItems) {
-        console.log(`${new Date().toISOString()} Options: Received specificSyncDataChanged message. Items:`, message.changedItems);
+        console.log(`Options: Received specificSyncDataChanged message. Items:`, message.changedItems);
         if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
         clearMessage(dom.messageArea);
         try {
           if (!currentState && !isLoadingState) { // If no state and not already loading, do a full load
-            console.log(`${new Date().toISOString()} Options:specificSyncDataChanged - No current state and not loading, performing full loadState.`);
+            console.log(`Options:specificSyncDataChanged - No current state and not loading, performing full loadState.`);
             await loadState();
           } else if (currentState) { // Only proceed with incremental if currentState is populated
             if (message.changedItems.includes("definedGroupsChanged")) {
-              console.log(`${new Date().toISOString()} Options:specificSyncDataChanged - Handling definedGroupsChanged by fetching from bookmarks.`);
+              console.log(`Options:specificSyncDataChanged - Handling definedGroupsChanged by fetching from bookmarks.`);
               currentState.definedGroups = await getDefinedGroupsFromBookmarks(); // This already sorts
               currentState.definedGroups.sort();
               renderDefinedGroups();
             }
             if (message.changedItems.includes("subscriptionsChanged")) {
-              console.log(`${new Date().toISOString()} Options:specificSyncDataChanged - Handling subscriptionsChanged.`);
+              console.log(`Options:specificSyncDataChanged - Handling subscriptionsChanged.`);
               const deviceSubscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
-              console.log(`${new Date().toISOString()} Options:specificSyncDataChanged - Derived device subscriptions:`, deviceSubscriptions);
+              console.log(`Options:specificSyncDataChanged - Derived device subscriptions:`, deviceSubscriptions);
               // Ensure subscriptions is an array before sorting
               currentState.subscriptions = Array.isArray(deviceSubscriptions) ? deviceSubscriptions : [];
               currentState.subscriptions.sort(); // Sort the array
               renderDefinedGroups(); // Re-render the UI
             }
             if (message.changedItems.includes("lastSyncTimeChanged")) {
-              console.log(`${new Date().toISOString()} Options:specificSyncDataChanged - Handling lastSyncTimeChanged.`);
+              console.log(`Options:specificSyncDataChanged - Handling lastSyncTimeChanged.`);
               const ts = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_SYNC_TIME, null);
               if (ts && dom.syncStatus) {
                 dom.syncStatus.textContent = "Last sync: " + new Date(ts).toLocaleString();
               }
             }
           } else {
-            console.log(`${new Date().toISOString()} Options:specificSyncDataChanged - currentState is null and isLoadingState is true. Skipping incremental update.`);
+            console.log(`Options:specificSyncDataChanged - currentState is null and isLoadingState is true. Skipping incremental update.`);
           }
           const ts = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_SYNC_TIME, null);
           if (ts && dom.syncStatus) {
             dom.syncStatus.textContent = "Last sync: " + new Date(ts).toLocaleString();
           }
         } catch (e) {
-          console.error(`${new Date().toISOString()} Options: Error processing specificSyncDataChanged message:`, e);
+          console.error(`Options: Error processing specificSyncDataChanged message:`, e);
           if (dom.messageArea) showMessage(dom.messageArea, STRINGS.errorUpdatingUIAfterSync, true);
         } finally {
           if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, false);
@@ -235,26 +238,26 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
     loadState();
   } catch (error) {
-    console.error(`${new Date().toISOString()} Options: CRITICAL ERROR during DOMContentLoaded:`, error);
+    console.error(`Options: CRITICAL ERROR during DOMContentLoaded:`, error);
     const msgArea = document.getElementById("messageArea");
     if (msgArea) msgArea.textContent = `Error initializing options: ${error.message}. Please reload.`;
   }
 });
 
+function renderHistory() {
+  if (!currentState || !dom.tabHistoryListDiv) return;
+  renderHistoryUI(dom.tabHistoryListDiv, currentState.history);
+}
+
 async function loadState() {
   if (isLoadingState) {
-    console.log(`${new Date().toISOString()} Options:loadState - SKIPPED, already in progress.`);
     return;
   }
   isLoadingState = true;
-  console.log(`${new Date().toISOString()} Options:loadState - START. isLoadingState set to true.`);
   if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
   clearMessage(dom.messageArea);
   try {
-    console.log(`${new Date().toISOString()} Options:loadState - Attempting to get unified state...`);
-    let state = await getUnifiedState(isAndroidPlatformGlobal);
     if (isAndroidPlatformGlobal) {
-      console.log(`${new Date().toISOString()} Options:loadState - Android platform, processing incoming tabs with state:`, JSON.stringify(state));
       await processSubscribedGroupTasks();
       const container = document.querySelector(".container");
       setLastSyncTimeUI(container, Date.now());
@@ -262,7 +265,7 @@ async function loadState() {
     }
     currentState = state;
     if (!currentState || currentState.error) {
-      console.error(`${new Date().toISOString()} Options:loadState - Error in received state: ${currentState?.error}`);
+      console.error(`Options:loadState - Error in received state: ${currentState?.error}`);
       throw new Error(
         currentState?.error || "Failed to load state."
       );
@@ -270,9 +273,9 @@ async function loadState() {
     renderAll();
     console.log(`${new Date().toISOString()} Options:loadState - renderAll completed.`);
   } catch (error) {
-    console.error(`${new Date().toISOString()} Options:loadState - !!! ERROR:`, error);
+    console.error(`Options:loadState - !!! ERROR:`, error);
     if (error && error.stack) {
-      console.error(`${new Date().toISOString()} Options:loadState - !!! Stack Trace:`, error.stack);
+      console.error(`Options:loadState - !!! Stack Trace:`, error.stack);
     }
     if (dom.messageArea) showMessage(dom.messageArea, STRINGS.loadingSettingsError(error.message), true);
     if (dom.definedGroupsListDiv) dom.definedGroupsListDiv.textContent = STRINGS.loadingGroups;
@@ -286,22 +289,23 @@ async function loadState() {
 function renderAll() {
   if (!currentState) return;
   try {
-    console.log(`${new Date().toISOString()} Options:renderAll - Rendering defined groups...`);
     renderDefinedGroups();
+    renderHistory();
+    if (dom.deviceNicknameInput && currentState.nickname) {
+      dom.deviceNicknameInput.value = currentState.nickname;
+    }
   } catch (error) {
-    console.error(`${new Date().toISOString()} Options:renderAll - !!! ERROR:`, error);
+    console.error(`Options:renderAll - !!! ERROR:`, error);
     if (error && error.stack) {
-      console.error(`${new Date().toISOString()} Options:renderAll - !!! Stack Trace:`, error.stack);
+      console.error(`Options:renderAll - !!! Stack Trace:`, error.stack);
     }
     if (dom.messageArea) showMessage(dom.messageArea, STRINGS.errorUpdatingUIAfterSync, true);
   }
 }
 
 function renderDefinedGroups() {
-  console.log(`${new Date().toISOString()} Options:renderDefinedGroups - START.`);
   if (!dom.definedGroupsListDiv) return;
   if (!currentState) {
-    console.warn(`${new Date().toISOString()} Options:renderDefinedGroups - currentState is null, skipping render.`);
     return;
   }
   renderGroupListUI(
@@ -318,7 +322,6 @@ function renderDefinedGroups() {
 }
 
 function startRenameGroup(oldName, nameSpan) {
-  console.log(`${new Date().toISOString()} Options:startRenameGroup - Called for group: "${oldName}"`);
   const listItem = nameSpan.closest('li');
   if (!listItem || listItem.querySelector('.inline-edit-container')) {
     return;
@@ -336,7 +339,6 @@ function startRenameGroup(oldName, nameSpan) {
 }
 
 async function finishRenameGroup(oldName, newName, nameSpan, inlineControlsContainer) {
-  console.log(`${new Date().toISOString()} Options:finishRenameGroup - Renaming group "${oldName}" to "${newName}"`);
   newName = newName.trim();
   if (!newName || newName === oldName) {
     cancelInlineEditUI(nameSpan, inlineControlsContainer);
@@ -347,52 +349,45 @@ async function finishRenameGroup(oldName, newName, nameSpan, inlineControlsConta
   try {
     const response = await renameGroupUnified(oldName, newName, isAndroidPlatformGlobal);
     if (response.success) {
-      console.log(`${new Date().toISOString()} Options:finishRenameGroup - Success. New name: "${response.renamedGroup}"`);
-      showMessage(dom.messageArea, STRINGS.groupRenameSuccess(newName), false);
+      console.log(`Options:finishRenameGroup - Success. New name: "${response.renamedGroup}"`);
+      if (dom.messageArea) showMessage(dom.messageArea, STRINGS.groupRenameSuccess(newName), false);
       success = true;
       if (currentState) {
         currentState.definedGroups = currentState.definedGroups.map(g => g === oldName ? newName : g);
         currentState.subscriptions = currentState.subscriptions.map(s => s === oldName ? newName : s);
-        renderDefinedGroups(); // Re-render the entire group list using the updated currentState
+        renderDefinedGroups();
       }
-      // cancelInlineEditUI will be called in the finally block
     } else {
-      console.warn(`${new Date().toISOString()} Options:finishRenameGroup - Failed. Message: ${response.message}`);
-      showMessage(dom.messageArea, response.message || STRINGS.groupRenameFailed, true);
-      cancelInlineEditUI(nameSpan, inlineControlsContainer);
+      console.warn(`Options:finishRenameGroup - Failed. Message: ${response.message}`);
+      if (dom.messageArea) showMessage(dom.messageArea, response.message || STRINGS.groupRenameFailed, true);
     }
   } catch (e) {
-    console.error(`${new Date().toISOString()} Options:finishRenameGroup - Error:`, e);
+    console.error(`Options:finishRenameGroup - Error:`, e);
     if (dom.messageArea) showMessage(dom.messageArea, `${STRINGS.groupRenameFailed}: ${e.message || 'Unknown error'}`, true);
-    cancelInlineEditUI(nameSpan, inlineControlsContainer);
   } finally {
     if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, false);
-    if (!success && nameSpan && inlineControlsContainer) { // Ensure nameSpan is visible if save failed
-      nameSpan.style.display = '';
-    }
-    cancelInlineEditUI(nameSpan, inlineControlsContainer); // Always clean up editor
+    cancelInlineEditUI(nameSpan, inlineControlsContainer);
   }
 }
 
 async function handleSubscribe(event) {
   const groupName = event.target.dataset.group;
   if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
-  console.log(`${new Date().toISOString()} Options:handleSubscribe - Subscribing to group: "${groupName}"`);
   clearMessage(dom.messageArea);
-  try {   
+  try {
     let response = await subscribeToGroupUnified(groupName, isAndroidPlatformGlobal);
     if (response.success) {
       if (currentState && !currentState.subscriptions.includes(response.subscribedGroup)) {
-        console.log(`${new Date().toISOString()} Options:handleSubscribe - Success. Subscribed to: "${response.subscribedGroup}"`);
+        console.log(`Options:handleSubscribe - Success. Subscribed to: "${response.subscribedGroup}"`);
         currentState.subscriptions.push(response.subscribedGroup);
         if (dom.messageArea) showMessage(dom.messageArea, STRINGS.subscribedToGroup(response.subscribedGroup), false);
-        renderDefinedGroups(); // Re-render from state
+        renderDefinedGroups();
       }
     } else {
       if (dom.messageArea) showMessage(dom.messageArea, response.message || STRINGS.failedToSubscribe, true);
     }
   } catch (error) {
-    console.error(`${new Date().toISOString()} Options:handleSubscribe - Error:`, error);
+    console.error(`Options:handleSubscribe - Error:`, error);
     if (dom.messageArea) showMessage(dom.messageArea, STRINGS.errorSubscribing(error.message || 'Unknown error'), true);
   } finally {
     if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, false);
@@ -402,23 +397,22 @@ async function handleSubscribe(event) {
 async function handleUnsubscribe(event) {
   const groupName = event.target.dataset.group;
   if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
-  console.log(`${new Date().toISOString()} Options:handleUnsubscribe - Unsubscribing from group: "${groupName}"`);
   clearMessage(dom.messageArea);
   try {
     let response = await unsubscribeFromGroupUnified(groupName, isAndroidPlatformGlobal);
     if (response.success) {
       if (currentState) {
-        console.log(`${new Date().toISOString()} Options:handleUnsubscribe - Success. Unsubscribed from: "${response.unsubscribedGroup}"`);
+        console.log(`Options:handleUnsubscribe - Success. Unsubscribed from: "${response.unsubscribedGroup}"`);
         currentState.subscriptions = currentState.subscriptions.filter(g => g !== response.unsubscribedGroup);
         if (dom.messageArea) showMessage(dom.messageArea, STRINGS.unsubscribedFromGroup(response.unsubscribedGroup), false);
-        renderDefinedGroups(); // Re-render from state
+        renderDefinedGroups();
       }
     } else {
-      console.warn(`${new Date().toISOString()} Options:handleUnsubscribe - Failed. Message: ${response.message}`);
+      console.warn(`Options:handleUnsubscribe - Failed. Message: ${response.message}`);
       if (dom.messageArea) showMessage(dom.messageArea, response.message || STRINGS.failedToUnsubscribe, true);
     }
   } catch (error) {
-    console.error(`${new Date().toISOString()} Options:handleUnsubscribe - Error:`, error);
+    console.error(`Options:handleUnsubscribe - Error:`, error);
     if (dom.messageArea) showMessage(dom.messageArea, STRINGS.errorUnsubscribing(error.message || 'Unknown error'), true);
   } finally {
     if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, false);
@@ -427,7 +421,6 @@ async function handleUnsubscribe(event) {
 
 async function handleDeleteGroup(event) {
   const groupName = event.target.dataset.group;
-  console.log(`${new Date().toISOString()} Options:handleDeleteGroup - Deleting group: "${groupName}"`);
   if (!confirm(STRINGS.confirmDeleteGroup(groupName))) {
     return;
   }
@@ -437,18 +430,18 @@ async function handleDeleteGroup(event) {
     const response = await deleteGroupUnified(groupName, isAndroidPlatformGlobal);
     if (response.success) {
       if (currentState) {
-        console.log(`${new Date().toISOString()} Options:handleDeleteGroup - Success. Deleted: "${response.deletedGroup}"`);
+        console.log(`Options:handleDeleteGroup - Success. Deleted: "${response.deletedGroup}"`);
         currentState.definedGroups = currentState.definedGroups.filter(g => g !== response.deletedGroup);
         currentState.subscriptions = currentState.subscriptions.filter(g => g !== response.deletedGroup);
-        renderDefinedGroups(); // Re-render from state
+        renderDefinedGroups();
       }
       if (dom.messageArea) showMessage(dom.messageArea, STRINGS.groupDeleteSuccess(response.deletedGroup), false);
     } else {
-      console.warn(`${new Date().toISOString()} Options:handleDeleteGroup - Failed. Message: ${response.message}`);
+      console.warn(`Options:handleDeleteGroup - Failed. Message: ${response.message}`);
       if (dom.messageArea) showMessage(dom.messageArea, response.message || STRINGS.groupDeleteFailed, true);
     }
   } catch (error) {
-    console.error(`${new Date().toISOString()} Options:handleDeleteGroup - Error:`, error);
+    console.error(`Options:handleDeleteGroup - Error:`, error);
     if (dom.messageArea) showMessage(dom.messageArea, `${STRINGS.groupDeleteFailed}: ${error.message || 'Unknown error'}`, true);
   } finally {
     if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, false);

@@ -6,9 +6,9 @@ import { processSubscribedGroupTasks, createAndStoreGroupTask } from "../../core
 import {
   showAndroidBanner,
   setLastSyncTime, // Import the correct function name
-  showLoadingIndicator,
   showMessage,
-  injectSharedUI
+  injectSharedUI,
+  renderHistoryUI,
 } from "../shared/shared-ui.js";
 import { applyThemeFromStorage } from "../shared/theme.js";
 
@@ -23,6 +23,7 @@ const dom = {
   toggleDetailsBtn: null,
   popupDetails: null, // Details section container
   loadingIndicator: null,
+  tabHistoryListDiv: null,
 };
 
 // --- Initialization ---
@@ -43,13 +44,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     dom.subscriptionsUl = document.getElementById("subscriptionsUl");
     dom.toggleDetailsBtn = document.getElementById("toggleDetailsBtn");
     dom.popupDetails = document.getElementById("popupDetails");
+    dom.tabHistoryListDiv = document.getElementById("tabHistoryList");
 
     if (!dom.loadingIndicator) {
       // Log to the main console if the popup's console isn't visible or working
       console.error("POPUP CRITICAL: dom.loadingIndicator is null after DOMContentLoaded assignment.");
     }
 
-    console.log("Popup: Checking platform...");
     const isAndroidPlatform = await isAndroid();
     if (isAndroidPlatform) {
       const container = document.querySelector(".container");
@@ -77,7 +78,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (syncing || !dom.refreshLink) return; // Add null check for dom.refreshLink
 
         syncing = true;
-        console.log("Popup: Starting sync...");
         dom.refreshLink.style.pointerEvents = 'none';
 
         if (syncIcon) syncIcon.classList.add("syncing-icon");
@@ -86,10 +86,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         try {
           const isAndroidPlatform = await isAndroid();
           if (isAndroidPlatform) {
-            console.log("Popup: Refresh - Android platform, calling processSubscribedGroupTasks directly.");
             await processSubscribedGroupTasks(); // This now calls recordSuccessfulSyncTime
           } else {
-            console.log("Popup: Refresh - Desktop platform, sending heartbeat message.");
             await browser.runtime.sendMessage({ action: "heartbeat" });
             // Background script handles processSubscribedGroupTasks and recordSuccessfulSyncTime
           }
@@ -159,8 +157,7 @@ async function loadStatus() {
   if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
   try {
     const isAndroidPlatform = await isAndroid();
-    console.log(`Popup: Getting unified state. isAndroid: ${isAndroidPlatform}`);
-    let state = await getUnifiedState(isAndroidPlatform); // Pass platform info
+    let state = await getUnifiedState(isAndroidPlatform);
 
     // Process incoming tabs immediately on Android after getting state
     if (isAndroidPlatform) {
@@ -171,13 +168,11 @@ async function loadStatus() {
     }
 
 
-    // Validate state
     if (!state) throw new Error("Failed to retrieve extension state.");
-    if (state.error) throw new Error(state.error); // Propagate error from background
-    console.log("Popup received state:", state); // Log received state for debugging
-    // Render UI components
+    if (state.error) throw new Error(state.error);
     renderSubscriptionsUI(state.subscriptions);
     renderSendTabGroups(state.definedGroups); // Uses the combined button approach
+    renderHistory(state.history);
   } catch (error) {
     console.error("Error loading popup status:", error);
     if (dom.messageArea) showMessage(dom.messageArea, STRINGS.loadingSettingsError(error.message || "Unknown error"), true); // STRINGS.loadingSettingsError is good
@@ -192,6 +187,11 @@ async function loadStatus() {
   } finally {
     if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, false); // Hide loading indicator
   }
+}
+
+function renderHistory(history) {
+  if (!dom.tabHistoryListDiv) return;
+  renderHistoryUI(dom.tabHistoryListDiv, history);
 }
 
 // Renders the list of subscribed groups in the details section
@@ -279,10 +279,9 @@ async function sendTabToGroup(groupName) {
     };
 
     // Send differently based on platform
-    console.log(`Popup: Sending tab to group "${groupName}" (Platform: ${await isAndroid() ? 'Android' : 'Desktop'})`);
-    if (await isAndroid()) {
+    const isAndroidPlat = await isAndroid();
+    if (isAndroidPlat) {
       response = await createAndStoreGroupTask(groupName, tabData);
-      console.log(`Popup:sendTabToGroup (Android) - Response from createAndStoreGroupTask for group "${groupName}":`, response);
     } else {
       // Send message to background script for desktop platforms
       response = await browser.runtime.sendMessage({ action: "sendTabFromPopup", groupName, tabData: tabData });

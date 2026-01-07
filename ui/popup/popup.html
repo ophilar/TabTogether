@@ -1,13 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="../styles.css"> 
+    <link rel="stylesheet" href="../styles.css">
     <link rel="stylesheet" href="../shared/shared-ui.css">
-    <link rel="stylesheet" href="popup.css"> 
+    <link rel="stylesheet" href="popup.css">
     <title>TabTogether</title>
 </head>
+
 <body>
     <div class="container">
         <!-- Dismissible banner is now added by popup.js -->
@@ -18,6 +20,10 @@
 
         <div id="popupDetails" class="popup-details hidden">
             <div class="popup-detail-row">
+                <span class="popup-detail-label">Recently Received:</span>
+                <div id="tabHistoryList" class="popup-history-list">None</div>
+            </div>
+            <div class="popup-detail-row">
                 <span class="popup-detail-label">Subscriptions:</span>
                 <ul id="subscriptionsUl" class="popup-subscriptions-list"></ul>
             </div>
@@ -25,10 +31,14 @@
 
         <div class="popup-footer">
             <a href="#" id="openOptionsLink" class="popup-link" title="Settings">
-                <img class="sync-icon-svg sync-icon-settings" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="" width="16" height="16"/>
+                <img class="sync-icon-svg sync-icon-settings"
+                    src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt=""
+                    width="16" height="16" />
             </a>
             <a href="#" id="refreshLink" class="popup-link" title="Sync">
-                <img class="sync-icon-svg sync-icon-refresh" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="" width="16" height="16"/>
+                <img class="sync-icon-svg sync-icon-refresh"
+                    src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt=""
+                    width="16" height="16" />
             </a>
             <button id="toggleDetailsBtn" aria-label="Show details" title="Show subscriptions">▼</button>
         </div>

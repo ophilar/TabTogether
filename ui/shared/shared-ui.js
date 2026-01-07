@@ -1,47 +1,47 @@
 // Injects shared header, loading, and message area into the container
 
 export function injectSharedUI(containerSelector = '.container') {
-    console.log("SharedUI:injectSharedUI - Called with selector:", containerSelector);
-    const container = document.querySelector(containerSelector);
-    if (!container) {
-        console.warn(`SharedUI:injectSharedUI - Injection failed: Container "${containerSelector}" not found.`);
-        return;
-    }
-    console.log("SharedUI:injectSharedUI - Found container:", container);
+  console.log("SharedUI:injectSharedUI - Called with selector:", containerSelector);
+  const container = document.querySelector(containerSelector);
+  if (!container) {
+    console.warn(`SharedUI:injectSharedUI - Injection failed: Container "${containerSelector}" not found.`);
+    return;
+  }
+  console.log("SharedUI:injectSharedUI - Found container:", container);
 
-    // Use prepend for consistent insertion at the beginning,
-    // inserting in reverse order of desired final appearance.
+  // Use prepend for consistent insertion at the beginning,
+  // inserting in reverse order of desired final appearance.
 
-    // Inject Message Area if not present
-    if (!container.querySelector('#messageArea')) {
-        const messageDiv = document.createElement('div');
-        messageDiv.id = 'messageArea';
-        messageDiv.className = 'message-area hidden'; // Use class from styles.css
-        container.prepend(messageDiv); // Prepend first (will end up below loading)
-        console.log("SharedUI:injectSharedUI - Created and prepended #messageArea:", messageDiv);
-    }
+  // Inject Message Area if not present
+  if (!container.querySelector('#messageArea')) {
+    const messageDiv = document.createElement('div');
+    messageDiv.id = 'messageArea';
+    messageDiv.className = 'message-area hidden'; // Use class from styles.css
+    container.prepend(messageDiv); // Prepend first (will end up below loading)
+    console.log("SharedUI:injectSharedUI - Created and prepended #messageArea:", messageDiv);
+  }
 
-    // Inject Loading Indicator if not present
-    if (!container.querySelector('#loadingIndicator')) {
-        const loadingDiv = document.createElement('div');
-        loadingDiv.id = 'loadingIndicator';
-        loadingDiv.className = 'loading hidden';
-        // Add spinner span for consistency with styles.css
-        loadingDiv.innerHTML = '<span class="spinner"></span> Loading...';
-        container.prepend(loadingDiv); // Prepend second (will end up below header)
-        console.log("SharedUI:injectSharedUI - Created and prepended #loadingIndicator:", loadingDiv);
-    }
+  // Inject Loading Indicator if not present
+  if (!container.querySelector('#loadingIndicator')) {
+    const loadingDiv = document.createElement('div');
+    loadingDiv.id = 'loadingIndicator';
+    loadingDiv.className = 'loading hidden';
+    // Add spinner span for consistency with styles.css
+    loadingDiv.innerHTML = '<span class="spinner"></span> Loading...';
+    container.prepend(loadingDiv); // Prepend second (will end up below header)
+    console.log("SharedUI:injectSharedUI - Created and prepended #loadingIndicator:", loadingDiv);
+  }
 }
 
 export const showAndroidBanner = (container, msg) => {
   console.log("SharedUI:showAndroidBanner - Called with message:", msg);
   let banner = container.querySelector(".android-banner");
-    if (!banner) {
-        banner = document.createElement("div");
-        banner.className = "android-banner small-text"; // Existing classes for structure and font size
-        container.insertBefore(banner, container.firstChild ? container.firstChild.nextSibling : null);
-    }
-    banner.textContent = msg;
+  if (!banner) {
+    banner = document.createElement("div");
+    banner.className = "android-banner small-text"; // Existing classes for structure and font size
+    container.insertBefore(banner, container.firstChild ? container.firstChild.nextSibling : null);
+  }
+  banner.textContent = msg;
 };
 
 export function showLoadingIndicator(
@@ -117,3 +117,46 @@ export const setLastSyncTime = (container, date) => {
   syncDiv.textContent =
     "Last sync: " + (date ? new Date(date).toLocaleString() : "Never");
 };
+
+/**
+ * Renders the tab history list.
+ * @param {HTMLElement} listDiv - The container for the history list.
+ * @param {Array} history - Array of { url, title, receivedAt, fromDevice } objects.
+ */
+export function renderHistoryUI(listDiv, history) {
+  listDiv.textContent = "";
+
+  if (!history || history.length === 0) {
+    listDiv.textContent = "No tabs received yet.";
+    return;
+  }
+
+  const ul = document.createElement("ul");
+  ul.className = "options-list";
+
+  history.forEach(item => {
+    const li = document.createElement("li");
+    li.className = "options-list-item";
+
+    const info = document.createElement("div");
+    info.className = "registry-item-info";
+
+    const titleLink = document.createElement("a");
+    titleLink.href = item.url;
+    titleLink.textContent = item.title || item.url;
+    titleLink.target = "_blank";
+    info.appendChild(titleLink);
+
+    const subText = document.createElement("span");
+    subText.className = "registry-item-lastseen";
+    const dateStr = new Date(item.receivedAt).toLocaleString();
+    const fromStr = item.fromDevice ? ` from ${item.fromDevice}` : "";
+    subText.textContent = `Received ${dateStr}${fromStr}`;
+    info.appendChild(subText);
+
+    li.appendChild(info);
+    ul.appendChild(li);
+  });
+
+  listDiv.appendChild(ul);
+}

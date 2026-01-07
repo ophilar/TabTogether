@@ -10,8 +10,8 @@ import { STRINGS } from "../../common/constants.js";
 export function createGroupListItemUI(groupName, isSubscribed, handlers) {
   const li = document.createElement("li");
   li.setAttribute('role', 'listitem');
-  li.className = 'options-list-item'; 
-  li.dataset.groupName = groupName; 
+  li.className = 'options-list-item';
+  li.dataset.groupName = groupName;
 
   const nameSpan = document.createElement("span");
   nameSpan.textContent = groupName;
@@ -169,7 +169,7 @@ export function showDebugInfoUI(containerElement, state) {
   const pre = document.createElement("pre");
 
   const { subscriptions, definedGroups, groupTasks, isAndroid } = state;
-  const debugState = {  subscriptions, definedGroups, groupTasksCount: Object.keys(groupTasks || {}).length, isAndroid };
+  const debugState = { subscriptions, definedGroups, groupTasksCount: Object.keys(groupTasks || {}).length, isAndroid };
 
   pre.textContent = JSON.stringify(debugState, null, 2);
   debugDiv.appendChild(pre);
@@ -219,4 +219,47 @@ export async function displaySyncRequirementBanner(containerElement, storageAPI)
   banner.appendChild(dismissButton);
 
   containerElement.insertBefore(banner, containerElement.firstChild); // Prepend to make it prominent
+}
+
+/**
+ * Renders the tab history list.
+ * @param {HTMLElement} listDiv - The container for the history list.
+ * @param {Array} history - Array of { url, title, receivedAt, fromDevice } objects.
+ */
+export function renderHistoryUI(listDiv, history) {
+  listDiv.textContent = "";
+
+  if (!history || history.length === 0) {
+    listDiv.textContent = "No tabs received yet.";
+    return;
+  }
+
+  const ul = document.createElement("ul");
+  ul.className = "options-list";
+
+  history.forEach(item => {
+    const li = document.createElement("li");
+    li.className = "options-list-item";
+
+    const info = document.createElement("div");
+    info.className = "registry-item-info";
+
+    const titleLink = document.createElement("a");
+    titleLink.href = item.url;
+    titleLink.textContent = item.title || item.url;
+    titleLink.target = "_blank";
+    info.appendChild(titleLink);
+
+    const subText = document.createElement("span");
+    subText.className = "registry-item-lastseen";
+    const dateStr = new Date(item.receivedAt).toLocaleString();
+    const fromStr = item.fromDevice ? ` from ${item.fromDevice}` : "";
+    subText.textContent = `Received ${dateStr}${fromStr}`;
+    info.appendChild(subText);
+
+    li.appendChild(info);
+    ul.appendChild(li);
+  });
+
+  listDiv.appendChild(ul);
 }
