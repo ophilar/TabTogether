@@ -1,5 +1,5 @@
 import { storage } from "./storage.js"; // Assuming getRootBookmarkFolder etc are exported or accessible
-import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, STRINGS} from "../common/constants.js";
+import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, STRINGS } from "../common/constants.js";
 
 /**
  * Retrieves the unified state of the application.
@@ -12,11 +12,16 @@ export async function getUnifiedState(isAndroid) {
 
     const definedGroups = await getDefinedGroupsFromBookmarks(); // Helper to get group names from bookmark folders
     const groupTasks = {}; // Tasks are individual bookmarks, not fetched as a single object here.
+    const nickname = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.DEVICE_NICKNAME, "Unknown Device");
+    const history = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.TAB_HISTORY, []);
+
     return {
       subscriptions,
       definedGroups: definedGroups.sort(),
       groupTasks,
       isAndroid,
+      nickname,
+      history,
       error: null,
     };
   } catch (error) {
@@ -30,7 +35,7 @@ export async function getDefinedGroupsFromBookmarks() {
   if (!rootFolder) return [];
   const children = await browser.bookmarks.getChildren(rootFolder.id);
   return children.filter(child => !child.url && child.title !== SYNC_STORAGE_KEYS.CONFIG_BOOKMARK_TITLE) // Access via SYNC_STORAGE_KEYS
-                 .map(folder => folder.title);
+    .map(folder => folder.title);
 }
 
 // --- Direct Actions (primarily for Android or when background script is unavailable) ---
@@ -77,7 +82,7 @@ export async function deleteGroupDirect(groupName) {
   }
 
   // Tasks are deleted when the bookmark folder is removed.
-  const tasksSuccess = true; 
+  const tasksSuccess = true;
 
   if (groupsSuccess && tasksSuccess) {
     return { success: true, message: STRINGS.groupDeleteSuccess(groupName), deletedGroup: groupName };

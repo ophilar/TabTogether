@@ -1,4 +1,4 @@
-import { storage, recordSuccessfulSyncTime } from "./storage.js";
+import { storage, recordSuccessfulSyncTime, addToHistory } from "./storage.js";
 import { LOCAL_STORAGE_KEYS, SYNC_STORAGE_KEYS, BACKGROUND_DEFAULT_TASK_EXPIRY_DAYS } from "../common/constants.js";
 
 export async function processSubscribedGroupTasks() {
@@ -24,7 +24,7 @@ export async function processSubscribedGroupTasks() {
     BACKGROUND_DEFAULT_TASK_EXPIRY_DAYS // Fallback default
   );
   const recencyThresholdMs = taskExpiryDays * 24 * 60 * 60 * 1000;
-  
+
   console.log(`Tasks:processSubscribedGroupTasks - START. Subscriptions: [${mySubscriptions.join(', ')}]. Last processed timestamp: ${new Date(lastProcessedTimestampFromStorage).toISOString()}`);
 
   const rootTaskFolder = await storage.getRootBookmarkFolder();
@@ -50,7 +50,6 @@ export async function processSubscribedGroupTasks() {
         }
 
         if (taskBookmark.dateAdded && taskBookmark.dateAdded <= lastProcessedTimestampFromStorage) {
-          // console.log(`Tasks:processSubscribedGroupTasks - Task (bookmarkId: "${bookmarkId}") created at ${new Date(taskBookmark.dateAdded).toISOString()}, before last processed time. Skipping.`);
           continue;
         }
 
@@ -67,21 +66,36 @@ export async function processSubscribedGroupTasks() {
           console.log(`Tasks:processSubscribedGroupTasks - URL ${taskBookmark.url} (bookmarkId: "${bookmarkId}") was recently opened. Deduplicated (inter-run).`);
         }
         else {
-            try {
-              console.log(`Tasks:processSubscribedGroupTasks - Opening tab: ${taskBookmark.url} for group ${groupName}, bookmark ID: ${bookmarkId}`);
-              await browser.tabs.create({ url: taskBookmark.url, active: false });
-              openedUrlsThisRun.add(taskBookmark.url); // For intra-run deduplication
-              
-              recentlyOpenedUrls[taskBookmark.url] = now; // For inter-run deduplication
-              recentlyOpenedUrlsChanged = true;
-            } catch (e) {
-              console.error(`Tasks:processSubscribedGroupTasks - Failed to open tab ${taskBookmark.url} (bookmark ID: ${bookmarkId}):`, e);
-              // If tab creation fails, we might not want to mark it as processed, or handle it differently.
-              // For now, we continue to mark it as processed to avoid retrying a failing URL.
+          try {
+            console.log(`Tasks:processSubscribedGroupTasks - Opening tab: ${taskBookmark.url} for group ${groupName}, bookmark ID: ${bookmarkId}`);
+            await browser.tabs.create({ url: taskBookmark.url, active: false });
+            openedUrlsThisRun.add(taskBookmark.url); // For intra-run deduplication
+
+            // Record in history
+            let displayTitle = taskBookmark.title;
+            let fromDevice = "Remote Device";
+            const match = taskBookmark.title.match(/^\[(.*?)\] (.*)$/);
+            if (match) {
+              fromDevice = match[1];
+              displayTitle = match[2];
             }
+
+            await addToHistory({
+              url: taskBookmark.url,
+              title: displayTitle,
+              fromDevice: fromDevice
+            });
+
+            recentlyOpenedUrls[taskBookmark.url] = now; // For inter-run deduplication
+            recentlyOpenedUrlsChanged = true;
+          } catch (e) {
+            console.error(`Tasks:processSubscribedGroupTasks - Failed to open tab ${taskBookmark.url} (bookmark ID: ${bookmarkId}):`, e);
+            // If tab creation fails, we might not want to mark it as processed, or handle it differently.
+            // For now, we continue to mark it as processed to avoid retrying a failing URL.
           }
+        }
         // Mark the bookmark ID as processed regardless of URL deduplication, as the task intent is handled.
-        localProcessedBookmarkIds[bookmarkId] = now; 
+        localProcessedBookmarkIds[bookmarkId] = now;
         tasksProcessedLocallyThisRun = true;
       }
     }
@@ -127,9 +141,10 @@ export async function processSubscribedGroupTasks() {
   await recordSuccessfulSyncTime();
 }
 export async function createAndStoreGroupTask(groupName, tabData) {
+  const nickname = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.DEVICE_NICKNAME, "Unknown Device");
   const newTaskData = {
     url: tabData.url,
-    title: tabData.title || tabData.url,
+    title: `[${nickname}] ${tabData.title || tabData.url}`,
   };
 
   const opResult = await storage.createTaskBookmark(groupName, newTaskData);

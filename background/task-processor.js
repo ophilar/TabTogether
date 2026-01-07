@@ -1,4 +1,4 @@
-import { storage } from '../core/storage.js';
+import { storage, addToHistory } from '../core/storage.js';
 import { LOCAL_STORAGE_KEYS, SYNC_STORAGE_KEYS, BACKGROUND_DEFAULT_TASK_EXPIRY_DAYS } from '../common/constants.js'; // Assuming BACKGROUND_DEFAULT_TASK_EXPIRY_DAYS is in constants or define it here
 export async function processIncomingTaskBookmark(changedBookmarkId, changeInfoOrNode) {
     console.log(`TaskProcessor:processIncomingTaskBookmark - Processing bookmark ID: ${changedBookmarkId}`);
@@ -66,14 +66,29 @@ export async function processIncomingTaskBookmark(changedBookmarkId, changeInfoO
             console.log(`TaskProcessor: Opening tab for task ${bookmarkNode.id} from group ${groupName}: ${bookmarkNode.url}`);
             await browser.tabs.create({ url: bookmarkNode.url, active: false });
             openedTabsDetails.push({ title: bookmarkNode.title, url: bookmarkNode.url, groupName: groupName });
-            
+
+            // Record in history
+            let displayTitle = bookmarkNode.title;
+            let fromDevice = "Remote Device";
+            const match = bookmarkNode.title.match(/^\[(.*?)\] (.*)$/);
+            if (match) {
+                fromDevice = match[1];
+                displayTitle = match[2];
+            }
+
+            await addToHistory({
+                url: bookmarkNode.url,
+                title: displayTitle,
+                fromDevice: fromDevice
+            });
+
             recentlyOpenedUrls[bookmarkNode.url] = now;
             recentlyOpenedUrlsChanged = true;
         } catch (error) {
             console.error(`TaskProcessor: Failed to open tab for task ${bookmarkNode.id} (${bookmarkNode.url}):`, error);
         }
     }
-    
+
     // Mark the bookmark ID as processed regardless of URL deduplication
     localProcessedBookmarkIds[bookmarkNode.id] = now;
     newTasksProcessedThisRun = true; // Indicates PROCESSED_BOOKMARK_IDS needs saving

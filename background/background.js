@@ -14,27 +14,30 @@ import { recordSuccessfulSyncTime } from "../core/storage.js";
 import { performTimeBasedTaskCleanup } from "./cleanup.js";
 
 const ALARM_TASK_CLEANUP = "taskCleanup";
+const ALARM_PERIODIC_SYNC = "periodicSync";
 const TASK_CLEANUP_INTERVAL_MIN = 60 * 24 * 2;
+const DEFAULT_SYNC_INTERVAL_MIN = 30; // 30 minutes for periodic sync
 let rootBookmarkFolderIdCache = null;
 
 async function initializeExtension() {
   console.log("Background: Initializing TabTogether (Advanced)...");
   try {
     console.log("Background: Initializing storage...");
-    const syncKeysToInitialize = [SYNC_STORAGE_KEYS.TASK_EXPIRY_DAYS]; // Only initialize relevant sync keys
-    const syncData = await browser.storage.sync.get(syncKeysToInitialize);
-    const defaults = {
-      [SYNC_STORAGE_KEYS.TASK_EXPIRY_DAYS]: BACKGROUND_DEFAULT_TASK_EXPIRY_DAYS,
-    };
+    const syncKeysToInitialize = [SYNC_STORAGE_KEYS.TASK_EXPIRY_DAYS];
     const updates = {};
+
     for (const key of syncKeysToInitialize) {
-      if (syncData[key] === undefined && defaults[key] !== undefined) {
-        updates[key] = defaults[key];
+      const value = await storage.get(browser.storage.sync, key, null);
+      if (value === null) {
+        updates[key] = BACKGROUND_DEFAULT_TASK_EXPIRY_DAYS;
       }
     }
+
     if (Object.keys(updates).length > 0) {
-      await browser.storage.sync.set(updates);
-      console.log("Background: Storage initialized with defaults:", updates);
+      for (const [key, val] of Object.entries(updates)) {
+        await storage.set(browser.storage.sync, key, val);
+      }
+      console.log("Background: Storage initialized with defaults via bridging:", updates);
     }
     // Ensure LAST_PROCESSED_BOOKMARK_TIMESTAMP is initialized if it's the first run
     const lastProcessedTs = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_PROCESSED_BOOKMARK_TIMESTAMP, null);
@@ -65,18 +68,26 @@ async function initializeExtension() {
 }
 
 async function getRootId() {
-    if (!rootBookmarkFolderIdCache) {
-        const rootFolder = await storage.getRootBookmarkFolder();
-        if (rootFolder) rootBookmarkFolderIdCache = rootFolder.id;
-    }
-    return rootBookmarkFolderIdCache;
+  if (!rootBookmarkFolderIdCache) {
+    const rootFolder = await storage.getRootBookmarkFolder();
+    if (rootFolder) rootBookmarkFolderIdCache = rootFolder.id;
+  }
+  return rootBookmarkFolderIdCache;
 }
 
 async function setupAlarms() {
   await browser.alarms.clearAll();
   console.log("Background: Setting up alarms...");
+
+  // Cleanup alarm
   browser.alarms.create(ALARM_TASK_CLEANUP, {
     periodInMinutes: TASK_CLEANUP_INTERVAL_MIN,
+  });
+
+  // Periodic sync alarm (crucial for Android)
+  const syncInterval = await storage.get(browser.storage.local, "syncInterval", DEFAULT_SYNC_INTERVAL_MIN);
+  browser.alarms.create(ALARM_PERIODIC_SYNC, {
+    periodInMinutes: syncInterval,
   });
 }
 
@@ -104,6 +115,13 @@ browser.alarms.onAlarm.addListener(async (alarm) => {
           localProcessedTasks,
           currentTaskExpiryMs
         );
+      }
+      break;
+    case ALARM_PERIODIC_SYNC:
+      {
+        console.log("Background: ALARM_PERIODIC_SYNC triggered.");
+        await processSubscribedGroupTasks();
+        await recordSuccessfulSyncTime();
       }
       break;
   }
@@ -276,105 +294,123 @@ browser.storage.onChanged.addListener(async (changes, areaName) => {
 });
 
 async function notifyOptionsPageGroupsChanged() {
-    try {
-        await browser.runtime.sendMessage({ action: "specificSyncDataChanged", changedItems: ["definedGroupsChanged"] });
-    } catch (error) {
-        if (!error.message?.includes("Could not establish connection") && !error.message?.includes("Receiving end does not exist")) {
-            console.warn("Background:notifyOptionsPageGroupsChanged - Could not send message to options page:", error.message);
-        }
+  try {
+    await browser.runtime.sendMessage({ action: "specificSyncDataChanged", changedItems: ["definedGroupsChanged"] });
+  } catch (error) {
+    if (!error.message?.includes("Could not establish connection") && !error.message?.includes("Receiving end does not exist")) {
+      console.warn("Background:notifyOptionsPageGroupsChanged - Could not send message to options page:", error.message);
     }
+  }
+}
+
+async function isConfigBookmark(bookmarkId) {
+  try {
+    const nodes = await browser.bookmarks.get(bookmarkId);
+    if (!nodes || nodes.length === 0) return false;
+    const bookmark = nodes[0];
+    return bookmark.title === SYNC_STORAGE_KEYS.CONFIG_BOOKMARK_TITLE;
+  } catch (e) {
+    return false;
+  }
 }
 
 async function isTaskBookmark(bookmarkId) {
-    try {
-        const nodes = await browser.bookmarks.get(bookmarkId);
-        if (!nodes || nodes.length === 0) return false;
-        const bookmark = nodes[0];
+  try {
+    const nodes = await browser.bookmarks.get(bookmarkId);
+    if (!nodes || nodes.length === 0) return false;
+    const bookmark = nodes[0];
 
-        if (!bookmark || !bookmark.parentId || !bookmark.url || bookmark.url.startsWith("place:")) return false;
+    if (!bookmark || !bookmark.parentId || !bookmark.url || bookmark.url.startsWith("place:")) return false;
+    if (bookmark.title === SYNC_STORAGE_KEYS.CONFIG_BOOKMARK_TITLE) return false;
 
-        const parentNodes = await browser.bookmarks.get(bookmark.parentId);
-        if (!parentNodes || parentNodes.length === 0) return false;
-        const parent = parentNodes[0];
+    const parentNodes = await browser.bookmarks.get(bookmark.parentId);
+    if (!parentNodes || parentNodes.length === 0) return false;
+    const parent = parentNodes[0];
 
-        if (!parent || !parent.parentId || parent.url || parent.title === SYNC_STORAGE_KEYS.CONFIG_BOOKMARK_TITLE) return false; 
+    if (!parent || !parent.parentId || parent.url || parent.title === SYNC_STORAGE_KEYS.CONFIG_BOOKMARK_TITLE) return false;
 
-        const grandParentNodes = await browser.bookmarks.get(parent.parentId);
-        if (!grandParentNodes || grandParentNodes.length === 0) return false;
-        const grandParent = grandParentNodes[0];
-        
-        return grandParent && grandParent.title === SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE;
-    } catch (e) {
-        console.warn(`Background:isTaskBookmark - Error checking bookmark ${bookmarkId}:`, e.message);
-        return false;
-    }
+    const grandParentNodes = await browser.bookmarks.get(parent.parentId);
+    if (!grandParentNodes || grandParentNodes.length === 0) return false;
+    const grandParent = grandParentNodes[0];
+
+    return grandParent && grandParent.title === SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE;
+  } catch (e) {
+    console.warn(`Background:isTaskBookmark - Error checking bookmark ${bookmarkId}:`, e.message);
+    return false;
+  }
 }
 
 async function isGroupFolderNode(bookmarkNode, rootId) {
-    if (!bookmarkNode || bookmarkNode.url || !bookmarkNode.parentId) return false; // Must be a folder and have a parent
-    if (bookmarkNode.title === SYNC_STORAGE_KEYS.CONFIG_BOOKMARK_TITLE) return false;
-    return bookmarkNode.parentId === rootId;
+  if (!bookmarkNode || bookmarkNode.url || !bookmarkNode.parentId) return false; // Must be a folder and have a parent
+  if (bookmarkNode.title === SYNC_STORAGE_KEYS.CONFIG_BOOKMARK_TITLE) return false;
+  return bookmarkNode.parentId === rootId;
 }
 
 browser.bookmarks.onCreated.addListener(async (id, bookmarkNode) => {
-    if (await isTaskBookmark(id)) {
-        console.log(`Background:bookmarks.onCreated - Task bookmark created: ${id} - ${bookmarkNode.title}`);
-        const openedTabs = await processIncomingTaskBookmark(id, bookmarkNode);
-        if (openedTabs && openedTabs.length > 0) {
-            for (const tabDetail of openedTabs) {
-                await showTabNotification(tabDetail);
-            }
-        }
-    } else {
-        const rootId = await getRootId();
-        if (rootId && await isGroupFolderNode(bookmarkNode, rootId)) {
-            console.log(`Background:bookmarks.onCreated - Group folder created: ${bookmarkNode.title}`);
-            await updateContextMenu();
-            await notifyOptionsPageGroupsChanged();
-        }
+  if (await isConfigBookmark(id)) {
+    console.log(`Background:bookmarks.onCreated - Config bookmark created. Notifying UI.`);
+    await notifyOptionsPageGroupsChanged();
+  } else if (await isTaskBookmark(id)) {
+    console.log(`Background:bookmarks.onCreated - Task bookmark created: ${id} - ${bookmarkNode.title}`);
+    const openedTabs = await processIncomingTaskBookmark(id, bookmarkNode);
+    if (openedTabs && openedTabs.length > 0) {
+      for (const tabDetail of openedTabs) {
+        await showTabNotification(tabDetail);
+      }
     }
+  } else {
+    const rootId = await getRootId();
+    if (rootId && await isGroupFolderNode(bookmarkNode, rootId)) {
+      console.log(`Background:bookmarks.onCreated - Group folder created: ${bookmarkNode.title}`);
+      await updateContextMenu();
+      await notifyOptionsPageGroupsChanged();
+    }
+  }
 });
 
 browser.bookmarks.onRemoved.addListener(async (id, removeInfo) => {
-    // Check if the removed node was a group folder
-    // removeInfo.node contains the bookmark details before removal
-    if (removeInfo.node && !removeInfo.node.url && removeInfo.node.title !== SYNC_STORAGE_KEYS.CONFIG_BOOKMARK_TITLE) {
-        const rootId = await getRootId();
-        if (rootId && removeInfo.node.parentId === rootId) {
-            console.log(`Background:bookmarks.onRemoved - Group folder removed: ${removeInfo.node.title}`);
-            await updateContextMenu();
-            await notifyOptionsPageGroupsChanged();
-        }
+  // Check if the removed node was a group folder
+  // removeInfo.node contains the bookmark details before removal
+  if (removeInfo.node && !removeInfo.node.url && removeInfo.node.title !== SYNC_STORAGE_KEYS.CONFIG_BOOKMARK_TITLE) {
+    const rootId = await getRootId();
+    if (rootId && removeInfo.node.parentId === rootId) {
+      console.log(`Background:bookmarks.onRemoved - Group folder removed: ${removeInfo.node.title}`);
+      await updateContextMenu();
+      await notifyOptionsPageGroupsChanged();
     }
-    // Note: If a task bookmark is removed, PROCESSED_BOOKMARK_IDS might need cleanup.
-    // This is handled by performTimeBasedTaskCleanup and potentially when processing tasks.
+  }
+  // Note: If a task bookmark is removed, PROCESSED_BOOKMARK_IDS might need cleanup.
+  // This is handled by performTimeBasedTaskCleanup and potentially when processing tasks.
 });
 
 browser.bookmarks.onChanged.addListener(async (id, changeInfo) => {
-    const nodes = await browser.bookmarks.get(id);
-    if (!nodes || nodes.length === 0) return;
-    const bookmarkNode = nodes[0];
+  const nodes = await browser.bookmarks.get(id);
+  if (!nodes || nodes.length === 0) return;
+  const bookmarkNode = nodes[0];
 
-    if (await isTaskBookmark(id)) {
-        if (changeInfo.url || changeInfo.title) { // Only process if URL or title changed for a task
-            console.log(`Background:bookmarks.onChanged - Task bookmark changed: ${id}`, changeInfo);
-            const openedTabs = await processIncomingTaskBookmark(id, changeInfo); // processIncomingTaskBookmark can handle changeInfo
-            // Notifications for changed tasks might be noisy, decide if needed.
-        }
-    } else {
-        const rootId = await getRootId();
-        if (rootId && await isGroupFolderNode(bookmarkNode, rootId)) {
-            // If title changed, it's a group rename.
-            // If parentId changed, it might have moved in/out of being a group folder.
-            // Any change to a node that *is* currently a group folder (like title)
-            // or a node *becoming* a group folder (e.g. moved under root)
-            // or *ceasing* to be one (e.g. moved out from root) warrants an update.
-            // The isGroupFolderNode check after fetching the node handles this.
-            console.log(`Background:bookmarks.onChanged - Potential group folder change: ${bookmarkNode.title}`, changeInfo);
-            await updateContextMenu();
-            await notifyOptionsPageGroupsChanged();
-        }
+  if (await isConfigBookmark(id)) {
+    console.log(`Background:bookmarks.onChanged - Config bookmark changed. Notifying UI.`);
+    await notifyOptionsPageGroupsChanged(); // Trigger UI refresh for settings too
+  } else if (await isTaskBookmark(id)) {
+    if (changeInfo.url || changeInfo.title) { // Only process if URL or title changed for a task
+      console.log(`Background:bookmarks.onChanged - Task bookmark changed: ${id}`, changeInfo);
+      const openedTabs = await processIncomingTaskBookmark(id, changeInfo); // processIncomingTaskBookmark can handle changeInfo
+      // Notifications for changed tasks might be noisy, decide if needed.
     }
+  } else {
+    const rootId = await getRootId();
+    if (rootId && await isGroupFolderNode(bookmarkNode, rootId)) {
+      // If title changed, it's a group rename.
+      // If parentId changed, it might have moved in/out of being a group folder.
+      // Any change to a node that *is* currently a group folder (like title)
+      // or a node *becoming* a group folder (e.g. moved under root)
+      // or *ceasing* to be one (e.g. moved out from root) warrants an update.
+      // The isGroupFolderNode check after fetching the node handles this.
+      console.log(`Background:bookmarks.onChanged - Potential group folder change: ${bookmarkNode.title}`, changeInfo);
+      await updateContextMenu();
+      await notifyOptionsPageGroupsChanged();
+    }
+  }
 });
 
 
@@ -475,8 +511,11 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
       const minutes = Math.max(
         1,
         Math.min(120, parseInt(request.minutes, 10) || 5)
-      ); // This value is calculated but not used to update any alarm intervals.
-      
+      );
+      // Update the periodic sync alarm
+      browser.alarms.create(ALARM_PERIODIC_SYNC, {
+        periodInMinutes: minutes,
+      });
       return { success: true };
     }
     default:
