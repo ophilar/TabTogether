@@ -17,7 +17,7 @@ jest.mock('../common/constants.js', () => {
 
 import { jest } from '@jest/globals';
 import { SYNC_STORAGE_KEYS } from '../common/constants.js';
-import { deepMerge, ensureObject } from '../common/utils.js'; 
+import { deepMerge, ensureObject } from '../common/utils.js';
 import { storage } from '../core/storage.js';
 import { isAndroid, _clearPlatformInfoCache } from '../core/platform.js';
 
@@ -46,7 +46,7 @@ describe('utils', () => {
 
         const cleanupModule = await import('../background/cleanup.js');
         performTimeBasedTaskCleanup = cleanupModule.performTimeBasedTaskCleanup;
-        
+
         if (typeof _clearPlatformInfoCache === 'function') _clearPlatformInfoCache();
 
         consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
@@ -55,9 +55,9 @@ describe('utils', () => {
 
         mockStorage = global.browser.storage.local;
         mockSyncStorage = global.browser.storage.sync;
-        
+
         jest.spyOn(global.Math, 'random').mockReturnValue(0.123456789);
-        
+
         await mockStorage.clear();
         await mockSyncStorage.clear();
         await global.browser.bookmarks._resetStore(); // Clear bookmarks
@@ -116,10 +116,10 @@ describe('utils', () => {
                 return [];
             });
             global.browser.bookmarks.getChildren.mockImplementation(async (parentId) => {
-                 if (parentId === 'root-folder-id') { // Mock children of root
+                if (parentId === 'root-folder-id') { // Mock children of root
                     return global.browser.bookmarks._store.filter(bm => bm.parentId === 'root-folder-id' && !bm.url && bm.title !== SYNC_STORAGE_KEYS.CONFIG_BOOKMARK_TITLE);
-                 }
-                 return [];
+                }
+                return [];
             });
 
             const createRes = await createGroupDirect(groupName);
