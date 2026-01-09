@@ -156,14 +156,18 @@ export const storage = {
         const tree = await browser.bookmarks.getTree();
         folder = this._findFirstFolderByTitle(tree, SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE);
       } catch (e) {
-        console.warn("Storage: Failed to search tree manually, falling back to search API:", e);
+        console.warn("Storage: Failed to search tree manually:", e);
+      }
+
+      // 2. Fallback to search API if not found in tree
+      if (!folder) {
         try {
           if (browser.bookmarks.search) {
             const results = await browser.bookmarks.search({ title: SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE });
             folder = results.find(bookmark => !bookmark.url && bookmark.title === SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE);
           }
         } catch (e2) {
-          console.error("Storage: Search API also failed:", e2);
+          console.error("Storage: Search API failed:", e2);
         }
       }
 
