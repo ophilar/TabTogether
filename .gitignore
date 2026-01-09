@@ -1,3 +1,5 @@
 .qodo
 tabtogether.zip
 node_modules/
+dist/
+web-ext-artifacts/
