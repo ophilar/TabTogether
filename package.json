@@ -10,13 +10,9 @@
     "minify:css": "cleancss -o dist/styles.css styles.css && cleancss -o dist/popup.css popup.css && cleancss -o dist/shared-ui.css shared-ui.css",
     "minify:html": "html-minifier --collapse-whitespace --remove-comments -o dist/popup.html popup.html && html-minifier --collapse-whitespace --remove-comments -o dist/options.html options.html",
     "minify": "npm run minify:js && npm run minify:css && npm run minify:html",
-
     "prepare-dist": "rm -rf dist && mkdir dist && cp manifest.json LICENSE SECURITY.md README.md dist/ && cp -r icons dist/",
-
     "build:prod": "npm run prepare-dist && npm run minify",
-
     "build": "npm run build:prod && web-ext build --source-dir dist --artifacts-dir web-ext-artifacts --overwrite-dest",
-
     "package": "echo 'Use GitHub Actions workflow for packaging.'",
     "start": "web-ext run",
     "lint": "web-ext lint",
@@ -33,5 +29,8 @@
   },
   "dependencies": {
     "web-ext": "^9.2.0"
+  },
+  "overrides": {
+    "glob": "10.5.0"
   }
 }
