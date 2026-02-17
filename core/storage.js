@@ -2,6 +2,8 @@ import { ensureArray, ensureObject, deepMerge } from "../common/utils.js";
 import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from "../common/constants.js";
 
 
+let _cachedRootFolderId = null;
+
 export const storage = {
   async get(area, key, defaultValue = null) {
     try {
@@ -150,6 +152,18 @@ export const storage = {
 
   async getRootBookmarkFolder() {
     try {
+      if (_cachedRootFolderId) {
+        try {
+          const nodes = await browser.bookmarks.get(_cachedRootFolderId);
+          if (nodes && nodes.length > 0) {
+            return nodes[0];
+          }
+        } catch (e) {
+          console.warn("Storage: Cached root folder ID invalid or not found, searching again...", e);
+          _cachedRootFolderId = null;
+        }
+      }
+
       // 1. Manually search the tree (Dramatically more reliable on Android than bookmarks.search)
       let folder = null;
       try {
@@ -172,6 +186,7 @@ export const storage = {
       }
 
       if (folder) {
+        _cachedRootFolderId = folder.id;
         return folder;
       }
 
@@ -218,7 +233,11 @@ export const storage = {
         console.log(`Storage: Attempting to create root folder "${SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE}" in browser's default location (no specific parentId).`);
       }
 
-      return await browser.bookmarks.create(createOptions);
+      const createdFolder = await browser.bookmarks.create(createOptions);
+      if (createdFolder) {
+        _cachedRootFolderId = createdFolder.id;
+      }
+      return createdFolder;
     } catch (error) {
       console.error(`Storage: CRITICAL - Error getting/creating root bookmark folder "${SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE}":`, error);
       return null;
