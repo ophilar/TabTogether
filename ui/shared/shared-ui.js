@@ -119,6 +119,27 @@ export const setLastSyncTime = (container, date) => {
 };
 
 /**
+ * Validates and sanitizes a URL.
+ * Returns the URL if it's safe (http/https/ftp), otherwise returns null.
+ * @param {string} url - The URL to check.
+ * @returns {string|null} - The safe URL or null.
+ */
+function sanitizeUrl(url) {
+  try {
+    const parsed = new URL(url);
+    // Allow http, https, and ftp protocols.
+    // Explicitly disallow javascript:, data:, file:, about:, etc.
+    if (["http:", "https:", "ftp:"].includes(parsed.protocol)) {
+      return url;
+    }
+  } catch (e) {
+    // Invalid URL structure
+    console.warn("SharedUI:sanitizeUrl - Invalid URL encountered:", url);
+  }
+  return null;
+}
+
+/**
  * Renders the tab history list.
  * @param {HTMLElement} listDiv - The container for the history list.
  * @param {Array} history - Array of { url, title, receivedAt, fromDevice } objects.
@@ -142,9 +163,21 @@ export function renderHistoryUI(listDiv, history) {
     info.className = "registry-item-info";
 
     const titleLink = document.createElement("a");
-    titleLink.href = item.url;
-    titleLink.textContent = item.title || item.url;
-    titleLink.target = "_blank";
+    const safeUrl = sanitizeUrl(item.url);
+
+    if (safeUrl) {
+      titleLink.href = safeUrl;
+      titleLink.textContent = item.title || item.url;
+      titleLink.target = "_blank";
+      titleLink.rel = "noopener noreferrer";
+    } else {
+      // Fallback for unsafe or invalid URLs: display as text, not a link
+      titleLink.removeAttribute("href"); // Ensure no href
+      titleLink.textContent = `[Unsafe URL] ${item.title || item.url}`;
+      titleLink.style.color = "gray";
+      titleLink.style.textDecoration = "none";
+      titleLink.style.cursor = "default";
+    }
     info.appendChild(titleLink);
 
     const subText = document.createElement("span");
