@@ -28,7 +28,7 @@
     "uglify-js": "^3.17.4"
   },
   "dependencies": {
-    "web-ext": "^9.2.0"
+    "web-ext": "^9.3.0"
   },
   "overrides": {
     "glob": "10.5.0"
