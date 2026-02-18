@@ -1,4 +1,4 @@
-import { storage } from "./storage.js"; // Assuming getRootBookmarkFolder etc are exported or accessible
+import { storage } from "./storage.js";
 import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, STRINGS } from "../common/constants.js";
 
 /**
