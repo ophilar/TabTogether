@@ -44,8 +44,8 @@ export async function setupThemeDropdown(dropdownId) {
 
     select.addEventListener('change', async (e) => {
         // Store the setting ('enabled', 'disabled', 'auto') only in browser.storage.local
-        console.log("[setupThemeDropdown] Theme changed via dropdown to:", value);
-        await storage.set(browser.storage.local, 'tt_dark_mode', value);
+        console.log("[setupThemeDropdown] Theme changed via dropdown to:", e.target.value);
+        await storage.set(browser.storage.local, 'tt_dark_mode', e.target.value);
         // Re-determine and apply the theme based on the new setting
         console.log("[setupThemeDropdown] Re-applying theme after dropdown change...");
         setTheme(await determineThemePreference());
