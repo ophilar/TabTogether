@@ -8,12 +8,14 @@ import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, STRINGS } from "../common/consta
  */
 export async function getUnifiedState(isAndroid) {
   try {
-    let subscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
+    const [subscriptions, definedGroups, nickname, history] = await Promise.all([
+      storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []),
+      getDefinedGroupsFromBookmarks(), // Helper to get group names from bookmark folders
+      storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.DEVICE_NICKNAME, "Unknown Device"),
+      storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.TAB_HISTORY, [])
+    ]);
 
-    const definedGroups = await getDefinedGroupsFromBookmarks(); // Helper to get group names from bookmark folders
     const groupTasks = {}; // Tasks are individual bookmarks, not fetched as a single object here.
-    const nickname = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.DEVICE_NICKNAME, "Unknown Device");
-    const history = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.TAB_HISTORY, []);
 
     return {
       subscriptions,

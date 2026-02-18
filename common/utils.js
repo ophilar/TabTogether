@@ -19,7 +19,6 @@ export const isObject = (item) =>
  * This version is more robust, handling null for deletion and ensuring target is an object.
  */
 export function deepMerge(target, source) {
-  console.log("Utils:deepMerge - Target:", JSON.stringify(target), "Source:", JSON.stringify(source)); // Can be very verbose
   const output = { ...ensureObject(target) }; // Ensure output starts as a copy of an object
 
   if (isObject(source)) { // Use isObject from this module
@@ -39,7 +38,6 @@ export function deepMerge(target, source) {
       }
     });
   }
-  console.log("Utils:deepMerge - Output:", JSON.stringify(output)); // Can be very verbose
   return output;
 }
 
@@ -47,10 +45,8 @@ export function deepMerge(target, source) {
 export function debounce(fn, delay) {
   let timer = null;
   return function (...args) {
-    console.log(`Utils:debounce - Clearing timer for function: ${fn.name || 'anonymous'}`); // Can be verbose
     clearTimeout(timer);
     timer = setTimeout(() => {
-      console.log(`Utils:debounce - Executing debounced function: ${fn.name || 'anonymous'}`); // Can be verbose
       fn.apply(this, args)}, delay);
   };
 }
