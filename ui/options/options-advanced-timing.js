@@ -1,14 +1,13 @@
-import { SYNC_STORAGE_KEYS } from "../../common/constants.js";
+import { SYNC_STORAGE_KEYS, BACKGROUND_DEFAULT_TASK_EXPIRY_DAYS } from "../../common/constants.js";
 import { storage } from "../../core/storage.js";
 
-const DEFAULT_TASK_EXPIRY_DAYS = 30;
 const DEFAULT_STALE_DEVICE_DAYS = 30;
 let taskExpiryInputElem = null;
 let staleDeviceThresholdInputElem = null;
 
 async function loadAdvancedTimingSettings() {
   const [taskDays, staleDays] = await Promise.all([
-    storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.TASK_EXPIRY_DAYS, DEFAULT_TASK_EXPIRY_DAYS),
+    storage.get(browser.storage.sync, SYNC_STORAGE_KEYS.TASK_EXPIRY_DAYS, BACKGROUND_DEFAULT_TASK_EXPIRY_DAYS),
     storage.get(browser.storage.sync, "staleDeviceThreshold", DEFAULT_STALE_DEVICE_DAYS)
   ]);
 
@@ -20,7 +19,7 @@ function setupAdvancedTimingListeners() {
   if (taskExpiryInputElem) {
     taskExpiryInputElem.addEventListener('change', async (e) => {
       let val = parseInt(e.target.value, 10);
-      if (isNaN(val) || val < 1) val = DEFAULT_TASK_EXPIRY_DAYS;
+      if (isNaN(val) || val < 1) val = BACKGROUND_DEFAULT_TASK_EXPIRY_DAYS;
       taskExpiryInputElem.value = val;
       await storage.set(browser.storage.sync, SYNC_STORAGE_KEYS.TASK_EXPIRY_DAYS, val);
     });
