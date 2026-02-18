@@ -17,7 +17,7 @@ jest.mock('../common/constants.js', () => {
 
 import { jest } from '@jest/globals';
 import { SYNC_STORAGE_KEYS } from '../common/constants.js';
-import { deepMerge, ensureObject } from '../common/utils.js';
+import { deepMerge, ensureObject, ensureArray, ensureString, isObject } from '../common/utils.js';
 import { storage } from '../core/storage.js';
 import { isAndroid, _clearPlatformInfoCache } from '../core/platform.js';
 
@@ -81,9 +81,83 @@ describe('utils', () => {
     });
 
     describe('Type Safety Helpers', () => {
-        test('ensureObject returns object or fallback', () => {
-            expect(ensureObject({ a: 1 })).toEqual({ a: 1 });
-            expect(ensureObject(null)).toEqual({});
+        describe('ensureObject', () => {
+            test('returns object when valid', () => {
+                expect(ensureObject({ a: 1 })).toEqual({ a: 1 });
+            });
+            test('returns default fallback for null or undefined', () => {
+                expect(ensureObject(null)).toEqual({});
+                expect(ensureObject(undefined)).toEqual({});
+            });
+            test('returns default fallback for non-objects', () => {
+                expect(ensureObject('string')).toEqual({});
+                expect(ensureObject(123)).toEqual({});
+                expect(ensureObject(true)).toEqual({});
+                expect(ensureObject(() => {})).toEqual({});
+            });
+            test('returns default fallback for arrays', () => {
+                expect(ensureObject([1, 2])).toEqual({});
+            });
+            test('returns custom fallback when provided', () => {
+                const fallback = { default: true };
+                expect(ensureObject(null, fallback)).toEqual(fallback);
+                expect(ensureObject([], fallback)).toEqual(fallback);
+            });
+        });
+
+        describe('ensureArray', () => {
+            test('returns array when valid', () => {
+                expect(ensureArray([1, 2])).toEqual([1, 2]);
+            });
+            test('returns default fallback for non-arrays', () => {
+                expect(ensureArray(null)).toEqual([]);
+                expect(ensureArray(undefined)).toEqual([]);
+                expect(ensureArray({})).toEqual([]);
+                expect(ensureArray('string')).toEqual([]);
+                expect(ensureArray(123)).toEqual([]);
+            });
+            test('returns custom fallback when provided', () => {
+                const fallback = [9];
+                expect(ensureArray(null, fallback)).toEqual(fallback);
+                expect(ensureArray({}, fallback)).toEqual(fallback);
+            });
+        });
+
+        describe('ensureString', () => {
+            test('returns string when valid', () => {
+                expect(ensureString('test')).toBe('test');
+                expect(ensureString('')).toBe('');
+            });
+            test('returns default fallback for non-strings', () => {
+                expect(ensureString(null)).toBe('');
+                expect(ensureString(undefined)).toBe('');
+                expect(ensureString(123)).toBe('');
+                expect(ensureString({})).toBe('');
+                expect(ensureString([])).toBe('');
+            });
+            test('returns custom fallback when provided', () => {
+                expect(ensureString(null, 'fallback')).toBe('fallback');
+            });
+        });
+
+        describe('isObject', () => {
+            test('returns true for plain objects', () => {
+                expect(isObject({ a: 1 })).toBe(true);
+                expect(isObject({})).toBe(true);
+            });
+            test('returns false for null', () => {
+                expect(isObject(null)).toBe(false);
+            });
+            test('returns false for arrays', () => {
+                expect(isObject([])).toBe(false);
+                expect(isObject([1, 2])).toBe(false);
+            });
+            test('returns false for other types', () => {
+                expect(isObject('string')).toBe(false);
+                expect(isObject(123)).toBe(false);
+                expect(isObject(undefined)).toBe(false);
+                expect(isObject(() => {})).toBe(false);
+            });
         });
     });
 
