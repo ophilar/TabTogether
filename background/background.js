@@ -4,8 +4,8 @@ import {
   createGroupDirect,
   deleteGroupDirect,
   renameGroupDirect,
-  _addDeviceSubscriptionToGroup, // Assuming exported from actions.js
-  _removeDeviceSubscriptionFromGroup, // Assuming exported from actions.js
+  _addDeviceSubscriptionToGroup,
+  _removeDeviceSubscriptionFromGroup,
   getDefinedGroupsFromBookmarks,
 } from "../core/actions.js"; // createGroupDirect, deleteGroupDirect, renameGroupDirect are used
 import { createAndStoreGroupTask, processSubscribedGroupTasks } from "../core/tasks.js";
@@ -166,7 +166,6 @@ async function updateContextMenu(cachedDefinedGroups) {
 
     groups.sort().forEach((groupName) => {
       try {
-        // console.log(`Background:updateContextMenu - Creating menu item for group: "${groupName}"`); // Can be verbose
         browser.contextMenus.create({
           id: `send-to-${groupName}`,
           parentId: "send-to-group-parent",
