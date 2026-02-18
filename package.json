@@ -31,6 +31,12 @@
     "web-ext": "^9.3.0"
   },
   "overrides": {
-    "glob": "10.5.0"
+    "glob": "10.5.0",
+    "addons-linter": {
+      "ajv": "8.18.0",
+      "eslint": {
+        "ajv": "6.12.6"
+      }
+    }
   }
 }
