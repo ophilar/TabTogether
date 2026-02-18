@@ -236,7 +236,7 @@ if (browser.contextMenus) {
     const tabData = { url: urlToSend, title: titleToSend };
 
     console.log(
-      `Background:onContextMenuClicked - Sending task to group ${groupName}. URL: ${urlToSend}`
+      `Background:onContextMenuClicked - Sending task to group ${groupName}.`
     );
     const { success, message: taskMessage } = await createAndStoreGroupTask(groupName, tabData);
 
@@ -392,7 +392,7 @@ browser.bookmarks.onChanged.addListener(async (id, changeInfo) => {
     await notifyOptionsPageGroupsChanged(); // Trigger UI refresh for settings too
   } else if (await isTaskBookmark(id)) {
     if (changeInfo.url || changeInfo.title) { // Only process if URL or title changed for a task
-      console.log(`Background:bookmarks.onChanged - Task bookmark changed: ${id}`, changeInfo);
+      console.log(`Background:bookmarks.onChanged - Task bookmark changed: ${id}`);
       const openedTabs = await processIncomingTaskBookmark(id, changeInfo); // processIncomingTaskBookmark can handle changeInfo
       // Notifications for changed tasks might be noisy, decide if needed.
     }
@@ -414,7 +414,6 @@ browser.bookmarks.onChanged.addListener(async (id, changeInfo) => {
 
 
 browser.runtime.onMessage.addListener(async (request, sender) => {
-  console.log("Message received:", request.action, "Data:", request);
   console.log(`Background:runtime.onMessage - Received action: '${request.action}' from sender:`, sender?.tab?.id || sender?.id || 'unknown');
 
   switch (request.action) {
@@ -524,7 +523,7 @@ browser.runtime.onMessage.addListener(async (request, sender) => {
 });
 
 async function showTabNotification({ title, url, groupName, faviconUrl }) {
-  console.log(`Background:showTabNotification - Displaying notification for tab: "${title}" from group: "${groupName}"`);
+  console.log(`Background:showTabNotification - Displaying notification for tab from group: "${groupName}"`);
   await browser.notifications.create({
     type: "basic",
     iconUrl: faviconUrl || browser.runtime.getURL("icons/icon-48.png"),
