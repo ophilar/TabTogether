@@ -166,7 +166,6 @@ async function updateContextMenu(cachedDefinedGroups) {
 
     groups.sort().forEach((groupName) => {
       try {
-        // console.log(`Background:updateContextMenu - Creating menu item for group: "${groupName}"`); // Can be verbose
         browser.contextMenus.create({
           id: `send-to-${groupName}`,
           parentId: "send-to-group-parent",

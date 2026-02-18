@@ -9,7 +9,6 @@ export async function getPlatformInfoCached() {
     console.log("Platform: Fetching platform info for the first time.");
     platformInfoCache = await browser.runtime.getPlatformInfo();
   }
-  // console.log("Platform: Returning platform info:", platformInfoCache); // Can be verbose
   return platformInfoCache;
 }
 
