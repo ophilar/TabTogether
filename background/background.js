@@ -4,8 +4,8 @@ import {
   createGroupDirect,
   deleteGroupDirect,
   renameGroupDirect,
-  _addDeviceSubscriptionToGroup, // Assuming exported from actions.js
-  _removeDeviceSubscriptionFromGroup, // Assuming exported from actions.js
+  _addDeviceSubscriptionToGroup,
+  _removeDeviceSubscriptionFromGroup,
   getDefinedGroupsFromBookmarks,
 } from "../core/actions.js"; // createGroupDirect, deleteGroupDirect, renameGroupDirect are used
 import { createAndStoreGroupTask, processSubscribedGroupTasks } from "../core/tasks.js";

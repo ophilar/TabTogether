@@ -1,5 +1,5 @@
 import { storage, addToHistory } from '../core/storage.js';
-import { LOCAL_STORAGE_KEYS, SYNC_STORAGE_KEYS, BACKGROUND_DEFAULT_TASK_EXPIRY_DAYS } from '../common/constants.js'; // Assuming BACKGROUND_DEFAULT_TASK_EXPIRY_DAYS is in constants or define it here
+import { LOCAL_STORAGE_KEYS, SYNC_STORAGE_KEYS, BACKGROUND_DEFAULT_TASK_EXPIRY_DAYS } from '../common/constants.js';
 export async function processIncomingTaskBookmark(changedBookmarkId, changeInfoOrNode) {
     console.log(`TaskProcessor:processIncomingTaskBookmark - Processing bookmark ID: ${changedBookmarkId}`);
 
