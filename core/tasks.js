@@ -61,13 +61,13 @@ export async function processSubscribedGroupTasks() {
 
         const urlLastOpenedTimestamp = recentlyOpenedUrls[taskBookmark.url];
         if (openedUrlsThisRun.has(taskBookmark.url)) {
-          console.log(`Tasks:processSubscribedGroupTasks - URL ${taskBookmark.url} (bookmarkId: "${bookmarkId}") already opened in this run for another group. Deduplicated (intra-run).`);
+          console.log(`Tasks:processSubscribedGroupTasks - URL (bookmarkId: "${bookmarkId}") already opened in this run for another group. Deduplicated (intra-run).`);
         } else if (urlLastOpenedTimestamp && (now - urlLastOpenedTimestamp < recencyThresholdMs)) {
-          console.log(`Tasks:processSubscribedGroupTasks - URL ${taskBookmark.url} (bookmarkId: "${bookmarkId}") was recently opened. Deduplicated (inter-run).`);
+          console.log(`Tasks:processSubscribedGroupTasks - URL (bookmarkId: "${bookmarkId}") was recently opened. Deduplicated (inter-run).`);
         }
         else {
           try {
-            console.log(`Tasks:processSubscribedGroupTasks - Opening tab: ${taskBookmark.url} for group ${groupName}, bookmark ID: ${bookmarkId}`);
+            console.log(`Tasks:processSubscribedGroupTasks - Opening tab for group ${groupName}, bookmark ID: ${bookmarkId}`);
             await browser.tabs.create({ url: taskBookmark.url, active: false });
             openedUrlsThisRun.add(taskBookmark.url); // For intra-run deduplication
 
@@ -89,7 +89,7 @@ export async function processSubscribedGroupTasks() {
             recentlyOpenedUrls[taskBookmark.url] = now; // For inter-run deduplication
             recentlyOpenedUrlsChanged = true;
           } catch (e) {
-            console.error(`Tasks:processSubscribedGroupTasks - Failed to open tab ${taskBookmark.url} (bookmark ID: ${bookmarkId}):`, e);
+            console.error(`Tasks:processSubscribedGroupTasks - Failed to open tab (bookmark ID: ${bookmarkId}):`, e);
             // If tab creation fails, we might not want to mark it as processed, or handle it differently.
             // For now, we continue to mark it as processed to avoid retrying a failing URL.
           }
@@ -179,6 +179,6 @@ export async function createAndStoreGroupTask(groupName, tabData) {
     }
   }
 
-  console.log(`Task (bookmarkId: ${opResult.bookmarkId}) created for group ${groupName}:`, newTaskData);
+  console.log(`Task (bookmarkId: ${opResult.bookmarkId}) created for group ${groupName}`);
   return { success: true, bookmarkId: opResult.bookmarkId };
 }
