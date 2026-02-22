@@ -77,11 +77,7 @@ export async function deleteGroupDirect(groupName) {
   console.log(`Actions: Deleted group "${groupName}" (groupsSuccess: ${groupsSuccess})`);
 
   // Remove the group key from the local subscriptions object
-  let localSubscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
-  if (localSubscriptions.includes(groupName)) { // Corrected: condition and array manipulation
-    localSubscriptions = localSubscriptions.filter(g => g !== groupName);
-    await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, localSubscriptions);
-  }
+  await _removeDeviceSubscriptionFromGroup(groupName);
 
   // Tasks are deleted when the bookmark folder is removed.
   const tasksSuccess = true;
