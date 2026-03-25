@@ -141,7 +141,7 @@ Debugging extensions on Firefox for Android involves connecting your Android dev
 ## General Debugging Tips for TabTogether
 
 *   **`console.log()` is Essential:** Use it extensively in `background.js`, `core` modules, `popup.js`, `options.js`, etc., to trace execution flow and inspect the state of variables and storage.
-*   **Debugger & Breakpoints:** Utilize the debugger to step through complex logic, especially in `core/actions.js`, `background/cleanup.js`, `background/heartbeat.js`, and message handlers.
+*   **Debugger & Breakpoints:** Utilize the debugger to step through complex logic, especially in `core/actions.js`, `background/cleanup.js`, and message handlers.
 *   **Storage Inspection:** Regularly check the contents of `browser.storage.local` and `browser.storage.sync` using the browser's developer tools (as described above) to verify data is being stored and updated correctly. This is crucial for TabTogether.
 *   **Test Specific Actions:**
     *   To test `onMessage` handlers in `background.js`, you can send messages from the console of the popup or options page:

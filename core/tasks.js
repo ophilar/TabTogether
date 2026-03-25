@@ -49,10 +49,6 @@ export async function processSubscribedGroupTasks() {
           newLatestTimestampConsidered = Math.max(newLatestTimestampConsidered, taskBookmark.dateAdded);
         }
 
-        if (taskBookmark.dateAdded && taskBookmark.dateAdded <= lastProcessedTimestampFromStorage) {
-          continue;
-        }
-
         const alreadyProcessed = localProcessedBookmarkIds[bookmarkId];
         if (alreadyProcessed) {
           console.log(`Tasks:processSubscribedGroupTasks - Task (bookmarkId: "${bookmarkId}") in group "${groupName}" already processed locally.`);

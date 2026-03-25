@@ -1,20 +1,24 @@
 # TabTogether Work Log
 
-## 2026-01-07
-- Project review initiated by Antigravity.
-- Initialized `TabTogether_roadmap.md`, `TabTogether_work_log.md`, and `TabTogether_design.md`.
-- Preliminary audit of project structure: Identified as a Firefox extension using Firefox Sync.
-- **Improved Android Reliability**:
-    - Implemented a "Bridged Storage" system in `storage.js` that mirrors `storage.sync` settings into a dedicated "TabTogetherConfig" bookmark.
-    - Added `ALARM_PERIODIC_SYNC` to background worker to pull tasks periodically on Android.
-    - Added bookmark observers for the Config bookmark to ensure instantaneous settings propagation.
-    - Updated `options-advanced-timing.js` and `background.js` to utilize the new bridged storage.
-- **Refactoring & Optimization**:
-    - Decoupled `storage.sync` from core settings; bookmarks are now the primary source of truth for syncable configuration.
-    - Enhanced `background.js` to handle mobile lifecycle more gracefully.
-- **UI Enhancements (Review Improvements)**:
-    - **Device Nicknames**: Added support for setting custom device names in Options. Sent tabs are now prefixed with `[Nickname]`.
-    - **Tab History**: Implemented a persistent history of the last 50 received tabs, available in both Popup and Options views.
-    - **Shared UI Components**: Created `renderHistoryUI` in `shared-ui.js` to ensure consistent data presentation and DRY code.
-    - **Android Compatibility**: Verified that all new features use bookmark-compatible APIs (avoiding `bookmarks.search` for Android).
-    - **Cleanup**: Removed verbose development logs and standardized console output across all modules.
+## 2026-03-25
+- Project revival initiated.
+- Generated project overview using repomix.
+- Ran security audit: 8 vulnerabilities found (5 moderate, 3 high).
+- Checked CI status: Recent Dependabot runs are passing.
+- Initialized work log and updated roadmap.
+- Researched Firefox Android sync status: `storage.sync` remains local-only in 2026. Bookmark-bridged sync is still required.
+- Identified `html-minifier` as a security risk; planning replacement with `html-minifier-terser`.
+- Delegated security fixes and dependency updates to Jules.
+- Modularized `background/background.js` into specialized files: `alarms.js`, `context-menus.js`, `bookmark-listeners.js`, `message-handlers.js`, `init.js`.
+- Fixed `package.json` build scripts to preserve modular directory structure in `dist/` and switched to `terser` for ES6 support.
+- Verified project with `npm test`, `npm run build`, and `web-ext lint`. All passed.
+- Checked GitHub Dependabot: Fixed high-severity Prototype Pollution in `flatted` (updated to 3.4.2).
+- Closed redundant Dependabot PRs (#50, #51) for `jest` and `jest-environment-jsdom`.
+- `npm audit` now reports 0 vulnerabilities.
+- Refined Android Sync Strategy:
+  - Removed strict `dateAdded` timestamp check in `core/tasks.js` to allow late-arriving synced bookmarks.
+  - Standardized on `LOCAL_STORAGE_KEYS.PROCESSED_BOOKMARK_IDS` for idempotent task processing.
+  - Fixed regression in test mock environment (`test/setup.js`) by implementing an active getter for the bookmark store.
+  - Fixed `test/integration.test.js` and `test/utils.test.js` to align with the new storage and sync logic.
+  - Fixed missing `state` definition in `ui/options/options.js:loadState()`.
+  - Verified 100% test pass rate (36 tests) and clean production build with `web-ext lint`.
