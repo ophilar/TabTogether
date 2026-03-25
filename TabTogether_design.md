@@ -28,7 +28,14 @@ TabTogether is a Firefox browser extension that allows users to send tabs betwee
 ## Solutions for Constraints
 - **Bookmark-Centric Sync**: Both group management and configuration settings are now stored in bookmarks to ensure cross-platform compatibility.
 - **Periodic Polling**: A periodic alarm (`periodicSync`) ensures that甚至 if listeners miss an event, the extension will catch up when it wakes up.
-- **Manual Sync**: Both the popup and options page trigger a manual sync check upon opening to provide immediate responsiveness.
+- **Manual Sync**: Both the popup and options page trigger a direct call to `processSubscribedGroupTasks` upon opening to provide immediate responsiveness. This replaced the legacy "heartbeat" message-passing implementation to reduce overhead and allow for immediate error feedback in the UI.
+
+## URL Translation (Roadmap)
+- **Strategy**: For the planned "Mobile URL Translation" feature (Desktop ↔ Mobile versions), the extension will utilize the **`declarativeNetRequest`** API for passive redirection and a core utility for active `tabs.create` translation.
+- **Patterns**:
+    - **Mobile → Desktop (Priority)**: Strip `m.` subdomains (e.g., `m.wikipedia.org` → `wikipedia.org`), replace `mobile.` subdomains, and handle site-specific redirects (e.g., `mobile.twitter.com` → `twitter.com`).
+    - **Desktop → Mobile**: Convert standard subdomains to their `m.` equivalents when the destination is an Android device.
+- **Rationale**: Firefox Sync does not automatically transform URLs between platforms. By implementing this, TabTogether ensures the most appropriate version of a site is loaded for the current device's screen size and capabilities. Using DNR ensures these transformations are performant and respect "Request Desktop Site" settings at the browser level.
 
 ## User Identification & Tracking
 - **Device Nicknames**: Each installation has a local nickname. When sending a tab, the identity is "burned" into the bookmark title (`[Nickname] Tab Title`). This avoids the complexity of a global registry while providing clear attribution.
