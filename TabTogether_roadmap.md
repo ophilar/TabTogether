@@ -21,6 +21,7 @@
 - [x] Modern UI Overhaul (Vibrant Gradients, Collapsible Sections)
 - [ ] Synchronize tab states (scroll position, etc.)
 - [ ] Support for tab groups synchronization
+- [ ] Mobile URL Translation (Desktop ↔ Mobile versions)
 - [ ] Cross-browser support (Chrome/Edge via Polyfills)
 
 ## Phase 4: Production & Maintenance
