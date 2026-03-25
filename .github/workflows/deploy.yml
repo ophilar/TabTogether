@@ -5,6 +5,9 @@ on:
   push:
     branches: [ main ] # Trigger on pushes to the main branch
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 permissions:
   contents: write # Allow the workflow to create releases
 
