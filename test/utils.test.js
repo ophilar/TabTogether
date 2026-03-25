@@ -179,30 +179,17 @@ describe('utils', () => {
     describe('Direct Storage Logic (Groups and Tasks)', () => {
         test('create, rename, and delete group (bookmark folders)', async () => {
             const groupName = 'UtilsGroup';
-            const rootFolderId = SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE; // Assuming getRootBookmarkFolder creates/finds this
-            global.browser.bookmarks.search.mockImplementation(async (query) => {
-                if (query.title === SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE) {
-                    // Simulate root folder exists or is created
-                    const existing = global.browser.bookmarks._store.find(b => b.title === SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE && !b.url);
-                    if (existing) return [existing];
-                    return [{ id: 'root-folder-id', title: SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE }];
-                }
-                return [];
-            });
-            global.browser.bookmarks.getChildren.mockImplementation(async (parentId) => {
-                if (parentId === 'root-folder-id') { // Mock children of root
-                    return global.browser.bookmarks._store.filter(bm => bm.parentId === 'root-folder-id' && !bm.url && bm.title !== SYNC_STORAGE_KEYS.CONFIG_BOOKMARK_TITLE);
-                }
-                return [];
-            });
+            
+            // Ensure root folder exists so createGroupDirect doesn't create a new one with a different ID
+            const root = await global.browser.bookmarks.create({ title: SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE, parentId: 'unfiled_____' });
+            const rootFolderId = root.id;
 
             const createRes = await createGroupDirect(groupName);
             expect(createRes.success).toBe(true);
-            expect(global.browser.bookmarks.create).toHaveBeenCalledWith(expect.objectContaining({ title: groupName, parentId: 'root-folder-id' }));
+            expect(global.browser.bookmarks.create).toHaveBeenCalledWith(expect.objectContaining({ title: groupName, parentId: rootFolderId }));
 
             const renameRes = await renameGroupDirect(groupName, 'UtilsGroupRenamed');
             expect(renameRes.success).toBe(true);
-            // Assuming getGroupBookmarkFolder was called and then update
             expect(global.browser.bookmarks.update).toHaveBeenCalledWith(expect.any(String), { title: 'UtilsGroupRenamed' });
 
             const deleteRes = await deleteGroupDirect('UtilsGroupRenamed');

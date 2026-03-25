@@ -84,13 +84,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         const startTime = Date.now(); // Record start time
 
         try {
-          const isAndroidPlatform = await isAndroid();
-          if (isAndroidPlatform) {
-            await processSubscribedGroupTasks(); // This now calls recordSuccessfulSyncTime
-          } else {
-            await browser.runtime.sendMessage({ action: "heartbeat" });
-            // Background script handles processSubscribedGroupTasks and recordSuccessfulSyncTime
-          }
+          await processSubscribedGroupTasks();
+          await recordSuccessfulSyncTime();
           // Update UI with the latest sync time
           const ts = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_SYNC_TIME, null);
           const popupContainer = document.querySelector(".container");

@@ -18,21 +18,21 @@ describe('Integration: Group and Tab Flow', () => {
     global.browser.bookmarks.getChildren.mockImplementation(async (parentId) => {
         if (parentId === ROOT_FOLDER_ID) {
             // Return all "group" folders from the mock store
-            return global.browser.bookmarks._store.filter(bm => bm.parentId === ROOT_FOLDER_ID && !bm.url && bm.title !== SYNC_STORAGE_KEYS.CONFIG_BOOKMARK_TITLE);
+            return global.browser.bookmarks._getStore().filter(bm => bm.parentId === ROOT_FOLDER_ID && !bm.url && bm.title !== SYNC_STORAGE_KEYS.CONFIG_BOOKMARK_TITLE);
         }
         // For group folders, return their task bookmarks
-        return global.browser.bookmarks._store.filter(bm => bm.parentId === parentId && bm.url);
+        return global.browser.bookmarks._getStore().filter(bm => bm.parentId === parentId && bm.url);
     });
 
     global.browser.bookmarks.create.mockImplementation(async (obj) => {
         const newId = obj.url ? `task-bm-${Math.random()}` : `${GROUP_FOLDER_ID_PREFIX}${obj.title}`;
         const newBookmark = { ...obj, id: newId, dateAdded: Date.now() };
-        global.browser.bookmarks._store.push(newBookmark);
+        global.browser.bookmarks._getStore().push(newBookmark);
         return newBookmark;
     });
      global.browser.bookmarks.search.mockImplementation(async (query) => {
         if (query.title === SYNC_STORAGE_KEYS.ROOT_BOOKMARK_FOLDER_TITLE) {
-             const root = global.browser.bookmarks._store.find(b => b.id === ROOT_FOLDER_ID);
+             const root = global.browser.bookmarks._getStore().find(b => b.id === ROOT_FOLDER_ID);
              return root ? [root] : [];
         }
         return [];

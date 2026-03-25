@@ -77,20 +77,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (syncIcon) syncIcon.classList.add('syncing-icon');
         clearMessage(dom.messageArea);
         try {
-          if (isAndroidPlatformGlobal) {
-            await loadState();
-            // Explicitly update UI from the recorded time
-            const ts = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_SYNC_TIME, null);
-            if (ts && dom.syncStatus) dom.syncStatus.textContent = "Last sync: " + new Date(ts).toLocaleString();
-            showMessage(dom.messageArea, STRINGS.syncComplete, false);
-          } else {
-            await browser.runtime.sendMessage({ action: "heartbeat" });
-            // The background script's heartbeat handler will call recordSuccessfulSyncTime.
-            // The specificSyncDataChanged listener (or a direct fetch here) will update the UI.
-            const ts = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_SYNC_TIME, null);
-            if (ts && dom.syncStatus) dom.syncStatus.textContent = "Last sync: " + new Date(ts).toLocaleString();
-            showMessage(dom.messageArea, STRINGS.backgroundSyncTriggered, false);
-          }
+          await processSubscribedGroupTasks();
+          await recordSuccessfulSyncTime();
+          // The background syncDataChanged listener (or a direct fetch here) will update the UI.
+          const ts = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_SYNC_TIME, null);
+          if (ts && dom.syncStatus) dom.syncStatus.textContent = "Last sync: " + new Date(ts).toLocaleString();
+          showMessage(dom.messageArea, STRINGS.syncComplete, false);
         } catch (error) {
           console.error(`Options: Manual sync failed:`, error);
           showMessage(dom.messageArea, STRINGS.manualSyncFailed(error.message || 'Unknown error'), true);
@@ -257,6 +249,7 @@ async function loadState() {
   if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, true);
   clearMessage(dom.messageArea);
   try {
+    const state = await getUnifiedState(isAndroidPlatformGlobal);
     if (isAndroidPlatformGlobal) {
       await processSubscribedGroupTasks();
       const container = document.querySelector(".container");

@@ -59,11 +59,11 @@ export async function processIncomingTaskBookmark(changedBookmarkId, changeInfoO
 
     const urlLastOpenedTimestamp = recentlyOpenedUrls[bookmarkNode.url];
     if (urlLastOpenedTimestamp && (now - urlLastOpenedTimestamp < recencyThresholdMs)) {
-        console.log(`TaskProcessor: URL ${bookmarkNode.url} (task ${bookmarkNode.id}) was recently opened. Deduplicating (inter-run).`);
+        console.log(`TaskProcessor: URL (task ${bookmarkNode.id}) was recently opened. Deduplicating (inter-run).`);
         // Tab is not opened, but task is still marked processed below.
     } else {
         try {
-            console.log(`TaskProcessor: Opening tab for task ${bookmarkNode.id} from group ${groupName}: ${bookmarkNode.url}`);
+            console.log(`TaskProcessor: Opening tab for task ${bookmarkNode.id} from group ${groupName}`);
             await browser.tabs.create({ url: bookmarkNode.url, active: false });
             openedTabsDetails.push({ title: bookmarkNode.title, url: bookmarkNode.url, groupName: groupName });
 
@@ -85,7 +85,7 @@ export async function processIncomingTaskBookmark(changedBookmarkId, changeInfoO
             recentlyOpenedUrls[bookmarkNode.url] = now;
             recentlyOpenedUrlsChanged = true;
         } catch (error) {
-            console.error(`TaskProcessor: Failed to open tab for task ${bookmarkNode.id} (${bookmarkNode.url}):`, error);
+            console.error(`TaskProcessor: Failed to open tab for task ${bookmarkNode.id}:`, error);
         }
     }
 

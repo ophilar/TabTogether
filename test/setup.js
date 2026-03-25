@@ -80,7 +80,8 @@ const getMockBookmarksAPI = () => {
     };
 
     return {
-        _store: state.bookmarkStore, // For inspection in tests
+        get _store() { return state.bookmarkStore; },
+        _getStore: () => state.bookmarkStore, // Keep for new tests
         _resetStore: () => { state.bookmarkStore = []; state.nextId = 1; },
         get: jest.fn(async (idOrIds) => {
             if (Array.isArray(idOrIds)) {

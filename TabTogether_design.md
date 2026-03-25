@@ -28,7 +28,7 @@ TabTogether is a Firefox browser extension that allows users to send tabs betwee
 ## Solutions for Constraints
 - **Bookmark-Centric Sync**: Both group management and configuration settings are now stored in bookmarks to ensure cross-platform compatibility.
 - **Periodic Polling**: A periodic alarm (`periodicSync`) ensures that甚至 if listeners miss an event, the extension will catch up when it wakes up.
-- **Manual Sync Heartbeat**: Both the popup and options page trigger a manual sync check upon opening to provide immediate responsiveness.
+- **Manual Sync**: Both the popup and options page trigger a manual sync check upon opening to provide immediate responsiveness.
 
 ## User Identification & Tracking
 - **Device Nicknames**: Each installation has a local nickname. When sending a tab, the identity is "burned" into the bookmark title (`[Nickname] Tab Title`). This avoids the complexity of a global registry while providing clear attribution.
