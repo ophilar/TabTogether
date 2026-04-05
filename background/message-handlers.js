@@ -23,7 +23,7 @@ export async function notifyOptionsPageGroupsChanged() {
 
 export function initMessageHandlers() {
   browser.runtime.onMessage.addListener(async (request, sender) => {
-    console.log(`Background:runtime.onMessage - Received action: '${request.action}' from sender:`, sender?.tab?.id || sender?.id || 'unknown');
+    console.log(`Background:runtime.onMessage - Received action: '${request.action}' from sender:`, (sender && sender.tab ? sender.tab.id : (sender && sender.id ? sender.id : 'unknown')));
 
     switch (request.action) {
       case "getState": {
