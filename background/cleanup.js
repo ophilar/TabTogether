@@ -61,7 +61,7 @@ export async function performTimeBasedTaskCleanup(localProcessedBookmarkIds, thr
     if (now - recentlyOpenedUrls[url] < thresholdMs) {
       urlsToKeep[url] = recentlyOpenedUrls[url];
     } else {
-      // Intentionally avoiding logging sensitive URLs here
+      console.log(`Cleanup: A URL expired from recently opened list.`);
       recentlyOpenedUrlsChanged = true;
     }
   }
