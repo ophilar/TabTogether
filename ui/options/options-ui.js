@@ -18,7 +18,16 @@ export function createGroupListItemUI(groupName, isSubscribed, handlers) {
   nameSpan.className = 'group-name-label options-list-item-label';
   nameSpan.style.cursor = 'pointer';
   nameSpan.title = 'Click to rename group';
+  nameSpan.setAttribute('role', 'button');
+  nameSpan.setAttribute('tabindex', '0');
+  nameSpan.setAttribute('aria-label', `Rename group ${groupName}`);
   nameSpan.onclick = () => handlers.startRenameGroup(groupName, nameSpan);
+  nameSpan.onkeydown = (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handlers.startRenameGroup(groupName, nameSpan);
+    }
+  };
   li.appendChild(nameSpan);
 
   const actionsDiv = document.createElement('div');
@@ -28,6 +37,7 @@ export function createGroupListItemUI(groupName, isSubscribed, handlers) {
   subBtn.textContent = isSubscribed ? "Unsubscribe" : "Subscribe";
   subBtn.dataset.group = groupName;
   subBtn.className = isSubscribed ? 'secondary' : 'primary';
+  subBtn.setAttribute('aria-label', `${isSubscribed ? 'Unsubscribe from' : 'Subscribe to'} group ${groupName}`);
   subBtn.onclick = isSubscribed ? handlers.handleUnsubscribe : handlers.handleSubscribe;
   actionsDiv.appendChild(subBtn);
 
@@ -35,6 +45,7 @@ export function createGroupListItemUI(groupName, isSubscribed, handlers) {
   deleteBtn.textContent = "Delete";
   deleteBtn.dataset.group = groupName;
   deleteBtn.className = 'danger';
+  deleteBtn.setAttribute('aria-label', `Delete group ${groupName}`);
   deleteBtn.onclick = handlers.handleDeleteGroup;
   actionsDiv.appendChild(deleteBtn);
 
@@ -85,16 +96,19 @@ export function createInlineEditControlsUI(currentValue, onSaveCallback, onCance
   input.type = 'text';
   input.value = currentValue;
   input.className = 'inline-edit-input';
+  input.setAttribute('aria-label', `New name for group ${currentValue}`);
 
   const saveBtn = document.createElement('button');
   saveBtn.textContent = '✓';
   saveBtn.className = 'inline-edit-save';
   saveBtn.title = 'Save';
+  saveBtn.setAttribute('aria-label', `Save new name for group ${currentValue}`);
 
   const cancelBtn = document.createElement('button');
   cancelBtn.textContent = '✕';
   cancelBtn.className = 'inline-edit-cancel secondary';
   cancelBtn.title = 'Cancel';
+  cancelBtn.setAttribute('aria-label', `Cancel renaming group ${currentValue}`);
 
   const handleSave = () => {
     const newValue = input.value.trim();
