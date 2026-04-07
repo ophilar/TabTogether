@@ -22,7 +22,7 @@ export async function performTimeBasedTaskCleanup(localProcessedBookmarkIds, thr
     for (const taskBookmark of taskBookmarks) {
       if (taskBookmark.url) { 
         if (now - (taskBookmark.dateAdded || 0) > thresholdMs) {
-          console.log(`Cleanup: Task bookmark "${taskBookmark.title}" (ID: ${taskBookmark.id}) in group "${groupFolder.title}" expired. Deleting.`);
+          console.log(`Cleanup: Task bookmark (ID: ${taskBookmark.id}) in group "${groupFolder.title}" expired. Deleting.`);
           try {
             await browser.bookmarks.remove(taskBookmark.id);
             if (currentProcessedBookmarkIds[taskBookmark.id]) {
@@ -61,7 +61,7 @@ export async function performTimeBasedTaskCleanup(localProcessedBookmarkIds, thr
     if (now - recentlyOpenedUrls[url] < thresholdMs) {
       urlsToKeep[url] = recentlyOpenedUrls[url];
     } else {
-      console.log(`Cleanup: A URL expired from recently opened list.`);
+      // Intentionally avoiding logging sensitive URLs here
       recentlyOpenedUrlsChanged = true;
     }
   }
