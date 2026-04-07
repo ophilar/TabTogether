@@ -63,7 +63,6 @@ export async function processSubscribedGroupTasks() {
         }
         else {
           try {
-            console.log(`Tasks:processSubscribedGroupTasks - Opening tab for group ${groupName}, bookmark ID: ${bookmarkId}`);
             await browser.tabs.create({ url: taskBookmark.url, active: false });
             openedUrlsThisRun.add(taskBookmark.url); // For intra-run deduplication
 
