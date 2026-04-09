@@ -74,7 +74,7 @@ export function initBookmarkListeners() {
       console.log(`Background:bookmarks.onCreated - Config bookmark created. Notifying UI.`);
       await notifyOptionsPageGroupsChanged();
     } else if (await isTaskBookmark(id)) {
-      console.log(`Background:bookmarks.onCreated - Task bookmark created: ${id} - ${bookmarkNode.title}`);
+      console.log(`Background:bookmarks.onCreated - Task bookmark created: ${id}`);
       const openedTabs = await processIncomingTaskBookmark(id, bookmarkNode);
       if (openedTabs && openedTabs.length > 0) {
         for (const tabDetail of openedTabs) {
@@ -118,7 +118,7 @@ export function initBookmarkListeners() {
     } else {
       const rootId = await getRootId();
       if (rootId && await isGroupFolderNode(bookmarkNode, rootId)) {
-        console.log(`Background:bookmarks.onChanged - Potential group folder change: ${bookmarkNode.title}`, changeInfo);
+        console.log(`Background:bookmarks.onChanged - Potential group folder change.`);
         await updateContextMenu();
         await notifyOptionsPageGroupsChanged();
       }
