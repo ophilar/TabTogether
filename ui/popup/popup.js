@@ -1,5 +1,5 @@
 import { STRINGS, LOCAL_STORAGE_KEYS } from "../../common/constants.js";
-import { storage } from "../../core/storage.js";
+import { storage, recordSuccessfulSyncTime } from "../../core/storage.js";
 import { isAndroid } from "../../core/platform.js";
 import { getUnifiedState } from "../../core/actions.js";
 import { processSubscribedGroupTasks, createAndStoreGroupTask } from "../../core/tasks.js";
@@ -9,6 +9,7 @@ import {
   showMessage,
   injectSharedUI,
   renderHistoryUI,
+  showLoadingIndicator,
 } from "../shared/shared-ui.js";
 import { applyThemeFromStorage } from "../shared/theme.js";
 
