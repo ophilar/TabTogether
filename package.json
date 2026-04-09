@@ -29,7 +29,7 @@
   },
   "dependencies": {
     "flatted": "^3.4.2",
-    "web-ext": "^10.0.0"
+    "web-ext": "^10.1.0"
   },
   "overrides": {
     "glob": "10.5.0",
