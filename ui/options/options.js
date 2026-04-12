@@ -9,7 +9,7 @@ import {
   getUnifiedState,
   getDefinedGroupsFromBookmarks,
 } from "../../core/actions.js";
-import { storage } from "../../core/storage.js";
+import { storage, recordSuccessfulSyncTime } from "../../core/storage.js";
 import { processSubscribedGroupTasks } from "../../core/tasks.js";
 import { debounce } from "../../common/utils.js";
 import {
