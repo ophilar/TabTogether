@@ -1,6 +1,6 @@
-import { STRINGS } from "../common/constants.js";
-import { getDefinedGroupsFromBookmarks } from "../core/actions.js";
+import { STRINGS, LOCAL_STORAGE_KEYS } from "../common/constants.js";
 import { createAndStoreGroupTask } from "../core/tasks.js";
+import { storage } from "../core/storage.js";
 
 export async function updateContextMenu(cachedDefinedGroups) {
   if (!browser.contextMenus) {
@@ -9,7 +9,7 @@ export async function updateContextMenu(cachedDefinedGroups) {
   }
   console.log("Background:updateContextMenu - Updating context menus.");
   await browser.contextMenus.removeAll();
-  const groups = cachedDefinedGroups ?? (await getDefinedGroupsFromBookmarks());
+  const groups = cachedDefinedGroups ?? (await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []));
   const contexts = [
     "page",
     "link",

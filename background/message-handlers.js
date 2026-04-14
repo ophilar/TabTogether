@@ -6,7 +6,6 @@ import {
   renameGroupDirect,
   _addDeviceSubscriptionToGroup,
   _removeDeviceSubscriptionFromGroup,
-  getDefinedGroupsFromBookmarks,
 } from "../core/actions.js";
 import { createAndStoreGroupTask, processSubscribedGroupTasks } from "../core/tasks.js";
 import { ALARM_PERIODIC_SYNC } from "./alarms.js";
@@ -28,16 +27,10 @@ export function initMessageHandlers() {
     switch (request.action) {
       case "getState": {
         console.log("Background:runtime.onMessage - Handling 'getState'.");
-        const [
-          localSubscriptions,
-          definedGroups,
-        ] = await Promise.all([
-          storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []),
-          getDefinedGroupsFromBookmarks(),
-        ]);
+        const localSubscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
         return {
           subscriptions: localSubscriptions,
-          definedGroups: definedGroups.sort(),
+          definedGroups: localSubscriptions.sort(), // In new architecture definedGroups are just subscriptions
         };
       }
 
