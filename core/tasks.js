@@ -1,179 +1,67 @@
-import { storage, recordSuccessfulSyncTime, addToHistory } from "./storage.js";
-import { LOCAL_STORAGE_KEYS, SYNC_STORAGE_KEYS, BACKGROUND_DEFAULT_TASK_EXPIRY_DAYS } from "../common/constants.js";
+import { storage } from "./storage.js";
+import { LOCAL_STORAGE_KEYS } from "../common/constants.js";
+import { db } from "../background/firebase-transport.js";
+import { ref, push } from "firebase/database";
 
-export async function processSubscribedGroupTasks() {
-  const mySubscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
-  if (!mySubscriptions || mySubscriptions.length === 0) {
-    console.log("Tasks:processSubscribedGroupTasks - No subscriptions. Nothing to process.");
-    return;
+async function getOrCreateSenderId() {
+  let senderId = await storage.get(browser.storage.local, "senderId");
+  if (!senderId) {
+    senderId = crypto.randomUUID();
+    await storage.set(browser.storage.local, "senderId", senderId);
   }
-
-  const lastProcessedTimestampFromStorage = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_PROCESSED_BOOKMARK_TIMESTAMP, 0);
-  let localProcessedBookmarkIds = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_BOOKMARK_IDS, {});
-  let tasksProcessedLocallyThisRun = false;
-  let openedUrlsThisRun = new Set();
-  let recentlyOpenedUrls = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.RECENTLY_OPENED_URLS, {});
-  let recentlyOpenedUrlsChanged = false;
-  let newLatestTimestampConsidered = lastProcessedTimestampFromStorage;
-  const now = Date.now();
-
-  // Fetch task expiry for URL deduplication recency
-  const taskExpiryDays = await storage.get(
-    browser.storage.sync,
-    SYNC_STORAGE_KEYS.TASK_EXPIRY_DAYS,
-    BACKGROUND_DEFAULT_TASK_EXPIRY_DAYS // Fallback default
-  );
-  const recencyThresholdMs = taskExpiryDays * 24 * 60 * 60 * 1000;
-
-  console.log(`Tasks:processSubscribedGroupTasks - START. Subscriptions: [${mySubscriptions.join(', ')}]. Last processed timestamp: ${new Date(lastProcessedTimestampFromStorage).toISOString()}`);
-
-  const rootTaskFolder = await storage.getRootBookmarkFolder();
-  if (!rootTaskFolder) {
-    console.log("Tasks:processSubscribedGroupTasks - No root task folder found. Cannot process tasks.");
-    return;
-  }
-
-  for (const groupName of mySubscriptions) {
-    const groupFolder = await storage.getGroupBookmarkFolder(groupName, rootTaskFolder.id);
-    if (!groupFolder) {
-      console.log(`Tasks:processSubscribedGroupTasks - Group folder "${groupName}" not found. Skipping.`);
-      continue;
-    }
-
-    const tasksInGroup = await browser.bookmarks.getChildren(groupFolder.id);
-    for (const taskBookmark of tasksInGroup) {
-      if (taskBookmark.url) {
-        const bookmarkId = taskBookmark.id;
-
-        if (taskBookmark.dateAdded) {
-          newLatestTimestampConsidered = Math.max(newLatestTimestampConsidered, taskBookmark.dateAdded);
-        }
-
-        const alreadyProcessed = localProcessedBookmarkIds[bookmarkId];
-        if (alreadyProcessed) {
-          console.log(`Tasks:processSubscribedGroupTasks - Task (bookmarkId: "${bookmarkId}") in group "${groupName}" already processed locally.`);
-          continue;
-        }
-
-        const urlLastOpenedTimestamp = recentlyOpenedUrls[taskBookmark.url];
-        if (openedUrlsThisRun.has(taskBookmark.url)) {
-          console.log(`Tasks:processSubscribedGroupTasks - URL (bookmarkId: "${bookmarkId}") already opened in this run for another group. Deduplicated (intra-run).`);
-        } else if (urlLastOpenedTimestamp && (now - urlLastOpenedTimestamp < recencyThresholdMs)) {
-          console.log(`Tasks:processSubscribedGroupTasks - URL (bookmarkId: "${bookmarkId}") was recently opened. Deduplicated (inter-run).`);
-        }
-        else {
-          try {
-            await browser.tabs.create({ url: taskBookmark.url, active: false });
-            openedUrlsThisRun.add(taskBookmark.url); // For intra-run deduplication
-
-            // Record in history
-            let displayTitle = taskBookmark.title;
-            let fromDevice = "Remote Device";
-            const match = taskBookmark.title.match(/^\[(.*?)\] (.*)$/);
-            if (match) {
-              fromDevice = match[1];
-              displayTitle = match[2];
-            }
-
-            await addToHistory({
-              url: taskBookmark.url,
-              title: displayTitle,
-              fromDevice: fromDevice
-            });
-
-            recentlyOpenedUrls[taskBookmark.url] = now; // For inter-run deduplication
-            recentlyOpenedUrlsChanged = true;
-          } catch (e) {
-            console.error(`Tasks:processSubscribedGroupTasks - Failed to open tab (bookmark ID: ${bookmarkId}):`, e);
-            // If tab creation fails, we might not want to mark it as processed, or handle it differently.
-            // For now, we continue to mark it as processed to avoid retrying a failing URL.
-          }
-        }
-        // Mark the bookmark ID as processed regardless of URL deduplication, as the task intent is handled.
-        localProcessedBookmarkIds[bookmarkId] = now;
-        tasksProcessedLocallyThisRun = true;
-      }
-    }
-  }
-
-  if (tasksProcessedLocallyThisRun) {
-    await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_BOOKMARK_IDS, localProcessedBookmarkIds);
-    console.log("Tasks:processSubscribedGroupTasks - Finished processing, updated local processed task list.");
-  } else {
-    console.log("Tasks:processSubscribedGroupTasks - No new tasks to process for this device in this run.");
-  }
-
-  // Prune stale entries from recentlyOpenedUrls and save if changed
-  let finalRecentlyOpenedUrls = {};
-  let anUrlWasPruned = false;
-  // recentlyOpenedUrlsChanged tracks if new URLs were added/updated in *this run*
-  // anUrlWasPruned tracks if any old URLs were removed in *this run*
-  for (const url in recentlyOpenedUrls) {
-    if (now - recentlyOpenedUrls[url] < recencyThresholdMs) { // Keep if still recent
-      finalRecentlyOpenedUrls[url] = recentlyOpenedUrls[url];
-    } else {
-      anUrlWasPruned = true;
-    }
-  }
-
-  if (recentlyOpenedUrlsChanged || anUrlWasPruned) {
-    await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.RECENTLY_OPENED_URLS, finalRecentlyOpenedUrls);
-    if (recentlyOpenedUrlsChanged && anUrlWasPruned) {
-      console.log('Tasks:processSubscribedGroupTasks - Updated and pruned recently opened URLs list.');
-    } else if (recentlyOpenedUrlsChanged) {
-      console.log('Tasks:processSubscribedGroupTasks - Updated recently opened URLs list (no prunes needed this time).');
-    } else if (anUrlWasPruned) { // Only pruning happened
-      console.log('Tasks:processSubscribedGroupTasks - Pruned stale entries from recently opened URLs list.');
-    }
-  }
-
-  if (newLatestTimestampConsidered > lastProcessedTimestampFromStorage) {
-    await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_PROCESSED_BOOKMARK_TIMESTAMP, newLatestTimestampConsidered);
-    console.log(`Tasks:processSubscribedGroupTasks - Updated last processed bookmark timestamp to: ${new Date(newLatestTimestampConsidered).toISOString()}`);
-  }
-
-  // Record that a sync attempt was made
-  await recordSuccessfulSyncTime();
+  return senderId;
 }
+
+// Placeholder for UI compatibility
+export async function processSubscribedGroupTasks() {
+  console.log("processSubscribedGroupTasks called. In the new Firebase architecture, syncing is real-time via listenForTabs.");
+}
+
 export async function createAndStoreGroupTask(groupName, tabData) {
-  const nickname = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.DEVICE_NICKNAME, "Unknown Device");
-  const newTaskData = {
-    url: tabData.url,
-    title: `[${nickname}] ${tabData.title || tabData.url}`,
-  };
+  // In the new architecture, we only sync to one single group room based on groupId.
+  // The groupName parameter is kept for backward compatibility with UI if needed,
+  // but the transport will just use the globally synced groupId.
 
-  const opResult = await storage.createTaskBookmark(groupName, newTaskData);
-
-  if (!opResult.success) {
-    console.error(`Failed to store task for group ${groupName}. Message: ${opResult.message}`);
-    return { success: false, bookmarkId: null, message: opResult.message || "Failed to save task as bookmark." };
-  }
-
-  // Add the sent tab's bookmark ID to the sender's processed list.
-  // This prevents the sender from opening the tab if they are also subscribed to the group.
-  if (opResult.bookmarkId) {
-    try {
-      const updates = { [opResult.bookmarkId]: Date.now() };
-      // PROCESSED_BOOKMARK_IDS is an object, mergeItem will add/update the property.
-      const addProcessedResult = await storage.mergeItem( // Use storage.mergeItem
-        browser.storage.local,
-        LOCAL_STORAGE_KEYS.PROCESSED_BOOKMARK_IDS,
-        updates
-      );
-      if (addProcessedResult.success) {
-        console.log(`Tasks:createAndStoreGroupTask - Successfully added ${opResult.bookmarkId} to processed list. Data changed: ${addProcessedResult.dataChanged}`);
-      } else {
-        console.error(`Tasks:createAndStoreGroupTask - mergeItem failed for ${opResult.bookmarkId} when adding to processed list. Message: ${addProcessedResult.message}`);
-      }
-      // Do not return here; continue to the main success return of createAndStoreGroupTask
-    } catch (error) {
-      console.error(`Tasks:createAndStoreGroupTask - Error adding ${opResult.bookmarkId} to processed list:`, error);
-      // Do not return here; the main task creation was successful. Log the error and continue.
-      // If this step failing should fail the whole operation, then a return is appropriate.
-      // For now, let's assume the primary task creation is the key success factor.
+  try {
+    const { groupId, encryptionKey } = await browser.storage.sync.get(["groupId", "encryptionKey"]);
+    if (!groupId || !encryptionKey) {
+      return { success: false, message: "Sync keys not initialized." };
     }
-  }
 
-  console.log(`Task (bookmarkId: ${opResult.bookmarkId}) created for group ${groupName}`);
-  return { success: true, bookmarkId: opResult.bookmarkId };
+    // Re-import the key from storage
+    const importedKey = await crypto.subtle.importKey(
+      "raw",
+      new Uint8Array(encryptionKey),
+      "AES-GCM",
+      false,
+      ["encrypt"]
+    );
+
+    // Generate unique IV
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const encodedUrl = new TextEncoder().encode(tabData.url);
+
+    // Encrypt
+    const ciphertext = await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv: iv },
+      importedKey,
+      encodedUrl
+    );
+
+    const senderId = await getOrCreateSenderId();
+
+    // Push to Firebase
+    const groupRef = ref(db, `groups/${groupId}/tabs`);
+    await push(groupRef, {
+      iv: Array.from(iv),
+      data: Array.from(new Uint8Array(ciphertext)),
+      timestamp: Date.now(),
+      senderId: senderId
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to send tab via Firebase:", error);
+    return { success: false, message: error.message };
+  }
 }

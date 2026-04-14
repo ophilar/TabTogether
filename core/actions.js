@@ -8,18 +8,17 @@ import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, STRINGS } from "../common/consta
  */
 export async function getUnifiedState(isAndroid) {
   try {
-    const [subscriptions, definedGroups, nickname, history] = await Promise.all([
+    const [subscriptions, nickname, history] = await Promise.all([
       storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []),
-      getDefinedGroupsFromBookmarks(), // Helper to get group names from bookmark folders
       storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.DEVICE_NICKNAME, "Unknown Device"),
       storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.TAB_HISTORY, [])
     ]);
 
-    const groupTasks = {}; // Tasks are individual bookmarks, not fetched as a single object here.
+    const groupTasks = {};
 
     return {
       subscriptions,
-      definedGroups: definedGroups.sort(),
+      definedGroups: subscriptions.sort(), // In the new architecture, definedGroups are basically your subscriptions
       groupTasks,
       isAndroid,
       nickname,
@@ -32,60 +31,25 @@ export async function getUnifiedState(isAndroid) {
   }
 }
 
-export async function getDefinedGroupsFromBookmarks() {
-  const rootFolder = await storage.getRootBookmarkFolder();
-  if (!rootFolder) return [];
-  const children = await browser.bookmarks.getChildren(rootFolder.id);
-  return children.filter(child => !child.url && child.title !== SYNC_STORAGE_KEYS.CONFIG_BOOKMARK_TITLE) // Access via SYNC_STORAGE_KEYS
-    .map(folder => folder.title);
-}
-
 // --- Direct Actions (primarily for Android or when background script is unavailable) ---
 export async function createGroupDirect(groupName) {
   if (!groupName || typeof groupName !== 'string' || groupName.trim().length === 0) {
     return { success: false, message: STRINGS.invalidGroupName };
   }
   const trimmedGroupName = groupName.trim();
-  const rootFolder = await storage.getRootBookmarkFolder();
-  if (!rootFolder) {
-    return { success: false, message: "Could not access root bookmark folder." };
-  }
 
-  const definedGroups = await getDefinedGroupsFromBookmarks();
-  if (definedGroups.includes(trimmedGroupName)) {
-    return { success: false, message: STRINGS.groupExists(trimmedGroupName) };
-  }
-  const groupFolder = await storage.getGroupBookmarkFolder(trimmedGroupName, rootFolder.id); // This creates if not exists
-  const success = !!groupFolder;
-  console.log(`Actions: Created group "${trimmedGroupName}" (success: ${success})`);
-  if (success) {
-    return { success: true, message: STRINGS.groupCreateSuccess(trimmedGroupName), newGroup: trimmedGroupName };
-  }
-  return { success: false, message: "Failed to save new group." };
+  // Since groups are now managed implicitly via subscription to the synced groupId
+  // creating a group just means subscribing to it locally.
+  await _addDeviceSubscriptionToGroup(trimmedGroupName);
+
+  return { success: true, message: STRINGS.groupCreateSuccess(trimmedGroupName), newGroup: trimmedGroupName };
 }
 
 export async function deleteGroupDirect(groupName) {
-  const rootFolder = await storage.getRootBookmarkFolder();
-  let groupsSuccess = false;
-  if (rootFolder) {
-    const groupFolder = await storage.getGroupBookmarkFolder(groupName, rootFolder.id); // Gets existing
-    if (groupFolder) {
-      await browser.bookmarks.removeTree(groupFolder.id); // removeTree deletes folder and contents
-      groupsSuccess = true;
-    } else { groupsSuccess = true; /* Group didn't exist, so deletion is "successful" */ }
-  }
-  console.log(`Actions: Deleted group "${groupName}" (groupsSuccess: ${groupsSuccess})`);
-
   // Remove the group key from the local subscriptions object
   await _removeDeviceSubscriptionFromGroup(groupName);
 
-  // Tasks are deleted when the bookmark folder is removed.
-  const tasksSuccess = true;
-
-  if (groupsSuccess && tasksSuccess) {
-    return { success: true, message: STRINGS.groupDeleteSuccess(groupName), deletedGroup: groupName };
-  }
-  return { success: false, message: "Failed to fully delete group its tasks and update subscriptions." };
+  return { success: true, message: STRINGS.groupDeleteSuccess(groupName), deletedGroup: groupName };
 }
 
 export async function renameGroupDirect(oldName, newName) {
@@ -93,46 +57,17 @@ export async function renameGroupDirect(oldName, newName) {
     return { success: false, message: STRINGS.invalidGroupName };
   }
   const trimmedNewName = newName.trim();
-  const rootFolder = await storage.getRootBookmarkFolder();
-  if (!rootFolder) {
-    return { success: false, message: "Could not access root bookmark folder." };
-  }
-
 
   // Rename the group key in local subscriptions
   let localSubscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
-  if (localSubscriptions.includes(oldName)) { // Corrected: array check and update
+  if (localSubscriptions.includes(oldName)) {
     localSubscriptions = localSubscriptions.map(g => (g === oldName ? trimmedNewName : g));
-    // Ensure the new name isn't duplicated if it somehow already existed (unlikely for a rename target)
-    // and then sort.
     localSubscriptions = [...new Set(localSubscriptions)].sort();
     await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, localSubscriptions);
     console.log(`Actions: Renamed local subscription "${oldName}" to "${trimmedNewName}"`);
   }
 
-  const definedGroups = await getDefinedGroupsFromBookmarks();
-
-  if (definedGroups.includes(trimmedNewName) && oldName !== trimmedNewName) {
-    return { success: false, message: STRINGS.groupExists(trimmedNewName) };
-  }
-
-  let groupsSuccess = false;
-  let tasksSuccess = true;
-
-  const groupFolderToRename = await storage.getGroupBookmarkFolder(oldName, rootFolder.id);
-  if (groupFolderToRename) {
-    await browser.bookmarks.update(groupFolderToRename.id, { title: trimmedNewName });
-    groupsSuccess = true;
-  } else {
-    // Old group folder didn't exist, perhaps create new one or error?
-    // For now, let's say if old doesn't exist, rename is not applicable in this context.
-    return { success: false, message: `Group "${oldName}" not found to rename.` };
-  }
-  console.log(`Actions: Renamed group "${oldName}" to "${trimmedNewName}" (groupsSuccess: ${groupsSuccess})`);
-  if (groupsSuccess && tasksSuccess) {
-    return { success: true, message: STRINGS.groupRenameSuccess(trimmedNewName), renamedGroup: trimmedNewName };
-  }
-  return { success: false, message: "Failed to fully rename group and update subscriptions." };
+  return { success: true, message: STRINGS.groupRenameSuccess(trimmedNewName), renamedGroup: trimmedNewName };
 }
 
 /**
