@@ -9,6 +9,3 @@ web-ext-artifacts/
 .env.*
 *.pem
 *.key
-secrets_to_purge.txt
-secrets.json
-service-account.json
