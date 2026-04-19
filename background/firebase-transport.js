@@ -5,7 +5,7 @@ import { storage, addToHistory } from "../core/storage.js";
 import { LOCAL_STORAGE_KEYS } from "../common/constants.js";
 import { deriveSyncKey, decryptPayload } from "../core/crypto.js";
 
-// Firebase Config
+// Firebase Config - DO NOT COMMIT SECRETS
 const firebaseConfig = {
   apiKey: "PLACEHOLDER_API_KEY",
   authDomain: "tabtogether-d6291.firebaseapp.com",
