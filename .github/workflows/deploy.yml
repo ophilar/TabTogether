@@ -62,3 +62,7 @@ jobs:
           files: ${{ steps.artifact-details.outputs.artifact_name }} # Upload the renamed .xpi file
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Token provided by GitHub Actions for authentication
+
+      - name: Sign and publish to AMO
+        run: |
+          npx web-ext sign --api-key=${{ secrets.AMO_JWT_ISSUER }} --api-secret=${{ secrets.AMO_JWT_SECRET }} --channel=listed

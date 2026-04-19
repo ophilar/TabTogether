@@ -424,7 +424,7 @@ button.inline-btn {
 /* Ensure Subscribe/Unsubscribe buttons have consistent width */
 #definedGroupsList li .group-actions .subscribe-btn,
 #definedGroupsList li .group-actions .unsubscribe-btn {
-    min-width: 110px; 
+    min-width: 110px;
 }
 
 /* Specific to Device Registry List Items */
