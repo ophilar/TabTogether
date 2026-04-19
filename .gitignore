@@ -3,3 +3,12 @@ tabtogether.zip
 node_modules/
 dist/
 web-ext-artifacts/
+
+# Secrets and Environment
+.env
+.env.*
+*.pem
+*.key
+secrets_to_purge.txt
+secrets.json
+service-account.json
