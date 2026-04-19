@@ -1,4 +1,4 @@
-import { STRINGS, LOCAL_STORAGE_KEYS } from "../../common/constants.js";
+import { STRINGS, SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS } from "../../common/constants.js";
 import { isAndroid } from "../../core/platform.js";
 import {
   createGroupUnified,
@@ -7,8 +7,10 @@ import {
   subscribeToGroupUnified,
   unsubscribeFromGroupUnified,
   getUnifiedState,
+  getDefinedGroupsFromBookmarks,
 } from "../../core/actions.js";
 import { storage, recordSuccessfulSyncTime } from "../../core/storage.js";
+import { processSubscribedGroupTasks } from "../../core/tasks.js";
 import { debounce } from "../../common/utils.js";
 import {
   injectSharedUI, showAndroidBanner,
@@ -27,6 +29,7 @@ import {
   displaySyncRequirementBanner,
 } from "./options-ui.js";
 import { setupOnboarding } from "./options-onboarding.js";
+import { setupAdvancedTiming } from "./options-advanced-timing.js";
 
 const dom = {
   definedGroupsListDiv: null,
@@ -39,7 +42,6 @@ const dom = {
   syncStatus: null,
   deviceNicknameInput: null,
   tabHistoryListDiv: null,
-  syncPasswordInput: null,
 };
 let currentState = null;
 let isAndroidPlatformGlobal = false;
@@ -67,20 +69,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     dom.tabHistoryListDiv = document.getElementById("tabHistoryList");
     dom.loadingIndicator = document.getElementById("loadingIndicator");
     dom.messageArea = document.getElementById("messageArea");
-    dom.syncPasswordInput = document.getElementById("syncPasswordInput");
-
-    if (dom.syncPasswordInput) {
-        const currentPassword = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SYNC_PASSWORD, "");
-        dom.syncPasswordInput.value = currentPassword;
-        dom.syncPasswordInput.addEventListener("change", async (e) => {
-            const newPassword = e.target.value;
-            await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.SYNC_PASSWORD, newPassword);
-            showMessage(dom.messageArea, "Master Sync Password updated. Listeners will refresh.", false);
-            // Trigger background listener refresh
-            await browser.runtime.sendMessage({ action: "heartbeat" });
-        });
-    }
-
     if (dom.manualSyncBtn) {
       dom.manualSyncBtn.addEventListener("click", async () => {
         const syncIcon = dom.manualSyncBtn.querySelector('.sync-icon-svg');
@@ -89,14 +77,15 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (syncIcon) syncIcon.classList.add('syncing-icon');
         clearMessage(dom.messageArea);
         try {
-          // Manual sync now just forces a heartbeat and state refresh
-          await browser.runtime.sendMessage({ action: "heartbeat" });
+          await processSubscribedGroupTasks();
           await recordSuccessfulSyncTime();
-          await loadState();
-          showMessage(dom.messageArea, "Live feed refreshed.", false);
+          // The background syncDataChanged listener (or a direct fetch here) will update the UI.
+          const ts = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_SYNC_TIME, null);
+          if (ts && dom.syncStatus) dom.syncStatus.textContent = "Last sync: " + new Date(ts).toLocaleString();
+          showMessage(dom.messageArea, STRINGS.syncComplete, false);
         } catch (error) {
-          console.error(`Options: Refresh failed:`, error);
-          showMessage(dom.messageArea, "Refresh failed.", true);
+          console.error(`Options: Manual sync failed:`, error);
+          showMessage(dom.messageArea, STRINGS.manualSyncFailed(error.message || 'Unknown error'), true);
         } finally {
           const duration = Date.now() - startTime;
           const minAnimationTime = 500;
@@ -114,9 +103,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     if (dom.deviceNicknameInput) {
-      storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.DEVICE_NICKNAME, "Unknown Device").then((nick) => {
-        dom.deviceNicknameInput.value = nick;
-      });
       dom.deviceNicknameInput.addEventListener("change", async (e) => {
         const val = e.target.value.trim() || "Unknown Device";
         await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.DEVICE_NICKNAME, val);
@@ -191,11 +177,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         showAndroidBanner(container,
           STRINGS.androidBanner);
       }
-      storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_SYNC_TIME, null).then((ts) => {
-        setLastSyncTimeUI(container, ts);
-      });
+      setLastSyncTimeUI(container, Date.now());
       showDebugInfoUI(container, currentState);
     }
+    setupAdvancedTiming();
     browser.runtime.onMessage.addListener(async (message) => {
       if (message.action === "specificSyncDataChanged" && message.changedItems) {
         console.log(`Options: Received specificSyncDataChanged message. Items:`, message.changedItems);
@@ -206,12 +191,20 @@ document.addEventListener("DOMContentLoaded", async () => {
             console.log(`Options:specificSyncDataChanged - No current state and not loading, performing full loadState.`);
             await loadState();
           } else if (currentState) { // Only proceed with incremental if currentState is populated
-            if (message.changedItems.includes("definedGroupsChanged") || message.changedItems.includes("subscriptionsChanged")) {
-              console.log(`Options:specificSyncDataChanged - Refreshing state due to changes.`);
-              const state = await getUnifiedState(isAndroidPlatformGlobal);
-              currentState.definedGroups = state.definedGroups;
-              currentState.subscriptions = state.subscriptions;
+            if (message.changedItems.includes("definedGroupsChanged")) {
+              console.log(`Options:specificSyncDataChanged - Handling definedGroupsChanged by fetching from bookmarks.`);
+              currentState.definedGroups = await getDefinedGroupsFromBookmarks(); // This already sorts
+              currentState.definedGroups.sort();
               renderDefinedGroups();
+            }
+            if (message.changedItems.includes("subscriptionsChanged")) {
+              console.log(`Options:specificSyncDataChanged - Handling subscriptionsChanged.`);
+              const deviceSubscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
+              console.log(`Options:specificSyncDataChanged - Derived device subscriptions:`, deviceSubscriptions);
+              // Ensure subscriptions is an array before sorting
+              currentState.subscriptions = Array.isArray(deviceSubscriptions) ? deviceSubscriptions : [];
+              currentState.subscriptions.sort(); // Sort the array
+              renderDefinedGroups(); // Re-render the UI
             }
             if (message.changedItems.includes("lastSyncTimeChanged")) {
               console.log(`Options:specificSyncDataChanged - Handling lastSyncTimeChanged.`);
@@ -248,17 +241,6 @@ function renderHistory() {
   renderHistoryUI(dom.tabHistoryListDiv, currentState.history);
 }
 
-async function updateSyncTimeDisplay() {
-  const ts = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_SYNC_TIME, null);
-  if (ts && dom.syncStatus) {
-    dom.syncStatus.textContent = "Last sync: " + new Date(ts).toLocaleString();
-  }
-  const container = document.querySelector(".container");
-  if (container) {
-    setLastSyncTimeUI(container, ts);
-  }
-}
-
 async function loadState() {
   if (isLoadingState) {
     return;
@@ -269,7 +251,9 @@ async function loadState() {
   try {
     const state = await getUnifiedState(isAndroidPlatformGlobal);
     if (isAndroidPlatformGlobal) {
+      await processSubscribedGroupTasks();
       const container = document.querySelector(".container");
+      setLastSyncTimeUI(container, Date.now());
       showDebugInfoUI(container, state);
     }
     currentState = state;
@@ -280,7 +264,6 @@ async function loadState() {
       );
     }
     renderAll();
-    await updateSyncTimeDisplay();
     console.log(`${new Date().toISOString()} Options:loadState - renderAll completed.`);
   } catch (error) {
     console.error(`Options:loadState - !!! ERROR:`, error);
@@ -327,8 +310,7 @@ function renderDefinedGroups() {
       handleUnsubscribe,
       handleDeleteGroup,
       startRenameGroup,
-    },
-    currentState.groupMembers
+    }
   );
 }
 

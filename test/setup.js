@@ -1,91 +1,186 @@
-// test/setup.js
 import { jest } from '@jest/globals';
-import { webcrypto } from 'node:crypto';
-import { TextEncoder, TextDecoder } from 'node:util';
-import { ReadableStream } from 'node:stream/web';
-import { fetch, Request, Response, Headers } from 'undici';
 
-/**
- * Global Mocks for Browser API
- */
-class StatefullStorageArea {
-  constructor() { this.data = {}; }
-  async get(keys) {
-    if (keys === null) return { ...this.data };
-    if (typeof keys === 'string') return { [keys]: this.data[keys] };
-    if (Array.isArray(keys)) {
-      const res = {};
-      keys.forEach(k => res[k] = this.data[k]);
-      return res;
-    }
-    const res = { ...keys };
-    for (const k in keys) if (this.data[k] !== undefined) res[k] = this.data[k];
-    return res;
-  }
-  async set(items) { Object.assign(this.data, items); }
-  async remove(keys) {
-    if (typeof keys === 'string') delete this.data[keys];
-    else if (Array.isArray(keys)) keys.forEach(k => delete this.data[k]);
-  }
-  async clear() { this.data = {}; }
-}
-
-const mockLocalStorage = new StatefullStorageArea();
-const mockSyncStorage = new StatefullStorageArea();
-
-globalThis.browser = {
-  storage: {
-    local: mockLocalStorage,
-    sync: mockSyncStorage,
-    onChanged: { addListener: jest.fn() },
-  },
-  runtime: {
-    sendMessage: jest.fn().mockResolvedValue({}),
-    onMessage: { addListener: jest.fn(), removeListener: jest.fn() },
-    getURL: jest.fn(path => `moz-extension://mock-id/${path}`),
-    openOptionsPage: jest.fn(),
-  },
-  tabs: {
-    create: jest.fn().mockResolvedValue({ id: 123 }),
-    query: jest.fn().mockResolvedValue([]),
-    remove: jest.fn().mockResolvedValue(undefined),
-  },
-  notifications: {
-    create: jest.fn().mockResolvedValue("mock-notification-id"),
-  },
-  alarms: {
-    create: jest.fn(),
-    clearAll: jest.fn().mockResolvedValue(true),
-    onAlarm: { addListener: jest.fn() },
-  },
+// --- Mock crypto ---
+// Directly mock the function on the global object
+globalThis.crypto = {
+    randomUUID: jest.fn() // Assign the mock function directly
 };
 
-/**
- * REAL Crypto API from Node.js
- */
-globalThis.crypto = webcrypto;
-globalThis.TextEncoder = TextEncoder;
-globalThis.TextDecoder = TextDecoder;
+// --- Mock browser APIs ---
+const getMockStorage = () => {
+    // ... (rest of getMockStorage remains the same) ...
+    const memoryStore = {};
+    const errorConfig = { getError: null, setError: null };
+    return {
+        get: jest.fn(async (keyOrKeys) => {
+            if (errorConfig.getError && (
+                (typeof keyOrKeys === 'string' && keyOrKeys === errorConfig.getError) ||
+                (Array.isArray(keyOrKeys) && keyOrKeys.includes(errorConfig.getError)) ||
+                (typeof keyOrKeys === 'object' && keyOrKeys !== null && errorConfig.getError in keyOrKeys)
+            )) {
+                throw new Error(`Simulated get error for key: ${errorConfig.getError}`);
+            }
+            if (!keyOrKeys) return { ...memoryStore };
+            if (typeof keyOrKeys === 'string') {
+                return { [keyOrKeys]: memoryStore[keyOrKeys] };
+            }
+            if (Array.isArray(keyOrKeys)) {
+                const result = {};
+                for (const k of keyOrKeys) result[k] = memoryStore[k];
+                return result;
+            }
+            if (typeof keyOrKeys === 'object' && keyOrKeys !== null) {
+                const result = {};
+                for (const k in keyOrKeys) {
+                    result[k] = memoryStore[k] ?? keyOrKeys[k];
+                }
+                return result;
+            }
+            return {};
+        }),
+        set: jest.fn(async (obj) => {
+            if (errorConfig.setError && Object.keys(obj).includes(errorConfig.setError)) {
+                throw new Error(`Simulated set error for key: ${errorConfig.setError}`);
+            }
+            // Simulate browser.storage.set behavior:
+            // - If a value is null, the key is removed.
+            // - Otherwise, the key is set/updated.
+            for (const key in obj) {
+                if (obj[key] === null) {
+                    delete memoryStore[key];
+                } else {
+                    memoryStore[key] = obj[key];
+                }
+            }
+        }),
+        clear: jest.fn(async () => {
+            for (const k in memoryStore) delete memoryStore[k];
+            errorConfig.getError = null;
+            errorConfig.setError = null;
+        }),
+        _getStore: () => memoryStore,
+        _simulateError: (type, key) => {
+            if (type === 'get') errorConfig.getError = key;
+            if (type === 'set') errorConfig.setError = key;
+        }
+    };
+};
 
-/**
- * REAL Fetch API from Node.js (via undici bridge)
- * We must use globalThis to ensure JSDOM environment sees them.
- */
-globalThis.fetch = fetch;
-globalThis.Request = Request;
-globalThis.Response = Response;
-globalThis.Headers = Headers;
-globalThis.ReadableStream = ReadableStream;
+const getMockBookmarksAPI = () => {
+    const state = { bookmarkStore: [], nextId: 1 };
 
-/**
- * FIREBASE EMULATOR CONFIG
- */
-globalThis.__FIREBASE_EMULATOR__ = true;
-globalThis.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+    const findDescendantIds = (parentId) => {
+        let ids = [];
+        const children = state.bookmarkStore.filter(bm => bm.parentId === parentId); // Use state.bookmarkStore
+        for (const child of children) {
+            ids.push(child.id);
+            ids = ids.concat(findDescendantIds(child.id));
+        }
+        return ids;
+    };
 
-// Reset state
+    return {
+        get _store() { return state.bookmarkStore; },
+        _getStore: () => state.bookmarkStore, // Keep for new tests
+        _resetStore: () => { state.bookmarkStore = []; state.nextId = 1; },
+        get: jest.fn(async (idOrIds) => {
+            if (Array.isArray(idOrIds)) {
+                return state.bookmarkStore.filter(bm => idOrIds.includes(bm.id));
+            }
+            const found = state.bookmarkStore.find(bm => bm.id === idOrIds);
+            return found ? [found] : [];
+        }),
+        getChildren: jest.fn(async (parentId) => state.bookmarkStore.filter(bm => bm.parentId === parentId)),
+        create: jest.fn(async (bookmark) => {
+            const newBookmark = { ...bookmark, id: `mock-bookmark-${state.nextId++}`, dateAdded: Date.now() };
+            state.bookmarkStore.push(newBookmark);
+            return newBookmark;
+        }),
+        remove: jest.fn(async (id) => {
+            state.bookmarkStore = state.bookmarkStore.filter(bm => bm.id !== id);
+        }),
+        removeTree: jest.fn(async (id) => {
+            const idsToRemove = [id, ...findDescendantIds(id)]; // findDescendantIds needs to use state.bookmarkStore
+            state.bookmarkStore = state.bookmarkStore.filter(bm => !idsToRemove.includes(bm.id));
+        }),
+        update: jest.fn(async (id, updates) => {
+            state.bookmarkStore = state.bookmarkStore.map(bm => bm.id === id ? { ...bm, ...updates, dateModified: Date.now() } : bm);
+            return state.bookmarkStore.find(bm => bm.id === id);
+        }),
+        search: jest.fn(async (query) => {
+            if (query.title) return state.bookmarkStore.filter(bm => bm.title === query.title);
+            if (query.url) return state.bookmarkStore.filter(bm => bm.url === query.url);
+            return []; // Simple mock, extend if more complex queries are needed
+        }),
+        getTree: jest.fn(async () => {
+            // Very simple tree construction: only root and its children
+            const buildNode = (id) => {
+                const node = state.bookmarkStore.find(bm => bm.id === id) || { id, title: 'root' };
+                const children = state.bookmarkStore.filter(bm => bm.parentId === id);
+                if (children.length > 0) {
+                    node.children = children.map(c => buildNode(c.id));
+                }
+                return node;
+            };
+            return [buildNode('root________')];
+        }),
+    };
+};
+
+// --- Reset mocks before each test ---
 beforeEach(() => {
-  jest.clearAllMocks();
-  mockLocalStorage.data = {};
-  mockSyncStorage.data = {};
+    // Reset all mocks (call counts, implementations, etc.)
+    jest.clearAllMocks();
+
+    // Reset crypto mock specifically
+    if (typeof globalThis.crypto === 'undefined') {
+        globalThis.crypto = {};
+    }
+    globalThis.crypto.randomUUID = jest.fn().mockReturnValue('mock-uuid-1234'); // Assign and set default value
+
+    // Assign the mock storage to the global browser object
+    global.browser = {
+        storage: {
+            local: getMockStorage(),
+            sync: getMockStorage(),
+            onChanged: { addListener: jest.fn(), removeListener: jest.fn() }, // Mock onChanged
+        },
+        runtime: {
+            getPlatformInfo: jest.fn(async () => ({ os: 'win' })),
+            getURL: jest.fn(path => `moz-extension://test-uuid/${path}`),
+            sendMessage: jest.fn().mockResolvedValue({ success: true }),
+        },
+        notifications: {
+            create: jest.fn().mockResolvedValue('test-notif-id'),
+        },
+        tabs: {
+            create: jest.fn().mockResolvedValue({ id: 123, url: 'mock-tab-url' })
+        },
+        // Add contextMenus mock if needed
+        contextMenus: {
+            create: jest.fn(),
+            removeAll: jest.fn(),
+            onClicked: {
+                addListener: jest.fn(),
+                removeListener: jest.fn(),
+            },
+        },
+        // Add alarms mock if needed
+        alarms: {
+            create: jest.fn(),
+            clear: jest.fn(),
+            clearAll: jest.fn(),
+            onAlarm: {
+                addListener: jest.fn(),
+                removeListener: jest.fn(),
+            },
+        },
+        bookmarks: getMockBookmarksAPI(),
+    };
+
+    return Promise.all([
+        global.browser.storage.local.clear(),
+        global.browser.storage.sync.clear(),
+        global.browser.bookmarks._resetStore(), // Reset bookmark store
+    ]);
 });

@@ -1,9 +1,10 @@
 import { storage } from "./storage.js";
-import { LOCAL_STORAGE_KEYS, STRINGS } from "../common/constants.js";
-import { getGroupMembers } from "../background/firebase-transport.js";
+import { SYNC_STORAGE_KEYS, LOCAL_STORAGE_KEYS, STRINGS } from "../common/constants.js";
 
 /**
  * Retrieves the unified state of the application.
+ * @param {boolean} isAndroid - Whether the current platform is Android.
+ * @returns {Promise<object>} The application state.
  */
 export async function getUnifiedState(isAndroid) {
   try {
@@ -13,16 +14,12 @@ export async function getUnifiedState(isAndroid) {
       storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.TAB_HISTORY, [])
     ]);
 
-    // Track presence for all subscribed groups
-    const groupMembers = {};
-    for (const group of subscriptions) {
-      groupMembers[group] = await getGroupMembers(group);
-    }
+    const groupTasks = {};
 
     return {
       subscriptions,
-      definedGroups: [...subscriptions].sort(),
-      groupMembers,
+      definedGroups: subscriptions.sort(), // In the new architecture, definedGroups are basically your subscriptions
+      groupTasks,
       isAndroid,
       nickname,
       history,
@@ -34,18 +31,24 @@ export async function getUnifiedState(isAndroid) {
   }
 }
 
-// --- Direct Actions ---
+// --- Direct Actions (primarily for Android or when background script is unavailable) ---
 export async function createGroupDirect(groupName) {
   if (!groupName || typeof groupName !== 'string' || groupName.trim().length === 0) {
     return { success: false, message: STRINGS.invalidGroupName };
   }
   const trimmedGroupName = groupName.trim();
-  await subscribeToGroupDirect(trimmedGroupName);
+
+  // Since groups are now managed implicitly via subscription to the synced groupId
+  // creating a group just means subscribing to it locally.
+  await _addDeviceSubscriptionToGroup(trimmedGroupName);
+
   return { success: true, message: STRINGS.groupCreateSuccess(trimmedGroupName), newGroup: trimmedGroupName };
 }
 
 export async function deleteGroupDirect(groupName) {
-  await unsubscribeFromGroupDirect(groupName);
+  // Remove the group key from the local subscriptions object
+  await _removeDeviceSubscriptionFromGroup(groupName);
+
   return { success: true, message: STRINGS.groupDeleteSuccess(groupName), deletedGroup: groupName };
 }
 
@@ -55,53 +58,116 @@ export async function renameGroupDirect(oldName, newName) {
   }
   const trimmedNewName = newName.trim();
 
+  // Rename the group key in local subscriptions
   let localSubscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
   if (localSubscriptions.includes(oldName)) {
     localSubscriptions = localSubscriptions.map(g => (g === oldName ? trimmedNewName : g));
     localSubscriptions = [...new Set(localSubscriptions)].sort();
     await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, localSubscriptions);
+    console.log(`Actions: Renamed local subscription "${oldName}" to "${trimmedNewName}"`);
   }
 
   return { success: true, message: STRINGS.groupRenameSuccess(trimmedNewName), renamedGroup: trimmedNewName };
 }
 
-export async function subscribeToGroupDirect(groupName) {
+/**
+ * Internal helper to add a device's subscription to a group, updating both local and sync storage.
+ * @param {string} groupName - The name of the group to subscribe to.
+ * @returns {Promise<{success: boolean, message?: string, subscribedGroup?: string}>}
+ * @private
+ */
+async function _addDeviceSubscriptionToGroup(groupName) {
   let localSubscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
   if (!localSubscriptions.includes(groupName)) {
     localSubscriptions.push(groupName);
     localSubscriptions = [...new Set(localSubscriptions)].sort();
-    await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, localSubscriptions);
-    return { success: true, message: `Subscribed to ${groupName}`, subscribedGroup: groupName };
+    const success = await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, localSubscriptions);
+    if (success) {
+      console.log(`Actions: Added local subscription to group "${groupName}"`);
+      return { success: true, message: STRINGS.subscribedToGroup(groupName), subscribedGroup: groupName };
+    } else {
+      console.error(`Actions: Failed to save local subscription for group "${groupName}"`);
+      return { success: false, message: STRINGS.failedToSubscribe };
+    }
+  } else {
+    // Already subscribed, consider it a success.
+    console.log(`Actions: Already subscribed to group "${groupName}"`);
+    return { success: true, message: STRINGS.subscribedToGroup(groupName), subscribedGroup: groupName };
   }
-  return { success: true, subscribedGroup: groupName };
 }
 
-export async function unsubscribeFromGroupDirect(groupName) {
+/**
+ * Internal helper to remove a device's subscription from a group, updating both local and sync storage.
+ * @param {string} groupName - The name of the group to unsubscribe from.
+ * @returns {Promise<{success: boolean, message?: string, unsubscribedGroup?: string}>}
+ * @private
+ */
+async function _removeDeviceSubscriptionFromGroup(groupName) {
+  // Update local subscriptions
+  let changed = false;
   let localSubscriptions = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []);
   if (localSubscriptions.includes(groupName)) {
     localSubscriptions = localSubscriptions.filter(sub => sub !== groupName);
-    await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, localSubscriptions);
+    const success = await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, localSubscriptions);
+    if (success) {
+      console.log(`Actions: Removed local subscription for group "${groupName}"`);
+      changed = true;
+    } else {
+      console.error(`Actions: Failed to save removal of local subscription for group "${groupName}"`);
+      return { success: false, message: STRINGS.failedToUnsubscribe };
+    }
   }
-  return { success: true, unsubscribedGroup: groupName };
+  return { success: true, message: changed ? STRINGS.unsubscribedFromGroup(groupName) : `Not subscribed to "${groupName}".`, unsubscribedGroup: groupName };
 }
 
-// --- Unified Actions ---
+export async function subscribeToGroupDirect(groupName) {
+  return _addDeviceSubscriptionToGroup(groupName);
+}
+
+export async function unsubscribeFromGroupDirect(groupName) {
+  return _removeDeviceSubscriptionFromGroup(groupName);
+}
+
+// --- Unified Actions (decide between direct call or background message) ---
+
 export async function createGroupUnified(groupName, isAndroid) {
-  return isAndroid ? createGroupDirect(groupName) : browser.runtime.sendMessage({ action: "createGroup", groupName });
+  if (isAndroid) {
+    return createGroupDirect(groupName);
+  } else {
+    return browser.runtime.sendMessage({ action: "createGroup", groupName });
+  }
 }
 
 export async function deleteGroupUnified(groupName, isAndroid) {
-  return isAndroid ? deleteGroupDirect(groupName) : browser.runtime.sendMessage({ action: "deleteGroup", groupName });
+  if (isAndroid) {
+    return deleteGroupDirect(groupName);
+  } else {
+    return browser.runtime.sendMessage({ action: "deleteGroup", groupName });
+  }
 }
 
 export async function renameGroupUnified(oldName, newName, isAndroid) {
-  return isAndroid ? renameGroupDirect(oldName, newName) : browser.runtime.sendMessage({ action: "renameGroup", oldName, newName });
+  if (isAndroid) {
+    return renameGroupDirect(oldName, newName);
+  } else {
+    return browser.runtime.sendMessage({ action: "renameGroup", oldName, newName });
+  }
 }
 
 export async function subscribeToGroupUnified(groupName, isAndroid) {
-  return isAndroid ? subscribeToGroupDirect(groupName) : browser.runtime.sendMessage({ action: "subscribeToGroup", groupName });
+  if (isAndroid) {
+    return subscribeToGroupDirect(groupName);
+  } else {
+    return browser.runtime.sendMessage({ action: "subscribeToGroup", groupName });
+  }
 }
 
 export async function unsubscribeFromGroupUnified(groupName, isAndroid) {
-  return isAndroid ? unsubscribeFromGroupDirect(groupName) : browser.runtime.sendMessage({ action: "unsubscribeFromGroup", groupName });
+  if (isAndroid) {
+    return unsubscribeFromGroupDirect(groupName);
+  } else {
+    return browser.runtime.sendMessage({ action: "unsubscribeFromGroup", groupName });
+  }
 }
+
+export { _addDeviceSubscriptionToGroup, _removeDeviceSubscriptionFromGroup };

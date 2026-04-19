@@ -1,6 +1,6 @@
 {
   "name": "tabtogether",
-  "version": "0.13.0",
+  "version": "0.12.4",
   "description": "Send tabs to multiple devices simultaneously.",
   "author": "Ron Katzir",
   "license": "MIT",
@@ -17,22 +17,15 @@
     "start": "web-ext run",
     "lint": "web-ext lint",
     "sign": "web-ext sign",
-    "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js",
-    "test:integration": "npx firebase emulators:exec --project demo-tabtogether \"npm test\""
+    "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js"
   },
   "devDependencies": {
-    "@babel/core": "^7.29.0",
-    "@babel/preset-env": "^7.29.2",
-    "babel-jest": "^30.3.0",
     "clean-css-cli": "^5.6.2",
     "crypto": "^1.0.1",
-    "firebase-tools": "^15.14.0",
     "html-minifier-terser": "^7.2.0",
     "jest": "^30.3.0",
     "jest-environment-jsdom": "^30.3.0",
-    "node-fetch": "^3.3.2",
-    "terser": "^5.46.1",
-    "whatwg-fetch": "^3.6.20"
+    "terser": "^5.46.1"
   },
   "dependencies": {
     "firebase": "^12.12.0",

@@ -2,7 +2,7 @@ import { STRINGS, LOCAL_STORAGE_KEYS } from "../../common/constants.js";
 import { storage, recordSuccessfulSyncTime } from "../../core/storage.js";
 import { isAndroid } from "../../core/platform.js";
 import { getUnifiedState } from "../../core/actions.js";
-import { createAndStoreGroupTask } from "../../core/tasks.js";
+import { processSubscribedGroupTasks, createAndStoreGroupTask } from "../../core/tasks.js";
 import {
   showAndroidBanner,
   setLastSyncTime, // Import the correct function name
@@ -85,18 +85,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         const startTime = Date.now(); // Record start time
 
         try {
-          // Trigger background heartbeat to refresh listeners and record sync time
-          await browser.runtime.sendMessage({ action: "heartbeat" });
+          await processSubscribedGroupTasks();
           await recordSuccessfulSyncTime();
-          
           // Update UI with the latest sync time
           const ts = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_SYNC_TIME, null);
           const popupContainer = document.querySelector(".container");
           if (popupContainer) setLastSyncTime(popupContainer, ts); // Update UI
           if (dom.messageArea) showMessage(dom.messageArea, STRINGS.syncComplete, false); // Check dom.messageArea
-          
-          // Re-load status to show any new tabs in history or updated groups
-          await loadStatus();
         } catch (error) {
           // Log errors that might occur during loadStatus or subsequent actions
           console.error("Error during refresh action:", error);
@@ -162,6 +157,7 @@ async function loadStatus() {
 
     // Process incoming tabs immediately on Android after getting state
     if (isAndroidPlatform) {
+      await processSubscribedGroupTasks();
       const ts = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_SYNC_TIME, null);
       const popupContainer = document.querySelector(".container");
       if (popupContainer) setLastSyncTime(popupContainer, ts);
@@ -253,7 +249,7 @@ function renderSendTabGroups(groups) {
 
 // Function to handle sending the current tab to a selected group
 async function sendTabToGroup(groupName) {
-  if (dom.messageArea) showMessage(dom.messageArea, STRINGS.sendingTab, false, 0); // No auto-hide yet
+  showSendStatus(STRINGS.sendingTab, false); // Initial status message
   try {
     let response;
     const tabs = await browser.tabs.query({
@@ -269,7 +265,7 @@ async function sendTabToGroup(groupName) {
       currentTab.url.startsWith("about:") ||
       currentTab.url.startsWith("moz-extension:")
     ) {
-      if (dom.messageArea) showMessage(dom.messageArea, STRINGS.sendTabCannot, true);
+      showSendStatus(STRINGS.sendTabCannot, true); // Show error message
       return;
     }
 
@@ -289,13 +285,35 @@ async function sendTabToGroup(groupName) {
 
     // Handle the response from the send action
     if (response?.success) {
-      if (dom.messageArea) showMessage(dom.messageArea, STRINGS.sentToGroup(groupName), false);
+      showSendStatus(STRINGS.sentToGroup(groupName), false); // Success feedback
     } else {
       // Show specific error message from response, or generic failure
-      if (dom.messageArea) showMessage(dom.messageArea, response?.message || STRINGS.sendTabFailed, true);
+      showSendStatus(response?.message || STRINGS.sendTabFailed, true);
     }
   } catch (error) {
     console.error(`Error sending tab to group ${groupName}:`, error);
-    if (dom.messageArea) showMessage(dom.messageArea, STRINGS.sendTabError(error.message || "Unknown error"), true);
+    showSendStatus(STRINGS.sendTabError(error.message || "Unknown error"), true); // Show error feedback
   }
+}
+
+// --- UI Helper Functions ---
+
+// Shows status messages (like "Sending...", "Sent!", "Error...")
+function showSendStatus(message, isError) {
+  const statusArea = dom.sendTabStatus;
+  if (!statusArea) return; // Guard clause
+
+  statusArea.textContent = message;
+  statusArea.classList.remove("hidden");
+  // Use consistent CSS classes from styles.css
+  statusArea.classList.toggle("error", isError); // isError is already boolean
+  statusArea.classList.toggle("success", !isError);
+
+  // Clear the message after a delay
+  const timeoutId = setTimeout(() => {
+    statusArea.classList.add("hidden");
+    // Optionally clear text and classes after hiding
+    statusArea.textContent = "";
+    statusArea.classList.remove("error", "success");
+  }, 3000); // 3-second display duration
 }

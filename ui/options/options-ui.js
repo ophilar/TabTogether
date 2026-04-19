@@ -2,65 +2,54 @@ import { STRINGS } from "../../common/constants.js";
 
 /**
  * Creates a list item element for a group.
+ * @param {string} groupName - The name of the group.
+ * @param {boolean} isSubscribed - Whether the current device is subscribed to this group.
+ * @param {object} handlers - Object containing event handlers (handleSubscribe, handleUnsubscribe, handleDeleteGroup, startRenameGroup).
+ * @returns {HTMLLIElement} The created list item element.
  */
-export function createGroupListItemUI(groupName, isSubscribed, handlers, members = []) {
+export function createGroupListItemUI(groupName, isSubscribed, handlers) {
   const li = document.createElement("li");
-  li.className = 'options-list-item group-card';
+  li.setAttribute('role', 'listitem');
+  li.className = 'options-list-item';
   li.dataset.groupName = groupName;
 
-  const headerDiv = document.createElement("div");
-  headerDiv.className = "group-item-header";
-
-  const nameBtn = document.createElement("button");
-  nameBtn.textContent = groupName;
-  nameBtn.className = 'group-name-label';
-  nameBtn.type = 'button';
-  nameBtn.setAttribute('aria-label', `Rename group ${groupName}`);
-  nameBtn.title = `Click to rename ${groupName}`;
-  nameBtn.onclick = () => handlers.startRenameGroup(groupName, nameBtn);
-  headerDiv.appendChild(nameBtn);
+  const nameSpan = document.createElement("span");
+  nameSpan.textContent = groupName;
+  nameSpan.className = 'group-name-label options-list-item-label';
+  nameSpan.style.cursor = 'pointer';
+  nameSpan.title = 'Click to rename group';
+  nameSpan.setAttribute('role', 'button');
+  nameSpan.setAttribute('tabindex', '0');
+  nameSpan.setAttribute('aria-label', `Rename group ${groupName}`);
+  nameSpan.onclick = () => handlers.startRenameGroup(groupName, nameSpan);
+  nameSpan.onkeydown = (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handlers.startRenameGroup(groupName, nameSpan);
+    }
+  };
+  li.appendChild(nameSpan);
 
   const actionsDiv = document.createElement('div');
   actionsDiv.className = 'group-actions';
 
   const subBtn = document.createElement("button");
-  subBtn.textContent = isSubscribed ? "Leave" : "Join";
-  subBtn.className = isSubscribed ? 'secondary' : 'primary';
-  subBtn.onclick = isSubscribed ? handlers.handleUnsubscribe : handlers.handleSubscribe;
+  subBtn.textContent = isSubscribed ? "Unsubscribe" : "Subscribe";
   subBtn.dataset.group = groupName;
+  subBtn.className = isSubscribed ? 'secondary' : 'primary';
+  subBtn.setAttribute('aria-label', `${isSubscribed ? 'Unsubscribe from' : 'Subscribe to'} group ${groupName}`);
+  subBtn.onclick = isSubscribed ? handlers.handleUnsubscribe : handlers.handleSubscribe;
   actionsDiv.appendChild(subBtn);
 
   const deleteBtn = document.createElement("button");
   deleteBtn.textContent = "Delete";
-  deleteBtn.className = 'danger';
-  deleteBtn.onclick = handlers.handleDeleteGroup;
   deleteBtn.dataset.group = groupName;
+  deleteBtn.className = 'danger';
+  deleteBtn.setAttribute('aria-label', `Delete group ${groupName}`);
+  deleteBtn.onclick = handlers.handleDeleteGroup;
   actionsDiv.appendChild(deleteBtn);
 
-  headerDiv.appendChild(actionsDiv);
-  li.appendChild(headerDiv);
-
-  if (isSubscribed && members.length > 0) {
-    const membersDiv = document.createElement("div");
-    membersDiv.className = "group-members-list";
-    
-    const label = document.createElement("strong");
-    label.textContent = "Members: ";
-    membersDiv.appendChild(label);
-
-    members.forEach(m => {
-        const timeAgo = Math.floor((Date.now() - m.lastSeen) / 60000);
-        const statusClass = timeAgo < 5 ? "status-online" : "status-offline";
-        const chip = document.createElement("span");
-        chip.className = `member-chip ${statusClass}`;
-        chip.title = `Last seen ${timeAgo}m ago`;
-        chip.textContent = m.nickname;
-        membersDiv.appendChild(chip);
-    });
-    
-    li.appendChild(membersDiv);
-  }
-
+  li.appendChild(actionsDiv);
   return li;
 }
 
@@ -68,10 +57,9 @@ export function renderGroupListUI(
   definedGroupsListDiv,
   definedGroups,
   subscriptions,
-  handlers,
-  groupMembers = {}
+  handlers
 ) {
-  definedGroupsListDiv.textContent = "";
+  definedGroupsListDiv.textContent = ""; // Clear previous content
 
   if (!definedGroups || definedGroups.length === 0) {
     definedGroupsListDiv.textContent = STRINGS.noGroups;
@@ -79,20 +67,25 @@ export function renderGroupListUI(
   }
 
   const ul = document.createElement("ul");
-  ul.className = 'options-list';
+  ul.setAttribute('role', 'list');
+  ul.className = 'options-list'; // Use common class
 
   definedGroups.forEach((groupName) => {
     const isSubscribed = subscriptions.includes(groupName);
-    const members = groupMembers[groupName] || [];
-    const li = createGroupListItemUI(groupName, isSubscribed, handlers, members);
+    // Use the new helper function to create each list item
+    const li = createGroupListItemUI(groupName, isSubscribed, handlers);
     ul.appendChild(li);
   });
   definedGroupsListDiv.appendChild(ul);
 }
 
 export function cancelInlineEditUI(originalSpan, inlineControlsContainer) {
-  if (inlineControlsContainer && inlineControlsContainer.parentNode) inlineControlsContainer.remove();
-  if (originalSpan) originalSpan.style.display = '';
+  if (inlineControlsContainer && inlineControlsContainer.parentNode) {
+    inlineControlsContainer.remove();
+  }
+  if (originalSpan) {
+    originalSpan.style.display = '';
+  }
 }
 
 export function createInlineEditControlsUI(currentValue, onSaveCallback, onCancelCallback) {
@@ -103,29 +96,45 @@ export function createInlineEditControlsUI(currentValue, onSaveCallback, onCance
   input.type = 'text';
   input.value = currentValue;
   input.className = 'inline-edit-input';
+  input.setAttribute('aria-label', `New name for group ${currentValue}`);
 
   const saveBtn = document.createElement('button');
   saveBtn.textContent = '✓';
   saveBtn.className = 'inline-edit-save';
+  saveBtn.title = 'Save';
+  saveBtn.setAttribute('aria-label', `Save new name for group ${currentValue}`);
 
   const cancelBtn = document.createElement('button');
   cancelBtn.textContent = '✕';
   cancelBtn.className = 'inline-edit-cancel secondary';
+  cancelBtn.title = 'Cancel';
+  cancelBtn.setAttribute('aria-label', `Cancel renaming group ${currentValue}`);
 
   const handleSave = () => {
     const newValue = input.value.trim();
-    if (newValue && newValue !== currentValue) onSaveCallback(newValue);
-    else onCancelCallback();
+    if (newValue && newValue !== currentValue) {
+      onSaveCallback(newValue);
+    } else {
+      onCancelCallback();
+    }
   };
 
   input.onkeydown = (e) => {
-    if (e.key === 'Enter') handleSave();
-    else if (e.key === 'Escape') onCancelCallback();
+    if (e.key === 'Enter') e.preventDefault(), handleSave();
+    else if (e.key === 'Escape') e.preventDefault(), onCancelCallback();
   };
   saveBtn.onclick = handleSave;
   cancelBtn.onclick = onCancelCallback;
 
-  // Append elements to the container
+  input.onblur = (e) => {
+    setTimeout(() => {
+      const focusMovedToButton = e.relatedTarget === saveBtn || e.relatedTarget === cancelBtn;
+      if (container.parentNode && !focusMovedToButton) {
+        onCancelCallback();
+      }
+    }, 150);
+  };
+
   container.appendChild(input);
   container.appendChild(saveBtn);
   container.appendChild(cancelBtn);
@@ -135,34 +144,93 @@ export function createInlineEditControlsUI(currentValue, onSaveCallback, onCance
 
 export function setLastSyncTimeUI(containerElement, timestamp) {
   if (!containerElement) return;
-  let syncTimeDiv = containerElement.querySelector(".last-sync-time");
-  if (!syncTimeDiv) {
+
+  let syncTimeDiv = containerElement.querySelector(".last-sync-time"); // Corrected selector
+  if (!syncTimeDiv) { // Styles moved to styles.css
     syncTimeDiv = document.createElement("div");
-    syncTimeDiv.className = "last-sync-time";
-    containerElement.insertBefore(syncTimeDiv, containerElement.firstChild);
+    syncTimeDiv.className = "last-sync-time"; // Class for styling from CSS
+    const androidInfoSection = containerElement.querySelector('#androidSpecificInfo'); // Assuming such an ID exists in options.html
+    if (androidInfoSection) {
+      androidInfoSection.insertBefore(syncTimeDiv, androidInfoSection.firstChild);
+    } else {
+      containerElement.insertBefore(syncTimeDiv, containerElement.firstChild);
+    }
   }
-  syncTimeDiv.textContent = "Live Feed Connected: " + (timestamp ? new Date(timestamp).toLocaleTimeString() : "Pending");
+  syncTimeDiv.textContent = "Last sync (this view): " + (timestamp ? new Date(timestamp).toLocaleString() : "Never");
 }
 
 export function showDebugInfoUI(containerElement, state) {
   if (!containerElement || !state) return;
-  let debugDiv = containerElement.querySelector(".options-debug-info");
+
+  let debugDiv = containerElement.querySelector(".options-debug-info"); // Styles moved to styles.css
   if (!debugDiv) {
     debugDiv = document.createElement("div");
-    debugDiv.className = "options-debug-info";
-    containerElement.appendChild(debugDiv);
+    debugDiv.className = "options-debug-info"; // Class for styling from CSS
+
+    const androidInfoSection = containerElement.querySelector('#androidSpecificInfo');
+    if (androidInfoSection) {
+      androidInfoSection.appendChild(debugDiv);
+    } else {
+      containerElement.appendChild(debugDiv); // Fallback
+    }
   }
-  
-  debugDiv.textContent = ""; // Clear existing
-  const label = document.createElement("strong");
-  label.textContent = "System State:";
-  debugDiv.appendChild(label);
-  
+
+  debugDiv.textContent = ""; // Clear previous content
+  const title = document.createElement("strong");
+  title.textContent = "Debug Info (Current View)";
+  debugDiv.appendChild(title);
+
   const pre = document.createElement("pre");
-  pre.textContent = JSON.stringify(state, null, 2);
+
+  const { subscriptions, definedGroups, groupTasks, isAndroid } = state;
+  const debugState = { subscriptions, definedGroups, groupTasksCount: Object.keys(groupTasks || {}).length, isAndroid };
+
+  pre.textContent = JSON.stringify(debugState, null, 2);
   debugDiv.appendChild(pre);
 }
 
+/**
+ * Displays a banner message about the requirement of Firefox Sync for cross-device functionality.
+ * @param {HTMLElement} containerElement - The parent element to prepend the banner to.
+ * @param {object} storageAPI - The storage utility object.
+ */
 export async function displaySyncRequirementBanner(containerElement, storageAPI) {
-  // Obsolete - removed Firefox Sync dependency
+  if (!containerElement) return;
+
+  const bannerDismissedKey = 'optionsSyncBannerDismissed';
+  const isDismissed = await storageAPI.get(browser.storage.local, bannerDismissedKey, false);
+
+  if (isDismissed) {
+    return; // Don't show if already dismissed
+  }
+
+  // Prevent adding multiple banners
+  if (containerElement.querySelector('.sync-requirement-banner')) { // Simpler check for existing banner
+    return;
+  }
+
+  const banner = document.createElement('div');
+  banner.className = 'sync-requirement-banner notice-banner'; // Styles moved to styles.css
+
+  const icon = document.createElement('span');
+  icon.textContent = 'ℹ️'; // Info icon
+  icon.style.marginRight = '8px';
+  banner.appendChild(icon);
+
+  banner.appendChild(document.createTextNode(STRINGS.SYNC_INFO_MESSAGE_OPTIONS || "TabTogether relies on Firefox Sync for cross-device features. Ensure you're signed in and add-on data sync is enabled."));
+
+  // Add a dismiss button
+  const dismissButton = document.createElement('button');
+  dismissButton.textContent = '✕'; // 'x' character for close
+  dismissButton.className = 'banner-dismiss-button'; // For styling
+  dismissButton.title = 'Dismiss this message';
+  dismissButton.setAttribute('aria-label', 'Dismiss this message');
+  dismissButton.onclick = async () => {
+    console.log(`${new Date().toISOString()} OptionsUI:displaySyncRequirementBanner - Dismiss button clicked.`);
+    await storageAPI.set(browser.storage.local, bannerDismissedKey, true);
+    banner.remove(); // Remove the banner from the DOM
+  };
+  banner.appendChild(dismissButton);
+
+  containerElement.insertBefore(banner, containerElement.firstChild); // Prepend to make it prominent
 }

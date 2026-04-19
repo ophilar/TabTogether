@@ -1,7 +1,4 @@
 
-/**
- * @jest-environment jsdom
- */
 import { jest } from '@jest/globals';
 import { renderHistoryUI } from '../ui/shared/shared-ui.js';
 

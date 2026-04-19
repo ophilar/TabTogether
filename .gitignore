@@ -3,9 +3,4 @@ tabtogether.zip
 node_modules/
 dist/
 web-ext-artifacts/
-
-# Secrets and Environment
-.env
-.env.*
-*.pem
-*.key
+coverage/

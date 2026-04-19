@@ -1,47 +1,57 @@
+import { LOCAL_STORAGE_KEYS, BACKGROUND_DEFAULT_TASK_EXPIRY_DAYS } from "../common/constants.js";
 import { storage } from "../core/storage.js";
-import { LOCAL_STORAGE_KEYS } from "../common/constants.js";
-import { signInToFirebase, listenForTabs } from "./firebase-transport.js";
-import { getOrCreateSenderId } from "../core/tasks.js";
+import { setupAlarms } from "./alarms.js";
+import { updateContextMenu } from "./context-menus.js";
+import { auth, listenForTabs } from "./firebase-transport.js";
+import { signInAnonymously } from "firebase/auth";
 
-/**
- * Main initialization entry point for the extension.
- */
 export async function initializeExtension() {
-  console.log("Background: Initializing TabTogether...");
-
+  console.log("Background: Initializing TabTogether (Advanced)...");
   try {
-    // 1. Ensure Persistent Device ID (for echo prevention)
-    await getOrCreateSenderId();
+    console.log("Background: Initializing storage...");
 
-    // 2. Sync Configuration (End-to-End Encryption Setup)
-    const groupId = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.GROUP_ID);
-    const syncPassword = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SYNC_PASSWORD);
+    let { groupId, encryptionKey } = await browser.storage.sync.get(["groupId", "encryptionKey"]);
 
-    if (!groupId || !syncPassword) {
-      console.log("Background: Setup incomplete. Waiting for Group ID and Master Sync Password...");
-      // We don't generate them automatically anymore; the user must configure them in Options.
-    } else {
-      // 3. Connect to Transport Layer (Firebase)
-      console.log("Background: Connecting to Firebase transport...");
-      await signInToFirebase();
+    // If missing, this is the first device. Generate keys.
+    if (!groupId || !encryptionKey) {
+      groupId = crypto.randomUUID();
 
-      // 4. Start Listening for Incoming Tabs
-      await listenForTabs(groupId, syncPassword);
-      console.log("Background: TabTogether initialization complete. Syncing enabled.");
+      const key = await crypto.subtle.generateKey(
+        { name: "AES-GCM", length: 256 },
+        true,
+        ["encrypt", "decrypt"]
+      );
+
+      const exportedKey = await crypto.subtle.exportKey("raw", key);
+      encryptionKey = Array.from(new Uint8Array(exportedKey)); // Convert to standard array for storage.sync
+
+      await browser.storage.sync.set({ groupId, encryptionKey });
     }
 
+    // Authenticate with Firebase Anonymously
+    await signInAnonymously(auth);
+
+    // Start listening for incoming tabs
+    listenForTabs(groupId, encryptionKey);
+
+    const recentlyOpenedUrls = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.RECENTLY_OPENED_URLS, null);
+    if (recentlyOpenedUrls === null) {
+      console.log("Background: Initializing RECENTLY_OPENED_URLS to {}.");
+      await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.RECENTLY_OPENED_URLS, {});
+    }
+    await setupAlarms();
+    if (browser.contextMenus) {
+      await updateContextMenu();
+    } else {
+      console.warn("Background:initializeExtension - ContextMenus API is not available. Context menu features will be disabled.");
+    }
+    console.log(`Background: Initialization complete.`);
   } catch (error) {
-    console.error("Background: Critical initialization failure:", error);
+    console.error("Background: CRITICAL ERROR during initializeExtension:", error);
   }
 }
 
-/**
- * Wires the initialization logic to extension lifecycle events.
- */
 export function initInitialization() {
   browser.runtime.onInstalled.addListener(initializeExtension);
   browser.runtime.onStartup.addListener(initializeExtension);
-  
-  // Also run immediately in case the extension was just reloaded/activated
-  initializeExtension();
 }

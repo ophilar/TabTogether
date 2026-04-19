@@ -1,25 +1,85 @@
+// Shared UI strings and constants for TabTogether
+
+/**
+ * Keys for browser.storage.local.
+ * These are specific to the local browser instance.
+ */
 export const LOCAL_STORAGE_KEYS = {
-  SUBSCRIPTIONS: "subscriptions",
-  DEVICE_NICKNAME: "deviceNickname",
-  RECENTLY_OPENED_URLS: "recentlyOpenedUrls",
-  LAST_SYNC_TIME: "lastSyncTime",
-  TAB_HISTORY: "tabHistory",
-  SENDER_ID: "senderId", // Unique ID for this device to prevent echo
-  GROUP_ID: "groupId",   // Primary sync group ID
-  SYNC_PASSWORD: "syncPassword", // Master Sync Password for E2EE
-  PROCESSED_TAB_IDS: "processedTabIds", // For idempotency in multi-device broadcast
+  SUBSCRIPTIONS: "tabtogether_subscriptions", // Stores array of subscribed group names (folder names)
+  PROCESSED_BOOKMARK_IDS: "tabtogether_processed_bookmark_ids", // Stores { bookmarkId: timestamp }
+  LAST_PROCESSED_BOOKMARK_TIMESTAMP: "tabtogether_last_processed_bookmark_timestamp", // Timestamp of the newest bookmark considered in the last processing run
+  RECENTLY_OPENED_URLS: "tabtogether_recently_opened_urls", // Actual key name needed
+  LAST_SYNC_TIME: "tabtogether_last_sync_time",
+  DEVICE_NICKNAME: "tabtogether_device_nickname",
+  TAB_HISTORY: "tabtogether_tab_history",
 };
 
+/**
+ * Constants related to bookmark-based synchronized storage.
+ */
+export const SYNC_STORAGE_KEYS = {
+  // These are no longer direct storage keys but conceptual names for bookmark structures
+  // GROUP_TASKS will be individual bookmarks within group folders
+  // TASK_EXPIRY_DAYS will be stored in a special config bookmark
+
+  ROOT_BOOKMARK_FOLDER_TITLE: "TabTogetherData", // Title of the main folder in bookmarks
+  CONFIG_BOOKMARK_TITLE: "TabTogetherConfig",    // Title of the bookmark holding config
+  TASK_EXPIRY_DAYS: "taskExpiryDays", // Property name within the config bookmark's JSON
+};
+
+export const BACKGROUND_DEFAULT_TASK_EXPIRY_DAYS = 30;
+
+/**
+ * User-facing strings for UI elements, notifications, and messages.
+ */
 export const STRINGS = {
+  noGroups: 'No groups defined. Use Settings to create one.',
+  notSubscribed: 'Not subscribed to any groups.',
+  subscribedGroups: 'Subscribed groups: ',
+  loadingGroups: 'Loading groups...',
+  error: 'Error',
+  confirmDeleteGroup: groupName => `Are you sure you want to delete the group "${groupName}"? This cannot be undone and will affect all devices.`,
+  sendTabToGroup: groupName => `Send current tab to group '${groupName}'`,
+  sendTabToGroupAria: groupName => `Send current tab to group ${groupName}`,
+  sendTabFailed: 'Send failed.',
+  sendTabError: error => `Error: ${error}`,
+  sendTabCannot: 'Cannot send this type of tab.',
+  groupRenameSuccess: newName => `Group renamed to "${newName}".`,
+  groupDeleteSuccess: groupName => `Group "${groupName}" deleted successfully.`,
+  groupCreateSuccess: groupName => `Group "${groupName}" created successfully.`,
+  groupCreateFailed: 'Failed to create group.',
+  groupRenameFailed: 'Rename failed.',
+  groupDeleteFailed: 'Failed to delete group.',
+  loadingSettingsError: error => `Error loading settings: ${error}`,
+  testNotificationSent: 'Test notification sent!',
+  testNotificationFailed: error => `Failed to send notification: ${error}`,
+  androidBanner: 'On Firefox for Android, background processing is not available. Perform "Sync Now" to process new changes.',
+  SYNC_INFO_MESSAGE_POPUP: "TabTogether uses Firefox Sync for cross-device features. Ensure you're signed in & bookmarks sync is enabled.",
+  SYNC_INFO_MESSAGE_OPTIONS: "TabTogether relies on Firefox Sync to share data across your devices. Please ensure you are signed into your Firefox Account and bookmarks synchronization is enabled in your Firefox settings for the best experience.",
+  groupExists: (groupName) => `${groupName} already exists.`,
+  syncComplete: "Sync complete.",
+  backgroundSyncTriggered: "Background sync triggered.",
+  manualSyncFailed: (errorMsg) => `Sync failed: ${errorMsg}`,
+  errorUpdatingUIAfterSync: "Error updating UI after sync.",
+  subscribedToGroup: (groupName) => `Subscribed to "${groupName}".`,
+  failedToSubscribe: "Failed to subscribe.",
+  errorSubscribing: (errorMsg) => `Error subscribing: ${errorMsg}`,
+  unsubscribedFromGroup: (groupName) => `Unsubscribed from "${groupName}".`,
+  failedToUnsubscribe: "Failed to unsubscribe.",
+  errorUnsubscribing: (errorMsg) => `Error unsubscribing: ${errorMsg}`,
+  popupRefreshFailed: (errorMsg) => `Refresh failed: ${errorMsg}`,
+  sendingTab: "Sending...",
+  noActiveTabFound: "No active tab found.",
+  sentToGroup: (groupName) => `Sent to ${groupName}!`,
+  contextMenuSendTabToGroup: "Send Tab to Group",
+  notificationSendFailedTitle: "Send Failed",
+  notificationCannotSendLink: "Cannot send this type of link/page.",
+  notificationTabSentTitle: "Tab Sent",
+  notificationTabSentMessage: (title, groupName) => `Sent "${title}" to group "${groupName}".`,
+  notificationTabReceivedTitle: (groupName) => `TabTogether: ${groupName ? "Group " + groupName : "Tab Received"}`,
   notificationTestTitle: "TabTogether Test",
-  notificationTestMessage: "Notifications are working correctly!",
-  invalidGroupName: "Please enter a valid group name.",
+  notificationTestMessage: "This is a test notification.",
+  actionUnknown: (actionName) => `Unknown action: ${actionName}`,
+  invalidGroupName: "Invalid group name provided.",
   noGroupNameProvided: "No group name provided.",
-  actionUnknown: (action) => `Action '${action}' is not supported.`,
-  SYNC_INFO_MESSAGE_POPUP: "Tabs are synced securely using end-to-end encryption via Firebase.",
-  SYNC_INFO_MESSAGE_OPTIONS: "Configure your Master Sync Password and Group ID below. All data is encrypted before leaving your device.",
-  groupCreateSuccess: (name) => `Group '${name}' created locally.`,
-  groupDeleteSuccess: (name) => `Group '${name}' deleted locally.`,
-  groupRenameSuccess: (name) => `Group renamed to '${name}'.`,
-  subscribedToGroup: (name) => `Subscribed to group '${name}'.`,
 };
