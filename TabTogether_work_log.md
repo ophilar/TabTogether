@@ -33,8 +33,7 @@
 - Fixed `background/init.js` and `message-handlers.js` to handle configuration changes and refresh listeners.
 - Hardened architecture by migrating from bookmark-based sync to Firebase Realtime Database.
 - Set up lazy Firebase singleton initialization to resolve module-level side effects.
-- Added strict security guards: URL protocol allowlisting (`http:`, `https:`) and stale-entry timestamp filtering.
-- Purged all legacy bookmark-sync code, constants, and storage bridged logic.
+- Added <loaded_context>
 - **Presence & UI Modernization:**
   - Implemented real-time **Group Presence Tracking** ("Last Seen"). Devices now report their nickname and status to Firebase.
   - Added **Member Chips** to the Options UI, showing which devices are currently "Live" (green glow) or offline.
@@ -56,15 +55,22 @@
   - Checked sync status between local and remote; confirmed branch `feature/e2ee-firebase-architecture-14579847168058162610` is synced at the commit level but contains significant uncommitted work.
   - Reviewed PR #61; noted Jules' feedback regarding Jest/Babel configuration for Firebase Modular SDK.
   - Staging and committing all local changes (24+ files) to the feature branch to ensure remote parity.
-- **UI Refinement:**
-  - Analyzing and fixing UI components (`popup.js`, `options.js`, `styles.css`) for consistency and performance.
-  - Planning to use Jules for isolated tasks after the main sync is complete.
+- **UI Refinement & Stabilization:**
+  - Analyzed and fixed UI components (`popup.js`, `options.js`, `options-ui.js`, `shared-ui.js`) for consistency.
+  - Fixed a critical bug in `options-ui.js`: `createInlineEditControlsUI` now correctly appends elements to the container, enabling group renaming.
+  - Standardized sync time display: used actual `lastSyncTime` from storage instead of `Date.now()`.
+  - Refactored `popup.js` to use shared `showMessage` and removed redundant `showSendStatus`.
+  - Fixed linting warnings (0 errors, 4 warnings): replaced `innerHTML` with proper DOM manipulation in `options-ui.js` for dynamic content.
+  - Updated `manifest.json`: adjusted Android `strict_min_version` to 113 for compatibility with required settings.
 
 ## 2026-04-22
 - Synced local environment with `origin/main`.
 - **CRITICAL RECOVERY:** Detected a destructive commit (`65bbe14`) that had deleted most tests and reverted the Firebase E2EE transport to a skeleton version.
 - Hard reset `main` branch to `9079311` (v0.13.0 stable state).
 - Cherry-picked legitimate security fix (`47308d0`) and UX/accessibility improvements (`950a7cb`).
+- Cherry-picked UI stabilization and security improvements from feature branch (`6a72979` etc.).
 - Restored CodeQL configuration (`f49cde7`) while preserving restored files.
-- Verified 100% test pass rate (30/30 tests) and clean production build.
+- Verified 100% test pass rate (56/56 tests) and clean production build.
 - Cleaned up stale local Jules branch `jules-16703680952805306719-90708675`.
+- Finalized E2EE setup UI, onboarding, and restored (skipped) legacy tests.
+- Synchronized local `main` with `origin/main` via force-push to purge destructive commits.
