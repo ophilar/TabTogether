@@ -191,7 +191,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         showAndroidBanner(container,
           STRINGS.androidBanner);
       }
-      setLastSyncTimeUI(container, Date.now());
+      storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_SYNC_TIME, null).then((ts) => {
+        setLastSyncTimeUI(container, ts);
+      });
       showDebugInfoUI(container, currentState);
     }
     browser.runtime.onMessage.addListener(async (message) => {
@@ -246,6 +248,17 @@ function renderHistory() {
   renderHistoryUI(dom.tabHistoryListDiv, currentState.history);
 }
 
+async function updateSyncTimeDisplay() {
+  const ts = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_SYNC_TIME, null);
+  if (ts && dom.syncStatus) {
+    dom.syncStatus.textContent = "Last sync: " + new Date(ts).toLocaleString();
+  }
+  const container = document.querySelector(".container");
+  if (container) {
+    setLastSyncTimeUI(container, ts);
+  }
+}
+
 async function loadState() {
   if (isLoadingState) {
     return;
@@ -257,7 +270,6 @@ async function loadState() {
     const state = await getUnifiedState(isAndroidPlatformGlobal);
     if (isAndroidPlatformGlobal) {
       const container = document.querySelector(".container");
-      setLastSyncTimeUI(container, Date.now());
       showDebugInfoUI(container, state);
     }
     currentState = state;
@@ -268,6 +280,7 @@ async function loadState() {
       );
     }
     renderAll();
+    await updateSyncTimeDisplay();
     console.log(`${new Date().toISOString()} Options:loadState - renderAll completed.`);
   } catch (error) {
     console.error(`Options:loadState - !!! ERROR:`, error);
@@ -291,7 +304,6 @@ function renderAll() {
     if (dom.deviceNicknameInput && currentState.nickname) {
       dom.deviceNicknameInput.value = currentState.nickname;
     }
-    setLastSyncTimeUI(document.querySelector('.container'), Date.now());
   } catch (error) {
     console.error(`Options:renderAll - !!! ERROR:`, error);
     if (error && error.stack) {

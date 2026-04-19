@@ -43,12 +43,21 @@ export function createGroupListItemUI(groupName, isSubscribed, handlers, members
   if (isSubscribed && members.length > 0) {
     const membersDiv = document.createElement("div");
     membersDiv.className = "group-members-list";
-    const membersList = members.map(m => {
+    
+    const label = document.createElement("strong");
+    label.textContent = "Members: ";
+    membersDiv.appendChild(label);
+
+    members.forEach(m => {
         const timeAgo = Math.floor((Date.now() - m.lastSeen) / 60000);
         const statusClass = timeAgo < 5 ? "status-online" : "status-offline";
-        return `<span class="member-chip ${statusClass}" title="Last seen ${timeAgo}m ago">${m.nickname}</span>`;
-    }).join("");
-    membersDiv.innerHTML = `<strong>Members:</strong> ${membersList}`;
+        const chip = document.createElement("span");
+        chip.className = `member-chip ${statusClass}`;
+        chip.title = `Last seen ${timeAgo}m ago`;
+        chip.textContent = m.nickname;
+        membersDiv.appendChild(chip);
+    });
+    
     li.appendChild(membersDiv);
   }
 
@@ -116,6 +125,11 @@ export function createInlineEditControlsUI(currentValue, onSaveCallback, onCance
   saveBtn.onclick = handleSave;
   cancelBtn.onclick = onCancelCallback;
 
+  // Append elements to the container
+  container.appendChild(input);
+  container.appendChild(saveBtn);
+  container.appendChild(cancelBtn);
+
   return { element: container, focusInput: () => input.focus() };
 }
 
@@ -138,7 +152,15 @@ export function showDebugInfoUI(containerElement, state) {
     debugDiv.className = "options-debug-info";
     containerElement.appendChild(debugDiv);
   }
-  debugDiv.innerHTML = `<strong>System State:</strong><pre>${JSON.stringify(state, null, 2)}</pre>`;
+  
+  debugDiv.textContent = ""; // Clear existing
+  const label = document.createElement("strong");
+  label.textContent = "System State:";
+  debugDiv.appendChild(label);
+  
+  const pre = document.createElement("pre");
+  pre.textContent = JSON.stringify(state, null, 2);
+  debugDiv.appendChild(pre);
 }
 
 export async function displaySyncRequirementBanner(containerElement, storageAPI) {

@@ -244,7 +244,7 @@ function renderSendTabGroups(groups) {
 
 // Function to handle sending the current tab to a selected group
 async function sendTabToGroup(groupName) {
-  showSendStatus(STRINGS.sendingTab, false); // Initial status message
+  if (dom.messageArea) showMessage(dom.messageArea, STRINGS.sendingTab, false, 0); // No auto-hide yet
   try {
     let response;
     const tabs = await browser.tabs.query({
@@ -260,7 +260,7 @@ async function sendTabToGroup(groupName) {
       currentTab.url.startsWith("about:") ||
       currentTab.url.startsWith("moz-extension:")
     ) {
-      showSendStatus(STRINGS.sendTabCannot, true); // Show error message
+      if (dom.messageArea) showMessage(dom.messageArea, STRINGS.sendTabCannot, true);
       return;
     }
 
@@ -280,35 +280,13 @@ async function sendTabToGroup(groupName) {
 
     // Handle the response from the send action
     if (response?.success) {
-      showSendStatus(STRINGS.sentToGroup(groupName), false); // Success feedback
+      if (dom.messageArea) showMessage(dom.messageArea, STRINGS.sentToGroup(groupName), false);
     } else {
       // Show specific error message from response, or generic failure
-      showSendStatus(response?.message || STRINGS.sendTabFailed, true);
+      if (dom.messageArea) showMessage(dom.messageArea, response?.message || STRINGS.sendTabFailed, true);
     }
   } catch (error) {
     console.error(`Error sending tab to group ${groupName}:`, error);
-    showSendStatus(STRINGS.sendTabError(error.message || "Unknown error"), true); // Show error feedback
+    if (dom.messageArea) showMessage(dom.messageArea, STRINGS.sendTabError(error.message || "Unknown error"), true);
   }
-}
-
-// --- UI Helper Functions ---
-
-// Shows status messages (like "Sending...", "Sent!", "Error...")
-function showSendStatus(message, isError) {
-  const statusArea = dom.sendTabStatus;
-  if (!statusArea) return; // Guard clause
-
-  statusArea.textContent = message;
-  statusArea.classList.remove("hidden");
-  // Use consistent CSS classes from styles.css
-  statusArea.classList.toggle("error", isError); // isError is already boolean
-  statusArea.classList.toggle("success", !isError);
-
-  // Clear the message after a delay
-  const timeoutId = setTimeout(() => {
-    statusArea.classList.add("hidden");
-    // Optionally clear text and classes after hiding
-    statusArea.textContent = "";
-    statusArea.classList.remove("error", "success");
-  }, 3000); // 3-second display duration
 }
