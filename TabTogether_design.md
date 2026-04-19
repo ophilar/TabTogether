@@ -1,42 +1,42 @@
 # TabTogether Design Document
 
 ## Overview
-TabTogether is a Firefox browser extension that allows users to send tabs between their devices using Firefox Sync as the communication backbone. It focuses on a simple, "frictionless" user experience.
+TabTogether is a Firefox browser extension that allows users to send tabs between their devices instantly. It uses Firebase as the real-time transport layer and implements End-to-End Encryption (E2EE) with a user-provided Master Sync Password.
 
 ## Architecture
-- **Storage Layer**: Uses `browser.storage.sync` for cross-device data (now bridged to bookmarks for reliability on Android) and `browser.storage.local` for device-specific state.
-- **Bridged Sync (Android Optimization)**: A specialized mechanism in `core/storage.js` that transparently mirrors sync storage keys into a JSON-encoded bookmark titled `TabTogetherConfig`. This bypasses the unreliable `storage.sync` implementation on Firefox for Android, ensuring settings like "Task Expiry" sync consistently across all platforms.
-- **Communication**: Leverages Firefox Sync's `bookmarks.onCreated` and `bookmarks.onChanged` listeners to handle incoming tab "tasks".
+- **Transport Layer**: Uses Firebase Realtime Database for instant delivery of tab payloads across devices.
+- **Security (E2EE)**: All tab data (URLs, titles) is encrypted using AES-256-GCM before leaving the device. 
+    - **Key Derivation**: A unique 256-bit key is derived for each sync group using PBKDF2 (100,000 iterations, SHA-256) with the user's Master Sync Password and the Group ID (used as salt).
+    - **Deterministic**: This allows multiple devices to arrive at the same encryption key without ever sharing the raw key or the password over the network.
+- **Storage Layer**: Uses `browser.storage.local` for all device-specific state, including the Master Sync Password and Group ID.
+- **Communication**: Leverages Firebase `onChildAdded` listeners for near-instant synchronization when the browser is active.
 - **Core Components**:
-    - `background`: Manages the lifecycle, listens for sync changes, and processes incoming tabs. Now includes a `periodicSync` alarm to ensure consistency on mobile devices where background listeners might be throttled.
-    - `storage`: Abstraction layer for interacting with both browser storage areas and the bookmark-based communication channel.
-    - `actions`: Higher-level functions for managing groups and subscriptions, unified across platforms.
-    - `ui`: A simple popup and options page for user interaction.
+    - `background/firebase-transport.js`: Manages Firebase connections, authentication (anonymous), and listeners.
+    - `core/crypto.js`: Implements the PBKDF2 derivation and AES-GCM encryption/decryption logic.
+    - `core/tasks.js`: Handles the creation and consumption of sync tasks (encrypted tab payloads).
+    - `ui`: Popup and Options pages for configuring the Master Sync Password and managing groups.
 
 ## Design Principles
-- **KISS (Keep It Simple, Stupid)**: Avoid complex server setups by using existing Firefox Sync infrastructure.
-- **Zero Configuration**: Ideally, the user just signs into Firefox Sync and it "just works."
-- **Privacy First**: No third-party servers are involved; data remains within the user's Firefox Sync account.
+- **Instant Sync**: Replaces the legacy bookmark-based sync with Firebase for sub-second tab delivery.
+- **Privacy First**: End-to-End Encryption ensures that even Firebase/Google cannot read the URLs being synced. No third-party servers see unencrypted data.
+- **User Ownership**: The user controls their own "Sync Group ID" and "Master Sync Password", providing a private sync channel.
 
-## Technical Constraints
-- **Sync Latency**: Firefox Sync is not real-time. Propagation can take anywhere from a few seconds to several minutes.
-- **Android Limitations**:
-    - `storage.sync` is unreliable and separate from desktop.
-    - Background scripts are effectively "event pages" and can be suspended.
-    - `onCreated` listeners for bookmarks may not fire if the app is not in the foreground.
-
-## Solutions for Constraints
-- **Bookmark-Centric Sync**: Both group management and configuration settings are now stored in bookmarks to ensure cross-platform compatibility.
-- **Periodic Polling**: A periodic alarm (`periodicSync`) ensures that甚至 if listeners miss an event, the extension will catch up when it wakes up.
-- **Manual Sync**: Both the popup and options page trigger a direct call to `processSubscribedGroupTasks` upon opening to provide immediate responsiveness. This replaced the legacy "heartbeat" message-passing implementation to reduce overhead and allow for immediate error feedback in the UI.
-
-## URL Translation (Roadmap)
-- **Strategy**: For the planned "Mobile URL Translation" feature (Desktop ↔ Mobile versions), the extension will utilize the **`declarativeNetRequest`** API for passive redirection and a core utility for active `tabs.create` translation.
-- **Patterns**:
-    - **Mobile → Desktop (Priority)**: Strip `m.` subdomains (e.g., `m.wikipedia.org` → `wikipedia.org`), replace `mobile.` subdomains, and handle site-specific redirects (e.g., `mobile.twitter.com` → `twitter.com`).
-    - **Desktop → Mobile**: Convert standard subdomains to their `m.` equivalents when the destination is an Android device.
-- **Rationale**: Firefox Sync does not automatically transform URLs between platforms. By implementing this, TabTogether ensures the most appropriate version of a site is loaded for the current device's screen size and capabilities. Using DNR ensures these transformations are performant and respect "Request Desktop Site" settings at the browser level.
+## Technical Constraints & Solutions
+- **Mobile Background Throttling**: Firebase listeners on Android may be suspended when the browser is in the background. 
+    - **Solution**: The extension refreshes listeners when the browser is opened and provides a "Recently Received" history log in the popup.
+- **Echo Prevention**: A persistent `senderId` (UUID) is generated per installation and included in every payload to prevent a device from opening tabs it sent itself.
+- **URL Safety**: Both the sender and receiver validate URL protocols (rejecting `javascript:`, `file:`, `data:`) to prevent cross-device scripting or local file exposure.
 
 ## User Identification & Tracking
-- **Device Nicknames**: Each installation has a local nickname. When sending a tab, the identity is "burned" into the bookmark title (`[Nickname] Tab Title`). This avoids the complexity of a global registry while providing clear attribution.
-- **Persistent History**: A local-only history log (`TAB_HISTORY`) in `storage.local` provides a "Recently Received" queue, solving the issue of missing notifications on mobile.
+- **Device Nicknames**: Each installation has a local nickname for attribution in the history log and visibility to other members of the group.
+- **Presence Tracking**: A real-time presence system is implemented using the `groups/[groupId]/presence/` path in Firebase.
+    - **Mechanism**: Each active device periodically updates its `lastSeen` timestamp and `nickname`.
+    - **UI Visibility**: The Options UI displays other members of a group as "Live" if seen in the last 5 minutes.
+    - **Persistence**: Records are automatically pruned by background tasks if a device remains inactive for more than 7 days.
+- **Persistent History**: A local-only history log (`TAB_HISTORY`) in `storage.local` provides a "Recently Received" queue for user review.
+
+## URL Translation (Roadmap)
+- **Strategy**: For the planned "Mobile URL Translation" feature, the extension will utilize a core utility for active `tabs.create` translation.
+- **Patterns**:
+    - **Mobile → Desktop**: Strip `m.` subdomains (e.g., `m.wikipedia.org` → `wikipedia.org`).
+    - **Desktop → Mobile**: Convert standard subdomains to their `m.` equivalents when the destination is an Android device.

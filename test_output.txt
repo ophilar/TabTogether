@@ -1,0 +1,18 @@
+
+ReferenceError: You are trying to `import` a file after the Jest environment has been torn down. From test/url-validation.test.js.
+FAIL test/url-validation.test.js
+  ΓùÅ Test suite failed to run
+
+    ReferenceError: fetch is not defined
+
+      at Object.fetch (node_modules/@firebase/auth/src/platform_node/index.ts:33:26)
+      at Object.<anonymous> (node_modules/@firebase/auth/dist/node/index.js:6:12)
+      at Object.<anonymous> (node_modules/firebase/auth/dist/index.cjs.js:6:12)
+
+Test Suites: 1 failed, 1 total
+Tests:       0 total
+Snapshots:   0 total
+Time:        0.967 s
+Ran all test suites matching test/url-validation.test.js.
+(node:91540) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)

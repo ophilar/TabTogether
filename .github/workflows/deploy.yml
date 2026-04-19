@@ -66,3 +66,4 @@ jobs:
       - name: Sign and publish to AMO
         run: |
           npx web-ext sign --api-key=${{ secrets.AMO_JWT_ISSUER }} --api-secret=${{ secrets.AMO_JWT_SECRET }} --channel=listed
+

@@ -1,0 +1,16 @@
+{
+  "rules": {
+    "groups": {
+      "$group_id": {
+        "tabs": {
+          ".indexOn": ["timestamp"],
+          ".read": "auth != null",
+          ".write": "auth != null",
+          "$tab_id": {
+            ".validate": "newData.hasChildren(['iv', 'data', 'timestamp', 'senderId'])"
+          }
+        }
+      }
+    }
+  }
+}

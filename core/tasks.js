@@ -1,67 +1,62 @@
-import { storage } from "./storage.js";
+import { storage } from "../core/storage.js";
 import { LOCAL_STORAGE_KEYS } from "../common/constants.js";
-import { db } from "../background/firebase-transport.js";
-import { ref, push } from "firebase/database";
+import { getFirebaseDb } from "../background/firebase-transport.js";
+import { ref, push, serverTimestamp } from "firebase/database";
+import { deriveSyncKey, encryptPayload } from "./crypto.js";
 
-async function getOrCreateSenderId() {
-  let senderId = await storage.get(browser.storage.local, "senderId");
-  if (!senderId) {
-    senderId = crypto.randomUUID();
-    await storage.set(browser.storage.local, "senderId", senderId);
-  }
-  return senderId;
-}
-
-// Placeholder for UI compatibility
-export async function processSubscribedGroupTasks() {
-  console.log("processSubscribedGroupTasks called. In the new Firebase architecture, syncing is real-time via listenForTabs.");
-}
-
-export async function createAndStoreGroupTask(groupName, tabData) {
-  // In the new architecture, we only sync to one single group room based on groupId.
-  // The groupName parameter is kept for backward compatibility with UI if needed,
-  // but the transport will just use the globally synced groupId.
-
+/**
+ * Creates and stores a new task (tab sync) in Firebase.
+ */
+export async function createAndStoreGroupTask(groupId, tabData) {
   try {
-    const { groupId, encryptionKey } = await browser.storage.sync.get(["groupId", "encryptionKey"]);
-    if (!groupId || !encryptionKey) {
-      return { success: false, message: "Sync keys not initialized." };
+    const syncPassword = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SYNC_PASSWORD);
+    const senderId = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SENDER_ID);
+    const nickname = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.DEVICE_NICKNAME, "Unknown Device");
+
+    if (!groupId || !syncPassword || !senderId) {
+      console.error("Sync configuration incomplete.");
+      return { success: false, message: "Sync configuration incomplete." };
     }
 
-    // Re-import the key from storage
-    const importedKey = await crypto.subtle.importKey(
-      "raw",
-      new Uint8Array(encryptionKey),
-      "AES-GCM",
-      false,
-      ["encrypt"]
-    );
+    const url = tabData.url;
+    try {
+      const parsed = new URL(url);
+      if (!['http:', 'https:'].includes(parsed.protocol)) {
+        return { success: false, message: "Unsafe URL protocol." };
+      }
+    } catch {
+      return { success: false, message: "Invalid URL." };
+    }
 
-    // Generate unique IV
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    const encodedUrl = new TextEncoder().encode(tabData.url);
+    const derivedKey = await deriveSyncKey(syncPassword, groupId);
+    const { iv, data } = await encryptPayload(url, derivedKey);
 
-    // Encrypt
-    const ciphertext = await crypto.subtle.encrypt(
-      { name: "AES-GCM", iv: iv },
-      importedKey,
-      encodedUrl
-    );
-
-    const senderId = await getOrCreateSenderId();
-
-    // Push to Firebase
+    const db = getFirebaseDb();
     const groupRef = ref(db, `groups/${groupId}/tabs`);
+    
     await push(groupRef, {
       iv: Array.from(iv),
-      data: Array.from(new Uint8Array(ciphertext)),
-      timestamp: Date.now(),
-      senderId: senderId
+      data: Array.from(data),
+      timestamp: serverTimestamp(),
+      senderId: senderId,
+      nickname: nickname
     });
 
     return { success: true };
   } catch (error) {
-    console.error("Failed to send tab via Firebase:", error);
-    return { success: false, message: error.message };
+    console.error("Failed to store task in Firebase: [REDACTED]");
+    return { success: false, message: "Encryption or Transport error." };
   }
+}
+
+/**
+ * Ensures a persistent senderId exists in local storage.
+ */
+export async function getOrCreateSenderId() {
+  let senderId = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SENDER_ID);
+  if (!senderId) {
+    senderId = crypto.randomUUID();
+    await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.SENDER_ID, senderId);
+  }
+  return senderId;
 }

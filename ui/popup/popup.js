@@ -2,7 +2,7 @@ import { STRINGS, LOCAL_STORAGE_KEYS } from "../../common/constants.js";
 import { storage, recordSuccessfulSyncTime } from "../../core/storage.js";
 import { isAndroid } from "../../core/platform.js";
 import { getUnifiedState } from "../../core/actions.js";
-import { processSubscribedGroupTasks, createAndStoreGroupTask } from "../../core/tasks.js";
+import { createAndStoreGroupTask } from "../../core/tasks.js";
 import {
   showAndroidBanner,
   setLastSyncTime, // Import the correct function name
@@ -85,13 +85,18 @@ document.addEventListener("DOMContentLoaded", async () => {
         const startTime = Date.now(); // Record start time
 
         try {
-          await processSubscribedGroupTasks();
+          // Trigger background heartbeat to refresh listeners and record sync time
+          await browser.runtime.sendMessage({ action: "heartbeat" });
           await recordSuccessfulSyncTime();
+          
           // Update UI with the latest sync time
           const ts = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_SYNC_TIME, null);
           const popupContainer = document.querySelector(".container");
           if (popupContainer) setLastSyncTime(popupContainer, ts); // Update UI
           if (dom.messageArea) showMessage(dom.messageArea, STRINGS.syncComplete, false); // Check dom.messageArea
+          
+          // Re-load status to show any new tabs in history or updated groups
+          await loadStatus();
         } catch (error) {
           // Log errors that might occur during loadStatus or subsequent actions
           console.error("Error during refresh action:", error);
@@ -157,7 +162,6 @@ async function loadStatus() {
 
     // Process incoming tabs immediately on Android after getting state
     if (isAndroidPlatform) {
-      await processSubscribedGroupTasks();
       const ts = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_SYNC_TIME, null);
       const popupContainer = document.querySelector(".container");
       if (popupContainer) setLastSyncTime(popupContainer, ts);
