@@ -8,7 +8,6 @@ import {
   setLastSyncTime, // Import the correct function name
   showMessage,
   injectSharedUI,
-  renderHistoryUI,
   showLoadingIndicator,
 } from "../shared/shared-ui.js";
 import { applyThemeFromStorage } from "../shared/theme.js";
@@ -24,7 +23,6 @@ const dom = {
   toggleDetailsBtn: null,
   popupDetails: null, // Details section container
   loadingIndicator: null,
-  tabHistoryListDiv: null,
 };
 
 // --- Initialization ---
@@ -45,7 +43,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     dom.subscriptionsUl = document.getElementById("subscriptionsUl");
     dom.toggleDetailsBtn = document.getElementById("toggleDetailsBtn");
     dom.popupDetails = document.getElementById("popupDetails");
-    dom.tabHistoryListDiv = document.getElementById("tabHistoryList");
 
     if (!dom.loadingIndicator) {
       // Log to the main console if the popup's console isn't visible or working
@@ -168,7 +165,6 @@ async function loadStatus() {
     if (state.error) throw new Error(state.error);
     renderSubscriptionsUI(state.subscriptions);
     renderSendTabGroups(state.definedGroups); // Uses the combined button approach
-    renderHistory(state.history);
   } catch (error) {
     console.error("Error loading popup status:", error);
     if (dom.messageArea) showMessage(dom.messageArea, STRINGS.loadingSettingsError(error.message || "Unknown error"), true); // STRINGS.loadingSettingsError is good
@@ -183,11 +179,6 @@ async function loadStatus() {
   } finally {
     if (dom.loadingIndicator) showLoadingIndicator(dom.loadingIndicator, false); // Hide loading indicator
   }
-}
-
-function renderHistory(history) {
-  if (!dom.tabHistoryListDiv) return;
-  renderHistoryUI(dom.tabHistoryListDiv, history);
 }
 
 // Renders the list of subscribed groups in the details section
