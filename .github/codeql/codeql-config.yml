@@ -1,0 +1,6 @@
+name: "Custom CodeQL config"
+paths-ignore:
+  - 'coverage'
+  - 'node_modules'
+  - 'dist'
+  - '**/*.test.js'
