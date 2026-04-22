@@ -40,6 +40,7 @@
     "web-ext": "^10.1.0"
   },
   "overrides": {
+    "hono": "4.12.14",
     "glob": "10.5.0",
     "addons-linter": {
       "ajv": "8.18.0",
