@@ -59,3 +59,12 @@
 - **UI Refinement:**
   - Analyzing and fixing UI components (`popup.js`, `options.js`, `styles.css`) for consistency and performance.
   - Planning to use Jules for isolated tasks after the main sync is complete.
+
+## 2026-04-22
+- Synced local environment with `origin/main`.
+- **CRITICAL RECOVERY:** Detected a destructive commit (`65bbe14`) that had deleted most tests and reverted the Firebase E2EE transport to a skeleton version.
+- Hard reset `main` branch to `9079311` (v0.13.0 stable state).
+- Cherry-picked legitimate security fix (`47308d0`) and UX/accessibility improvements (`950a7cb`).
+- Restored CodeQL configuration (`f49cde7`) while preserving restored files.
+- Verified 100% test pass rate (30/30 tests) and clean production build.
+- Cleaned up stale local Jules branch `jules-16703680952805306719-90708675`.

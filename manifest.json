@@ -3,7 +3,7 @@
   "name": "TabTogether",
   "version": "0.13.0",
   "author": "Ron Katzir",
-  "description": "Send tabs between groups of devices using Firefox Sync.",
+  "description": "Send tabs between groups of devices using Firebase E2EE sync.",
   "permissions": [
     "storage",        
     "tabs",

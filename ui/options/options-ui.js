@@ -142,5 +142,15 @@ export function showDebugInfoUI(containerElement, state) {
 }
 
 export async function displaySyncRequirementBanner(containerElement, storageAPI) {
-  // Obsolete - removed Firefox Sync dependency
+  const syncPassword = await storageAPI.get(browser.storage.local, "syncPassword", "");
+  if (!syncPassword) {
+    const banner = document.createElement("div");
+    banner.className = "warning-banner sync-requirement-banner";
+    banner.innerHTML = `
+      <div class="banner-content">
+        <strong>⚠️ Setup Required:</strong> Please set a <strong>Master Sync Password</strong> in the settings below to enable encrypted tab sharing.
+      </div>
+    `;
+    containerElement.insertBefore(banner, containerElement.firstChild);
+  }
 }

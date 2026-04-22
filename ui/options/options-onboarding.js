@@ -5,19 +5,24 @@ const onboardingSteps = [
       "<p>TabTogether lets you send tabs to groups of devices instantly. This onboarding will guide you through the main features.</p>",
   },
   {
-    title: "Groups",
+    title: "End-to-End Encryption",
     content:
-      "<p>Create, rename, and delete groups. Subscribe your devices to groups to send tabs between them.</p>",
+      "<p>All tabs sent via Firebase are encrypted using your <strong>Master Sync Password</strong>. Only devices with this password can decrypt and open your tabs.</p><p>Set your password in the settings page to get started.</p>",
   },
   {
-    title: "Notifications & Sync",
+    title: "Groups & Devices",
     content:
-      "<p>Customize notification sound and duration. Use manual or auto-sync to keep your devices up to date.</p>",
+      "<p>Create a group, then 'Join' it from all your devices. Use a unique <strong>Nickname</strong> for each device so you know who sent what.</p>",
   },
   {
-    title: "Help & About",
+    title: "Sending Tabs",
     content:
-      "<p>Find more help in the Help/About section or on the project page. You can always reopen this onboarding from the link at the bottom of the settings page.</p>",
+      "<p>Right-click any page or use the extension popup to 'Send Tab to Group'. It will instantly open on all other active devices in that group.</p>",
+  },
+  {
+    title: "Live Feed",
+    content:
+      "<p>The settings page shows a <strong>Live Feed</strong> status. You can see which other devices are currently 'online' in your joined groups.</p>",
   },
 ];
 
@@ -78,11 +83,12 @@ export function setupOnboarding() {
   elements.nextBtn.onclick = () => showOnboardingStep(Math.min(onboardingSteps.length - 1, currentOnboardingStep + 1), elements);
   elements.closeBtn.onclick = () => elements.modal.classList.add("hidden");
 
-  // Optionally, decide if onboarding should show automatically on first load
-  // For example, by checking a flag in localStorage.
-  // if (!localStorage.getItem('onboardingComplete')) {
-  //   elements.modal.classList.remove("hidden");
-  //   showOnboardingStep(0, elements);
-  //   localStorage.setItem('onboardingComplete', 'true');
-  // }
+  // Show onboarding automatically on first load
+  browser.storage.local.get('onboardingComplete').then(res => {
+    if (!res.onboardingComplete) {
+      elements.modal.classList.remove("hidden");
+      showOnboardingStep(0, elements);
+      browser.storage.local.set({ onboardingComplete: true });
+    }
+  });
 }
