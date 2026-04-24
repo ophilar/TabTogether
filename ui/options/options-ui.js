@@ -168,11 +168,19 @@ export async function displaySyncRequirementBanner(containerElement, storageAPI)
   if (!syncPassword) {
     const banner = document.createElement("div");
     banner.className = "warning-banner sync-requirement-banner";
-    banner.innerHTML = `
-      <div class="banner-content">
-        <strong>⚠️ Setup Required:</strong> Please set a <strong>Master Sync Password</strong> in the settings below to enable encrypted tab sharing.
-      </div>
-    `;
+
+    const bannerContent = document.createElement("div");
+    bannerContent.className = "banner-content";
+    const strong = document.createElement("strong");
+    strong.textContent = "⚠️ Setup Required:";
+    bannerContent.appendChild(strong);
+    bannerContent.appendChild(document.createTextNode(" Please set a "));
+    const strong2 = document.createElement("strong");
+    strong2.textContent = "Master Sync Password";
+    bannerContent.appendChild(strong2);
+    bannerContent.appendChild(document.createTextNode(" in the settings below to enable encrypted tab sharing."));
+    banner.appendChild(bannerContent);
+
     containerElement.insertBefore(banner, containerElement.firstChild);
   }
 }
