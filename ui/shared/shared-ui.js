@@ -27,7 +27,7 @@ export function injectSharedUI(containerSelector = '.container') {
     loadingDiv.id = 'loadingIndicator';
     loadingDiv.className = 'loading hidden';
     // Add spinner span for consistency with styles.css
-    loadingDiv.innerHTML = '<span class="spinner"></span> Loading...';
+    const spinnerSpan = document.createElement('span'); spinnerSpan.className = 'spinner'; loadingDiv.appendChild(spinnerSpan); loadingDiv.appendChild(document.createTextNode(' Loading...'));
     container.prepend(loadingDiv); // Prepend second (will end up below header)
     console.log("SharedUI:injectSharedUI - Created and prepended #loadingIndicator:", loadingDiv);
   }

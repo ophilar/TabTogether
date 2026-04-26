@@ -5,11 +5,11 @@
   "author": "Ron Katzir",
   "description": "Send tabs between groups of devices using Firebase E2EE sync.",
   "permissions": [
-    "storage",        
+    "storage",
     "tabs",
-    "notifications",  
+    "notifications",
     "alarms",
-    "contextMenus"  
+    "contextMenus"
   ],
   "icons": {
     "48": "icons/icon-48.png",
@@ -17,24 +17,31 @@
     "128": "icons/icon-128.png"
   },
   "background": {
-    "scripts": ["background/background.js"],
+    "scripts": [
+      "background/background.js"
+    ],
     "type": "module"
   },
   "action": {
     "default_icon": {
-        "48": "icons/icon-48.png",
-        "96": "icons/icon-96.png"
+      "48": "icons/icon-48.png",
+      "96": "icons/icon-96.png"
     },
-"default_title": "TabTogether",
+    "default_title": "TabTogether",
     "default_popup": "ui/popup/popup.html"
   },
   "browser_specific_settings": {
     "gecko": {
       "id": "{e7a1c2b3-4d5e-4f6a-8b7c-9d0e1f2a3b4c}",
-      "strict_min_version": "112.0"
+      "strict_min_version": "142.0",
+      "data_collection_permissions": {
+        "required": [
+          "none"
+        ]
+      }
     },
     "gecko_android": {
-      "strict_min_version": "113.0"
+      "strict_min_version": "142.0"
     }
   },
   "options_ui": {
