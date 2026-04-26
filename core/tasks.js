@@ -9,11 +9,9 @@ import { deriveSyncKey, encryptPayload } from "./crypto.js";
  */
 export async function createAndStoreGroupTask(groupId, tabData) {
   try {
-    const [syncPassword, senderId, nickname] = await Promise.all([
-      storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SYNC_PASSWORD),
-      storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SENDER_ID),
-      storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.DEVICE_NICKNAME, "Unknown Device")
-    ]);
+    const syncPassword = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SYNC_PASSWORD);
+    const senderId = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SENDER_ID);
+    const nickname = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.DEVICE_NICKNAME, "Unknown Device");
 
     if (!groupId || !syncPassword || !senderId) {
       console.error("Sync configuration incomplete.");
