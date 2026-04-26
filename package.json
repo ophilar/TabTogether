@@ -41,6 +41,7 @@
     "web-ext": "^10.1.0"
   },
   "overrides": {
+    "uuid": "14.0.0",
     "hono": "4.12.14",
     "glob": "10.5.0",
     "addons-linter": {

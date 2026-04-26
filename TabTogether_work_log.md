@@ -110,3 +110,7 @@
   - Restored missing historical entries to `TabTogether_work_log.md` by reconciling with `git log` and `work_log_001.md`.
   - Audited `TabTogether_roadmap.md` and marked Phase 4 CI/CD and Phase 2 storage optimization as complete.
   - Verified consistency between `TabTogether_design.md` and current implementation.
+- **Security & Dependency Maintenance:**
+  - Resolved moderate security vulnerability **GHSA-w5hq-g745-h8pq** in the `uuid` package.
+  - Forced `uuid@14.0.0` via `package.json` overrides to address missing buffer bounds validation.
+  - Verified 0 vulnerabilities remaining via `npm audit` and confirmed test stability (64/64 passing).
