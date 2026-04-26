@@ -14,15 +14,9 @@ export async function getUnifiedState(isAndroid) {
     ]);
 
     // Track presence for all subscribed groups
-    const groupMembersArray = await Promise.all(
-      subscriptions.map(async (group) => ({
-        group,
-        members: await getGroupMembers(group)
-      }))
-    );
     const groupMembers = {};
-    for (const { group, members } of groupMembersArray) {
-      groupMembers[group] = members;
+    for (const group of subscriptions) {
+      groupMembers[group] = await getGroupMembers(group);
     }
 
     return {
