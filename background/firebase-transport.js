@@ -124,7 +124,7 @@ export async function refreshListeners() {
 
   if (!syncPassword || subscriptions.length === 0) return;
 
-  for (const groupName of subscriptions) {
+  await Promise.all(subscriptions.map(async (groupName) => {
     try {
       const db = getFirebaseDb();
       const groupRef = ref(db, `groups/${groupName}/tabs`);
@@ -141,7 +141,7 @@ export async function refreshListeners() {
     } catch (err) {
       console.error(`FirebaseTransport: Error in group "${groupName}":`, err);
     }
-  }
+  }));
 }
 
 export async function listenForTabs() {
@@ -174,7 +174,7 @@ export async function cleanupStaleTabsInFirebase() {
   const staleTime = Date.now() - (48 * 60 * 60 * 1000); // 48h
   const presenceStaleTime = Date.now() - (7 * 24 * 60 * 60 * 1000); // 7 days
 
-  for (const groupName of subscriptions) {
+  await Promise.all(subscriptions.map(async (groupName) => {
     try {
       // 1. Cleanup Tabs
       const tabsRef = ref(db, `groups/${groupName}/tabs`);
@@ -198,7 +198,7 @@ export async function cleanupStaleTabsInFirebase() {
     } catch (e) {
       console.error(`Cleanup failed for "${groupName}":`, e);
     }
-  }
+  }));
 }
 
 export { isUrlSafe };

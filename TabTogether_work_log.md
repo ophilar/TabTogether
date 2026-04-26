@@ -1,5 +1,24 @@
 # TabTogether Work Log
 
+## 2026-01-07
+- Project review initiated by Antigravity.
+- Initialized `TabTogether_roadmap.md`, `TabTogether_work_log.md`, and `TabTogether_design.md`.
+- Preliminary audit of project structure: Identified as a Firefox extension using Firefox Sync.
+- **Improved Android Reliability**:
+    - Implemented a "Bridged Storage" system in `storage.js` that mirrors `storage.sync` settings into a dedicated "TabTogetherConfig" bookmark.
+    - Added `ALARM_PERIODIC_SYNC` to background worker to pull tasks periodically on Android.
+    - Added bookmark observers for the Config bookmark to ensure instantaneous settings propagation.
+    - Updated `options-advanced-timing.js` and `background.js` to utilize the new bridged storage.
+- **Refactoring & Optimization**:
+    - Decoupled `storage.sync` from core settings; bookmarks are now the primary source of truth for syncable configuration.
+    - Enhanced `background.js` to handle mobile lifecycle more gracefully.
+- **UI Enhancements (Review Improvements)**:
+    - **Device Nicknames**: Added support for setting custom device names in Options. Sent tabs are now prefixed with `[Nickname]`.
+    - **Tab History**: Implemented a persistent history of the last 50 received tabs, available in both Popup and Options views.
+    - **Shared UI Components**: Created `renderHistoryUI` in `shared-ui.js` to ensure consistent data presentation and DRY code.
+    - **Android Compatibility**: Verified that all new features use bookmark-compatible APIs (avoiding `bookmarks.search` for Android).
+    - **Cleanup**: Removed verbose development logs and standardized console output across all modules.
+
 ## 2026-03-25
 - Project revival initiated.
 - Generated project overview using repomix.
@@ -33,7 +52,8 @@
 - Fixed `background/init.js` and `message-handlers.js` to handle configuration changes and refresh listeners.
 - Hardened architecture by migrating from bookmark-based sync to Firebase Realtime Database.
 - Set up lazy Firebase singleton initialization to resolve module-level side effects.
-- Added <loaded_context>
+- Added strict security guards: URL protocol allowlisting (`http:`, `https:`) and stale-entry timestamp filtering.
+- Purged all legacy bookmark-sync code, constants, and storage bridged logic.
 - **Presence & UI Modernization:**
   - Implemented real-time **Group Presence Tracking** ("Last Seen"). Devices now report their nickname and status to Firebase.
   - Added **Member Chips** to the Options UI, showing which devices are currently "Live" (green glow) or offline.
@@ -74,3 +94,19 @@
 - Cleaned up stale local Jules branch `jules-16703680952805306719-90708675`.
 - Finalized E2EE setup UI, onboarding, and restored (skipped) legacy tests.
 - Synchronized local `main` with `origin/main` via force-push to purge destructive commits.
+
+## 2026-04-26
+- **Jules PR Audit & Cleanup:**
+  - Audited open PRs #69 and #70.
+  - **Closed PR #70:** Redundant performance optimization. The `getUnifiedState` parallelization was already present in `main` (commit `53618e2`).
+  - **Closed PR #69:** Invalid/Legacy code. Re-introduced bookmark-sync logic that was purged in Phase 6.
+  - Confirmed no active Jules sessions remain.
+  - Verified `main` branch integrity and ran full test suite (64/64 passing).
+- **Performance Optimization (Porting & Refinement):**
+  - Identified further parallelization opportunities in `background/firebase-transport.js`: `refreshListeners` and `cleanupStaleTabsInFirebase`.
+  - Parallelized `refreshListeners` to concurrently derive E2EE keys and initialize Firebase listeners across all subscribed groups, significantly reducing startup/config-change latency.
+  - Parallelized `cleanupStaleTabsInFirebase` to handle maintenance tasks concurrently for all groups.
+- **Documentation & Work Log Audit:**
+  - Restored missing historical entries to `TabTogether_work_log.md` by reconciling with `git log` and `work_log_001.md`.
+  - Audited `TabTogether_roadmap.md` and marked Phase 4 CI/CD and Phase 2 storage optimization as complete.
+  - Verified consistency between `TabTogether_design.md` and current implementation.

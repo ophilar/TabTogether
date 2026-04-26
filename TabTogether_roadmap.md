@@ -13,7 +13,7 @@
 - [x] Android Reliability Fix (Recursive Bookmark Search)
 - [x] Refactor "God" functions in `background.js` and `actions.js`
 - [x] Add comprehensive unit tests for core logic
-- [ ] Optimize storage usage to minimize Sync conflicts
+- [x] Optimize storage usage to minimize Sync conflicts (Addressed by Firebase migration)
 
 ## Phase 3: Enhanced Features
 - [x] Device Nicknames support
@@ -26,7 +26,7 @@
 
 ## Phase 4: Production & Maintenance
 - [ ] Finalize AMO publication
-- [ ] Implement automated CI/CD for linting and testing
+- [x] Implement automated CI/CD for linting and testing
 - [ ] User feedback integration
 
 ## Phase 5: Modernization & Security (2026)
