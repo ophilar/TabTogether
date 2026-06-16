@@ -62,29 +62,11 @@ export const storage = {
     } else if (key === LOCAL_STORAGE_KEYS.RECENTLY_OPENED_URLS) {
       return ensureObject(value, defaultValue ?? {});
     } else if (key === LOCAL_STORAGE_KEYS.LAST_SYNC_TIME) {
-      return typeof value === 'number' ? value : (defaultValue ?? 0);
-    } else if (key === LOCAL_STORAGE_KEYS.TAB_HISTORY) {
-      return ensureArray(value, defaultValue ?? []);
-    }
+      return typeof value === 'number' ? value : (defaultValue ?? 0);}
     return value;
   },
 };
 
 export async function recordSuccessfulSyncTime() {
   await browser.storage.local.set({ [LOCAL_STORAGE_KEYS.LAST_SYNC_TIME]: Date.now() }).catch(e => console.error("Failed to record successful sync time:", e));
-}
-
-export async function addToHistory(tabInfo) {
-  try {
-    const history = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.TAB_HISTORY, []);
-    const newEntry = {
-      ...tabInfo,
-      receivedAt: Date.now()
-    };
-
-    const updatedHistory = [newEntry, ...history].slice(0, 50); // Cap at 50
-    await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.TAB_HISTORY, updatedHistory);
-  } catch (e) {
-    console.error("Storage: Failed to add to history:", e);
-  }
 }

@@ -35,9 +35,7 @@ describe("User Actions - Group Management", () => {
     const state = await getUnifiedState(false);
     
     expect(state.subscriptions).toEqual(["Group A"]);
-    expect(state.nickname).toBe("My Laptop");
-    expect(state.history).toHaveLength(1);
-    expect(state.groupMembers["Group A"]).toEqual(["Member 1", "Member 2"]);
+    expect(state.nickname).toBe("My Laptop");expect(state.groupMembers["Group A"]).toEqual(["Member 1", "Member 2"]);
   });
 
   test("createGroupDirect adds to subscriptions", async () => {

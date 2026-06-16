@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, signInAnonymously, connectAuthEmulator } from "firebase/auth";
 import { getDatabase, ref, push, onChildAdded, remove, connectDatabaseEmulator, query, orderByChild, endAt, get, onValue, set, serverTimestamp } from "firebase/database";
-import { storage, addToHistory } from "../core/storage.js";
+import { storage } from "../core/storage.js";
 import { LOCAL_STORAGE_KEYS } from "../common/constants.js";
 import { deriveSyncKey, decryptPayload } from "../core/crypto.js";
 
@@ -80,10 +80,7 @@ export async function handleIncomingTab(payload, tabId, groupId, derivedKey, lis
       return;
     }
 
-    await browser.tabs.create({ url });
-    await addToHistory({ url, title: url, fromDevice: payload.nickname || "Remote Device" });
-
-    const updatedIds = [tabId, ...processedIds].slice(0, 100);
+    await browser.tabs.create({ url });const updatedIds = [tabId, ...processedIds].slice(0, 100);
     await storage.set(browser.storage.local, LOCAL_STORAGE_KEYS.PROCESSED_TAB_IDS, updatedIds);
 
   } catch (error) {

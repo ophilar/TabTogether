@@ -60,12 +60,7 @@ describe("Firebase Transport Integration", () => {
     await handleIncomingTab(payload, "tab-1", groupId, derivedKey);
 
     // Verify side effects
-    expect(browser.tabs.create).toHaveBeenCalledWith({ url });
-    
-    // Verify history update
-    const history = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.TAB_HISTORY);
-    expect(history[0].url).toBe(url);
-  });
+    expect(browser.tabs.create).toHaveBeenCalledWith({ url });});
 
   test("handleIncomingTab rejects echo", async () => {
     const payload = { senderId: "local-id" }; // Matches senderId in storage

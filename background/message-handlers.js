@@ -12,7 +12,7 @@ import { refreshListeners } from "./firebase-transport.js";
 
 export function initMessageHandlers() {
   browser.runtime.onMessage.addListener(async (message, sender) => {
-    console.log(`Background:runtime.onMessage - Received action: '${message.action}' from sender:`, sender?.tab?.id || sender?.id || "unknown");
+    console.log(`Background:runtime.onMessage - Received action: '${message.action}' from an extension component`);
 
     switch (message.action) {
       case "getState": {
@@ -78,7 +78,7 @@ export function initMessageHandlers() {
   });
 
   browser.storage.onChanged.addListener(async (changes, areaName) => {
-    console.log(`Background:storage.onChanged - Detected in area: '${areaName}'. Changes:`, JSON.stringify(changes));
+    console.log(`Background:storage.onChanged - Detected changes in area: '${areaName}'`);
     
     let itemsToNotify = new Set();
     let shouldRefreshListeners = false;
