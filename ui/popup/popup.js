@@ -286,7 +286,7 @@ async function sendTabToGroup(groupName) {
       if (dom.messageArea) showMessage(dom.messageArea, response?.message || STRINGS.sendTabFailed, true);
     }
   } catch (error) {
-    console.error(`Error sending tab to group ${groupName}:`, error);
+    console.error(`Error sending tab to group ${groupName}`);
     if (dom.messageArea) showMessage(dom.messageArea, STRINGS.sendTabError(error.message || "Unknown error"), true);
   }
 }

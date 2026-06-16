@@ -7,10 +7,9 @@ import { getGroupMembers } from "../background/firebase-transport.js";
  */
 export async function getUnifiedState(isAndroid) {
   try {
-    const [subscriptions, nickname, history] = await Promise.all([
+    const [subscriptions, nickname] = await Promise.all([
       storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.SUBSCRIPTIONS, []),
-      storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.DEVICE_NICKNAME, "Unknown Device"),
-      storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.TAB_HISTORY, [])
+      storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.DEVICE_NICKNAME, "Unknown Device")
     ]);
 
     // Track presence for all subscribed groups
@@ -25,7 +24,6 @@ export async function getUnifiedState(isAndroid) {
       groupMembers,
       isAndroid,
       nickname,
-      history,
       error: null,
     };
   } catch (error) {

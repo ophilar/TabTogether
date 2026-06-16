@@ -15,8 +15,7 @@ import {
   showLoadingIndicator,
   showMessage,
   clearMessage,
-  renderHistoryUI,
-} from "../shared/shared-ui.js";
+  } from "../shared/shared-ui.js";
 import { applyThemeFromStorage, setupThemeDropdown } from "../shared/theme.js";
 import {
   renderGroupListUI,
@@ -38,7 +37,6 @@ const dom = {
   syncIntervalInput: null,
   syncStatus: null,
   deviceNicknameInput: null,
-  tabHistoryListDiv: null,
   syncPasswordInput: null,
 };
 let currentState = null;
@@ -64,7 +62,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     dom.newGroupNameInput = document.getElementById("newGroupName");
     dom.createGroupBtn = document.getElementById("createGroupBtn");
     dom.deviceNicknameInput = document.getElementById("deviceNicknameInput");
-    dom.tabHistoryListDiv = document.getElementById("tabHistoryList");
     dom.loadingIndicator = document.getElementById("loadingIndicator");
     dom.messageArea = document.getElementById("messageArea");
     dom.syncPasswordInput = document.getElementById("syncPasswordInput");
@@ -243,11 +240,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 });
 
-function renderHistory() {
-  if (!currentState || !dom.tabHistoryListDiv) return;
-  renderHistoryUI(dom.tabHistoryListDiv, currentState.history);
-}
-
 async function updateSyncTimeDisplay() {
   const ts = await storage.get(browser.storage.local, LOCAL_STORAGE_KEYS.LAST_SYNC_TIME, null);
   if (ts && dom.syncStatus) {
@@ -300,7 +292,6 @@ function renderAll() {
   if (!currentState) return;
   try {
     renderDefinedGroups();
-    renderHistory();
     if (dom.deviceNicknameInput && currentState.nickname) {
       dom.deviceNicknameInput.value = currentState.nickname;
     }
